@@ -4,6 +4,25 @@
 **Created**: 2026-09-25
 **Status**: Draft
 
+## Clarifications
+
+### Session 2026-09-25
+
+- Q: Para gh, jq e curl, o comando de preparo deve checar apenas presença (sem piso de
+  versão), ou também exigir uma versão mínima definida para cada um? → A: Checar apenas
+  presença de gh/jq/curl, sem piso de versão — só git (>=2.36) e node (>=20) têm piso
+  mínimo exigido.
+- Q: Quando a instalação/atualização do plugin recomendado (ponytail) falha, o comando de
+  preparo deve terminar em falha (exit não-zero) como um todo, ou reportar a falha só
+  nesse item e ainda assim relatar sucesso geral? → A: Reportar a falha apenas no item
+  individual e terminar com sucesso geral — só a falha do plugin obrigatório
+  (context-mode) bloqueia o comando inteiro.
+- Q: O requisito de PT-BR (FR-012) cobre só as mensagens que o próprio script escreve,
+  deixando passar a saída nativa (stderr) das ferramentas externas como está, ou exige
+  também traduzir/suprimir essa saída nativa? → A: Cobre só as mensagens autorais do
+  script; a saída nativa de ferramentas externas (git/gh/cstk/curl) pode aparecer como
+  está, em qualquer idioma que a ferramenta produza.
+
 ## User Scenarios & Testing
 
 ### User Story 1 - Preparar a máquina para o ciclo com um comando (Priority: P1)
@@ -119,6 +138,9 @@ mudança falha em ambos os casos, apontando qual checagem barrou.
 - O que acontece quando a ferramenta de implementação do ciclo está instalada, na versão
   exigida, mas um dos plugins necessários está ausente? A execução deve instalar apenas o
   que falta, sem reinstalar o que já está correto.
+- O que acontece quando a instalação/atualização do plugin recomendado falha? O comando
+  reporta a falha apenas no status individual desse item e ainda assim relata sucesso
+  geral; só a falha do plugin obrigatório bloqueia o comando inteiro.
 - O que acontece quando um arquivo binário do repositório contém, por acaso, uma sequência
   de bytes igual a um termo da lista proibida? Fica fora do escopo desta feature tratar
   colisões binárias; a varredura assume conteúdo textual.
@@ -135,9 +157,11 @@ mudança falha em ambos os casos, apontando qual checagem barrou.
 
 ### Functional Requirements
 
-- **FR-001**: O sistema MUST verificar, antes de qualquer instalação, a presença e a
-  versão mínima exigida de cada ferramenta de base da máquina, e MUST falhar listando
-  claramente cada uma que estiver ausente ou abaixo do mínimo.
+- **FR-001**: O sistema MUST verificar, antes de qualquer instalação, a presença de cada
+  ferramenta de base da máquina (git, gh, node, jq, curl) e, adicionalmente, a versão
+  mínima exigida de git (>=2.36) e node (>=20) — gh, jq e curl MUST ser checados apenas
+  por presença, sem piso de versão — e MUST falhar listando claramente cada uma que
+  estiver ausente ou (no caso de git/node) abaixo do mínimo.
 - **FR-002**: O sistema MUST instalar a ferramenta de implementação do ciclo pelo canal
   oficial quando ela não estiver presente na máquina.
 - **FR-003**: O sistema MUST atualizar a ferramenta de implementação do ciclo para a
@@ -155,7 +179,9 @@ mudança falha em ambos os casos, apontando qual checagem barrou.
   global do usuário.
 - **FR-008**: O sistema MUST instalar ou atualizar, pelos canais oficiais de cada um, um
   plugin obrigatório de consulta externa e um plugin recomendado de simplicidade de
-  código.
+  código. Falha na instalação/atualização do plugin obrigatório MUST falhar o comando
+  inteiro; falha na instalação/atualização do plugin recomendado MUST ser reportada
+  apenas no status individual desse item (FR-009), sem falhar o comando.
 - **FR-009**: O sistema MUST, ao final da execução, validar que cada item preparado
   (ferramentas de base, ferramenta de implementação, skills, plugins) responde
   corretamente, e MUST relatar o status individual de cada um.
@@ -164,8 +190,10 @@ mudança falha em ambos os casos, apontando qual checagem barrou.
   configuração local sem aviso.
 - **FR-011**: O comando de preparo da máquina MUST escrever apenas na área de
   configuração da máquina do usuário — nunca dentro de um diretório de projeto-alvo.
-- **FR-012**: Toda mensagem produzida pelo comando de preparo da máquina MUST estar em
-  português do Brasil.
+- **FR-012**: Toda mensagem autoral produzida pelo próprio comando de preparo da máquina
+  MUST estar em português do Brasil. Este requisito não se estende à saída nativa
+  (stdout/stderr) de ferramentas externas invocadas (git, gh, cstk, curl), que MAY
+  aparecer no idioma que a ferramenta produzir.
 - **FR-013**: O sistema MUST fornecer uma verificação que varre todo o repositório contra
   uma lista de termos proibidos e MUST reportar sucesso quando a varredura encontrar zero
   ocorrências.
