@@ -6,3 +6,6 @@
 
 # Saída de render local dos templates (teste)
 .render/
+
+# Config local do MCP cstk-state (caminho absoluto da máquina) — `cstk mcp install`
+/.mcp.json
