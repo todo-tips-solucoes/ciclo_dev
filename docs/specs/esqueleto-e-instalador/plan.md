@@ -14,7 +14,7 @@ segredo (esta última acrescentada pela resposta do owner ao block-001).
 Abordagem técnica: três arquivos de shell e um workflow, sem build, sem
 dependência nova. `instalar.sh` é um pipeline linear de sete etapas que **acumula
 status por item** em vez de abortar no primeiro erro, para poder entregar o
-relatório consolidado que FR-009 pede. A instalação do `cstk` sai do one-liner
+relatório consolidado que FR-009 pede. A instalação do `cstk` sai da URL do one-liner
 oficial (Princípio IV: dependência, nunca cópia), e a ordem `self-update` →
 conferência do piso `CSTK_MIN` é literal da constituição. A varredura de
 agnosticismo enumera arquivos por `git ls-files`, o que resolve de graça a
@@ -41,7 +41,7 @@ exclusão de `.git/` e do que o `.gitignore` já ignora.
 | I. Agnosticismo Verificável | PASS | A feature **é** o mecanismo do princípio: `scripts/verificar-agnostico.sh` + `scripts/agnostico.lista` versionada e separada da lógica, rodando no CI com zero ocorrências. Exemplos usam nomes fictícios (`minha-org/meu-projeto`). A parte "credencial" da promessa, que o casamento literal não alcançava, passa a ser coberta pelo job `segredos` (FR-019, block-001 → dec-023). |
 | II. Cockpit sob o próprio ciclo | PASS | Frente de trilha completa: toca `scripts/`, `.github/` e a raiz. Nasceu em worktree com base explícita e está sendo implementada via `/feature-00c`; o registro SDD entra na PR em `docs/specs/esqueleto-e-instalador/`. |
 | III. Identidade de Commit Declarada | PASS | Nada nesta feature altera identidade de commit. O `instalar.sh` não escreve configuração de git. |
-| IV. Ferramentas externas são dependências | PASS | `cstk` instalado pelo one-liner oficial e atualizado por `cstk self-update`; plugins pelos respectivos marketplaces. `CSTK_MIN` lido de `versoes.env` e de nenhum outro lugar. Ordem `self-update` → piso respeitada. Nenhum hook copiado. |
+| IV. Ferramentas externas são dependências | PASS | `cstk` instalado pela URL oficial do one-liner (baixada para arquivo e então executada, nunca `curl \| sh`) e atualizado por `cstk self-update`; plugins pelos respectivos marketplaces. `CSTK_MIN` lido de `versoes.env` e de nenhum outro lugar. Ordem `self-update` → piso respeitada. Nenhum hook copiado. |
 | V. Fonte Oficial Antes de Afirmar | PASS | Todo fato sobre ferramenta externa em [research.md](./research.md) carrega fonte, marcada FONTE OFICIAL (lida via `context-mode`) ou MEDIDO (sonda empírica com saída citada). A única lacuna encontrada está declarada como lacuna, não preenchida por suposição (Decision 10). |
 | VI. Português do Brasil | PASS | Toda mensagem autoral dos scripts em pt-BR com acentuação. FR-012 limita o requisito às mensagens autorais; saída nativa de `git`/`gh`/`cstk`/`curl` passa como vier. |
 | VII. Scripts portáveis, idempotentes e contidos | PASS | `set -euo pipefail` nos três scripts; escrita confinada a `~/.claude/` e `~/.local/`; idempotência por comparação de conteúdo antes de copiar (Decision 14); comparação de versão sem `sort -V` (Decision 4); pré-requisitos limitados à lista fechada. |
@@ -119,11 +119,11 @@ script). Fora de escopo por ora, por decisão do owner (YAGNI): flag
 | # | Etapa | FR | Bloqueante? |
 |---|-------|-----|-------------|
 | 1 | Pré-requisitos de máquina: presença de `git`, `gh`, `node`, `jq`, `curl` + versão de `git` (>= 2.36) e `node` (>= 20) **+ pré-checagem de escrita** (criar e remover arquivo temporário em `~/.claude/` e `~/.local/`) | FR-001, FR-011 | **Sim — e encerra aqui**, listando todos os ausentes de uma vez (exit `2`) ou a área sem permissão de escrita (exit `3`) |
-| 2 | `cstk` ausente → one-liner oficial; presente → `cstk self-update` | FR-002, FR-003 | Sim |
+| 2 | `cstk` ausente → URL oficial do one-liner, baixada para arquivo e então executada; presente → `cstk self-update` | FR-002, FR-003 | Sim |
 | 3 | `cstk --version` responde? | FR-005 | Sim |
 | 4 | Versão do `cstk` >= `CSTK_MIN` (lido de `versoes.env`) | FR-004 | Sim |
 | 5 | catálogo de skills: `cstk install` cheio só sem manifest; senão cherry-pick do que falta + `cstk update` | FR-006 | Sim |
-| 6 | Skills do cockpit de `skills/` → `~/.claude/skills/` | FR-007 | Não (ver Decision 13: `skills/` ainda não existe → item `pulada`) |
+| 6 | Skills do cockpit de `skills/` → `~/.claude/skills/` | FR-007 | Sim quando **falha** (FR-007 é MUST); `pulada` — `skills/` ainda não existe, Decision 13 — segue não-bloqueante (review rodada 4) |
 | 7 | Plugins: `context-mode` e `ponytail` pelos marketplaces, **por plugin**: ausente → instala; presente → atualiza (mesmo padrão da etapa 2 com o `cstk`) | FR-008 | `context-mode` sim; `ponytail` **não** |
 | — | Relatório final com status por item | FR-009 | — |
 
@@ -139,7 +139,7 @@ relatório. Esta é a principal armadilha do arquivo.
 o mínimo testado, não o alvo.
 
 **Confinamento (FR-011)**: as únicas áreas escritas são `~/.local/` (binário e
-runtime do `cstk`, via one-liner oficial) e `~/.claude/` (catálogo, skills do
+runtime do `cstk`, via URL oficial do one-liner) e `~/.claude/` (catálogo, skills do
 cockpit, plugins). Nenhuma etapa aceita ou deriva um caminho de projeto-alvo.
 
 **Pré-checagem de escrita (CHK010, Acceptance Scenario 8)**: a etapa 1 cria e

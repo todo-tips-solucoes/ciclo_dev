@@ -33,6 +33,7 @@ Uma linha por etapa, em pt-BR, com status individual. Forma proposta:
 Relatório de preparo da máquina:
   [ok]      Pré-requisitos de máquina
   [ok]      cstk atualizado
+  [ok]      cstk responde à checagem de versão
   [ok]      Versão do cstk >= CSTK_MIN (<instalada> >= <piso>)
   [ok]      Catálogo de skills do toolkit
   [pulada]  Skills do cockpit — diretório skills/ ainda não existe
@@ -46,7 +47,7 @@ Relatório de preparo da máquina:
 |--------|-------------|
 | `0` | Nenhum item **bloqueante** falhou. Itens não-bloqueantes podem ter falhado e aparecem como `[falhou]` no relatório (FR-008). |
 | `1` | Ao menos um item bloqueante falhou. O relatório identifica qual. |
-| `2` | Pré-requisitos de máquina ausentes ou abaixo do mínimo. Encerra antes das demais etapas, listando **todos** os faltantes de uma vez (Edge Case da spec). Também `HOME` indefinido e execução como root/sudo: recusadas antes de qualquer etapa, com mensagem própria e sem relatório (review rodada 1). |
+| `2` | Pré-requisitos de máquina ausentes ou abaixo do mínimo. Encerra antes das demais etapas, listando **todos** os faltantes de uma vez (Edge Case da spec). Também `HOME` indefinido, execução como root/sudo e raiz do script não resolvível: recusadas antes de qualquer etapa, com mensagem própria e sem relatório (review rodadas 1 e 4). |
 | `3` | Permissão de escrita insuficiente em `~/.claude/` e/ou `~/.local/`, detectada por uma pré-checagem (criar e remover um arquivo temporário) dentro da etapa 1, antes de qualquer etapa escrever algo. A mensagem identifica qual área falhou. Nenhum estado parcial: a checagem roda antes de qualquer escrita real (Edge Case da spec, Acceptance Scenario 8). |
 
 > Separar `2` de `1` e `3` de ambos é deliberado: "sua máquina não tem as ferramentas de
@@ -63,7 +64,7 @@ Cada um com a fonte que o confirma — nenhum foi reconstruído de memória.
 | `cstk` presente | `cstk self-update --yes` | FONTE OFICIAL — README; *"updates the cstk binary itself + cli/lib"*. `--yes` MEDIDO em `cstk --help`: flag global, *"Pula confirmacoes interativas"* |
 | Conferir versão | `cstk --version` | MEDIDO — devolve `cstk v10.8.0` |
 | Catálogo, máquina sem manifest | `cstk install --yes` (cheio) — só quando `~/.claude/skills/.cstk-manifest` não existe | FONTE OFICIAL — README; instala o perfil `sdd` em `~/.claude/skills/`. Cheio **apenas aqui**: sem catálogo não há edição local a preservar |
-| Catálogo, o que falta | `cstk install --yes <skill>...` (cherry-pick; `SKILL...` no `--help`), com a lista tirada de `cstk install --dry-run` (linhas `[dry-run] install: <nome>`) | MEDIDO: `install --yes` **sem argumentos** sobrescreve toda edição local de skills, commands e agents em silêncio (rc 0); o cherry-pick instala só a nomeada e preserva as demais. Cobre skill apagada do disco e skill nova de release mais recente (review rodada 3) |
+| Catálogo, o que falta | `cstk install --yes <skill>...` (cherry-pick; `SKILL...` no `--help`), com a lista tirada de `cstk install --dry-run --yes </dev/null` (linhas `[dry-run] install: <nome>`, impressas em **stderr**; só nome casando `^[A-Za-z0-9][A-Za-z0-9._@-]*$` é aceito, para que um token com hífen não vire flag). **Um `--dry-run` com rc≠0 derruba a etapa 5 como item bloqueante**: sem o plano não há como saber o que falta, e relatar `[ok]` seria mentira (review rodada 4) | MEDIDO: `install --yes` **sem argumentos** sobrescreve toda edição local de skills, commands e agents em silêncio (rc 0); o cherry-pick instala só a nomeada e preserva as demais. Cobre skill apagada do disco e skill nova de release mais recente (review rodada 3) |
 | Catálogo, o que já existe | `cstk update --yes`; **rc 4 é sucesso** | FONTE OFICIAL — README; *"applies new releases preserving local edits"*. `cstk update --help` §EXIT CODES: `4` = *"artefato pulado por edicao local sem --force/--keep"* — a preservação é o comportamento correto, não falha (review rodada 3) |
 | Detectar marketplace | `claude plugin marketplace list --json`, campo `.name` | MEDIDO — saída real do `--json` nesta máquina |
 | Registrar marketplace | `claude plugin marketplace add <source>` | MEDIDO — `claude plugin marketplace add --help` |
@@ -83,7 +84,9 @@ provisiona hooks **dentro de um projeto-alvo**, o que o Princípio VII proíbe a
 ## `scripts/verificar-agnostico.sh` — verificação de agnosticismo
 
 **Invocação**: `./scripts/verificar-agnostico.sh`
-**Efeito colateral**: nenhum — só leitura (FR-016). Idempotente por construção.
+**Efeito colateral**: nenhum sobre o repositório — só leitura (FR-016). Cria e
+remove arquivos temporários próprios sob `$TMPDIR` (removidos por `trap … EXIT`).
+Idempotente por construção.
 **Entrada de dados**: `scripts/agnostico.lista` (formato em
 [data-model.md](../data-model.md)).
 
@@ -118,7 +121,7 @@ Agnosticismo: FALHOU — 3 ocorrência(s) de termo proibido:
 |--------|-------------|
 | `0` | Zero ocorrências (FR-013). Inclui o caso de lista vazia ou só com comentários. |
 | `1` | Uma ou mais ocorrências; todas listadas com arquivo e linha (FR-014); ocorrência no caminho sai como `arquivo:0:(caminho)`. |
-| `2` | Erro de uso — `scripts/agnostico.lista` ausente ou ilegível, execução fora de um repositório git (a enumeração depende de `git ls-files`), `git ls-files` falhando ou sem listar o próprio script (cópia sem `.git` dentro de outro repositório), arquivo versionado ilegível, ou falha ao criar arquivo temporário. Erro de leitura nunca é engolido como "OK". |
+| `2` | Erro de uso — raiz do script não resolvível, `scripts/agnostico.lista` ausente ou ilegível, execução fora de um repositório git (a enumeração depende de `git ls-files`), `git ls-files` falhando ou sem listar o próprio script (cópia sem `.git` dentro de outro repositório), arquivo versionado ilegível, ou falha ao criar arquivo temporário. Erro de leitura nunca é engolido como "OK". |
 
 ### Regras de varredura
 

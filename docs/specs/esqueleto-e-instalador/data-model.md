@@ -163,6 +163,6 @@ posterior:
 | `cstk --version` responde | sim |
 | Versão >= `CSTK_MIN` | sim |
 | Catálogo (`cstk install`/`update`) | sim |
-| Skills do cockpit | não |
+| Skills do cockpit | sim quando falha; `pulada` não |
 | Plugin `context-mode` | **sim** (obrigatório por Princípio V) |
 | Plugin `ponytail` | **não** (recomendado) |

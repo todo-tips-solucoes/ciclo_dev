@@ -19,7 +19,9 @@ Cobre User Story 1 cenários 2 e 7; SC-001.
    **sem** `cstk` instalado.
 2. Executar `./instalar.sh`.
 3. **Expected**:
-   - o `cstk` é instalado pelo one-liner oficial, em `~/.local/bin/`;
+   - o `cstk` é instalado pela URL oficial do one-liner — baixada para um
+     arquivo temporário em `~/.local/` e então executada, nunca canalizada
+     direto para o shell — ficando em `~/.local/bin/`;
    - `cstk --version` responde e a versão é conferida contra `CSTK_MIN`;
    - o relatório final lista **cada** item (pré-requisitos, cstk, catálogo,
      skills, plugins) com seu status individual;
@@ -222,8 +224,11 @@ Cobre User Story 1 cenário 9; Edge Case "plugin ausente"; FR-008.
 3. Executar `./instalar.sh`.
 4. **Expected**:
    - o `ponytail` é instalado;
-   - o `context-mode` **não** é reinstalado nem afetado (estado do passo 2
-     inalterado);
+   - o `context-mode` **não** é reinstalado: recebe `claude plugin update`,
+     que é o que FR-008 pede ("instalar **ou** atualizar"). Sem release nova, o
+     estado do passo 2 fica inalterado e a saída nativa diz *already at the
+     latest version*; com release nova, ele é atualizado — e isso é sucesso,
+     não violação do cenário (review rodada 5);
    - o relatório final mostra os dois plugins com status `[ok]`.
 
 ---

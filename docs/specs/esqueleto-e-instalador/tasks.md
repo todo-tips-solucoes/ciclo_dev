@@ -529,3 +529,31 @@ Mesmo escopo. Camadas: Blind Hunter (8), Edge Case Hunter (10, com reprodução 
 ### Decision-needed (bloqueia o fechamento do gate)
 
 - [x] [Review][Decision] **Resolvido pelo owner em 2026-09-25: risco aceito formalmente** (registrado em spec.md §Riscos aceitos e plan.md §Risco residual aceito item 1); deixa de bloquear o gate. — O bootstrap do cstk baixa `releases/latest/download/install.sh` e executa, sem versão fixa nem checksum, com os privilégios do dev. Levantado nas quatro rodadas; dispensado três vezes por mim como "desenho da spec" (`versoes.env`: piso ≠ alvo, a máquina fica na última release) e risco aceito em dec-018. O Blind Hunter da rodada 4 classifica como **alto**, e um alto não dispensado impede o gate de fechar. Precisa de decisão do owner: pinar, aceitar formalmente, ou mudar o desenho.
+
+## Review Findings — bmad-code-review rodada 5 (2026-09-25) — **GATE FECHADO**
+
+Camadas que faltavam da rodada 4, relançadas sobre `e4f3f76`: Edge Case Hunter (6) e Acceptance Auditor (7). **Nenhum achado alto ou crítico** — a condição da constituição ("o ciclo termina quando uma rodada não produz achado alto ou crítico") está satisfeita. Os 13 achados médios/baixos foram aplicados assim mesmo, por serem baratos e verificáveis; as correções pós-gate estão validadas em sandbox e listadas abaixo para o revisor da PR.
+
+### Patch (aplicados)
+
+- [x] [Review][Patch] MÉDIO: `[ -d "$arquivo" ]` tratava **qualquer** diretório como gitlink e pulava o conteúdo — um arquivo versionado que virou diretório no worktree (merge abortado, troca manual) escondia o blob. Agora confere o modo `160000` (edge; reproduzido: blob com termo passava com rc 0, agora rc 1) [scripts/verificar-agnostico.sh]
+- [x] [Review][Patch] MÉDIO: `velho="$destino.antigo.$$"` colidia com sobra de execução interrompida de mesmo PID — `mv` aninhava dentro dela e o `rm -rf` seguinte apagava a edição local que o aviso prometeu preservar. Nomes agora vêm de `mktemp -d` + `rmdir` (edge; reproduzido: sobra preservada) [instalar.sh etapa6]
+- [x] [Review][Patch] MÉDIO: plan e data-model ainda declaravam a etapa 6 como não-bloqueante, contra o código da rodada 4 — e o mapa de bloqueio do data-model é a fonte normativa do exit code (auditor) [plan.md; data-model.md]
+- [x] [Review][Patch] MÉDIO: exit 2 por raiz do script não resolvível não constava do contrato, nos dois scripts (auditor) [contracts/cli.md]
+- [x] [Review][Patch] MÉDIO: o contrato não registrava que um `cstk install --dry-run` com rc≠0 derruba a etapa 5, nem a forma real do comando (`--yes </dev/null`, stderr, filtro de nome) (auditor) [contracts/cli.md]
+- [x] [Review][Patch] BAIXO: `diff` decide "idêntica vs divergente" e não é pré-requisito; sem ele toda execução reescrevia a skill avisando divergência falsa. Agora a etapa 6 é `pulada` com o motivo (edge; validado com PATH sem diff) [instalar.sh]
+- [x] [Review][Patch] BAIXO: sobra `.antigo.*` era avisada só no stderr; agora também na linha do relatório (edge) [instalar.sh]
+- [x] [Review][Patch] BAIXO: sem `trap`, temporários em `~/.local` sobreviviam a Ctrl-C; `trap limpar_tmps EXIT` (edge; validado com SIGINT no meio da etapa 2) [instalar.sh]
+- [x] [Review][Patch] BAIXO: `printf '%s\n' "$saida"` emitia linha em branco com saída vazia do cstk (edge) [instalar.sh]
+- [x] [Review][Patch] BAIXO: exemplo de relatório do contrato omitia a linha da etapa 3, que o script sempre emite (auditor) [contracts/cli.md]
+- [x] [Review][Patch] BAIXO: quickstart e plan diziam "instalado pelo one-liner oficial", que o código deliberadamente não faz (baixa para arquivo e então executa) (auditor) [quickstart.md; plan.md]
+- [x] [Review][Patch] BAIXO: quickstart cenário 13 esperava o plugin correto "inalterado", mas FR-008 pede "instalar **ou atualizar**" e o código atualiza (auditor) [quickstart.md]
+- [x] [Review][Patch] BAIXO: contrato dizia "efeito colateral: nenhum — só leitura" para um script que cria quatro temporários (auditor) [contracts/cli.md]
+
+### Regressão pega na própria aplicação
+
+- [x] As correções introduziram quatro avisos informativos de shellcheck (SC2317 no handler do trap, SC2015 em três `A && B || C`). Com a severidade padrão isso **reprovaria o job `shellcheck`** do CI. Reescrito com `if` e um `disable` justificado; `shellcheck` volta a sair 0.
+
+### Veredito
+
+Cinco rodadas, quinze passagens de revisor, 86 achados aplicados, 6 dispensados com justificativa e 1 risco aceito formalmente pelo owner. A última rodada não produziu alto nem crítico: **o gate da constituição está fechado** e a frente pode abrir PR.

@@ -49,6 +49,14 @@ CSTK_VERSAO_INSTALADA=""
 CSTK_MIN=""
 PLUGIN_STATUS=""
 
+# Temporários próprios, sempre sob ~/.local (FR-011). O trap cobre Ctrl-C no
+# meio do bootstrap ou do plano, que antes deixava sobras acumulando
+# (review rodada 5).
+TMPS=()
+# shellcheck disable=SC2317  # chamada pelo trap, não em linha reta
+limpar_tmps() { [ "${#TMPS[@]}" -eq 0 ] || rm -f -- "${TMPS[@]}" 2>/dev/null || :; }
+trap limpar_tmps EXIT
+
 # --- utilidades -------------------------------------------------------
 
 log_etapa_inicio() {
@@ -182,6 +190,7 @@ etapa2_cstk_instalar_ou_atualizar() {
     # permitida e contra o "sem interação" do contrato. O dev habilita depois
     # com `cstk help telemetry` se quiser (review rodada 1).
     tmp="$(mktemp "$HOME/.local/.instalar-cstk.XXXXXX")"
+    TMPS+=("$tmp")
     if curl -fsSL "$CSTK_INSTALL_URL" -o "$tmp" && CSTK_INSTALL_TELEMETRY=no sh "$tmp"; then
       status=ok
     else
@@ -204,8 +213,9 @@ etapa3_cstk_responde() {
     detalhe=" — cstk --version não respondeu"
   fi
   # Reproduz a saída nativa do cstk sem filtro (dec-036), mesmo tendo
-  # capturado para conferir a versão logo abaixo.
-  printf '%s\n' "$saida"
+  # capturado para conferir a versão logo abaixo. Saída vazia não vira linha
+  # em branco no meio das etapas (review rodada 5).
+  [ -n "$saida" ] && printf '%s\n' "$saida"
   CSTK_VERSAO_INSTALADA=""
   if [ "$status" = ok ]; then
     # `|| true`: saída sem x.y.z deixa a versão vazia e a etapa 4 registra
@@ -310,11 +320,12 @@ etapa5_catalogo() {
     return
   fi
   local plano detalhe=""
-  plano="$(mktemp "$HOME/.local/.instalar-plano.XXXXXX")" || {
+  if ! plano="$(mktemp "$HOME/.local/.instalar-plano.XXXXXX")"; then
     registrar_item "Catálogo de skills do toolkit — não consegui criar arquivo temporário" falhou true
     log_etapa_fim 5 "falhou"
     return
-  }
+  fi
+  TMPS+=("$plano")
   status=ok
   if ! skills_faltantes "$plano"; then
     rm -f "$plano"
@@ -368,7 +379,16 @@ etapa6_skills_cockpit() {
     log_etapa_fim 6 "falhou"
     return
   fi
-  local instaladas=0 divergentes="" falhas="" skill_dir nome destino novo velho resto status
+  # `diff` não está na lista de pré-requisitos (FR-001) e é o que decide
+  # "idêntica vs divergente". Sem ele, o ramo de igualdade nunca era tomado e
+  # TODA execução reescrevia a skill avisando "edição local divergente" —
+  # idempotência falsa (FR-010). Melhor pular e dizer por quê (review rodada 5).
+  if ! command -v diff >/dev/null 2>&1; then
+    registrar_item "Skills do cockpit — 'diff' não encontrado; sem ele não dá para comparar com o que já está instalado" pulada false
+    log_etapa_fim 6 "pulada"
+    return
+  fi
+  local instaladas=0 divergentes="" falhas="" sobras="" skill_dir nome destino novo velho resto status
   for skill_dir in "$origem"/*/; do
     [ -d "$skill_dir" ] || continue
     nome="$(basename "$skill_dir")"
@@ -381,6 +401,9 @@ etapa6_skills_cockpit() {
     for resto in "$destino".antigo.*; do
       [ -e "$resto" ] || continue
       echo "Aviso: $resto sobrou de uma troca interrompida e pode conter sua edição local — confira e remova à mão." >&2
+      # Também no relatório: o aviso em stderr some no scrollback e a pendência
+      # é permanente (o Claude Code lê a sobra como skill) — review rodada 5.
+      sobras="$sobras $(basename "$resto")"
     done
     if [ ! -e "$destino" ] && [ ! -L "$destino" ]; then
       if cp -r "$skill_dir" "$destino"; then instaladas=$((instaladas + 1)); else falhas="$falhas $nome"; fi
@@ -394,8 +417,19 @@ etapa6_skills_cockpit() {
       # então substitui — se a cópia falhar no meio, a versão local continua
       # intacta (review rodada 2).
       echo "Aviso: ~/.claude/skills/$nome tem edição local divergente — substituindo pela versão do cockpit." >&2
-      novo="$destino.novo.$$"
-      velho="$destino.antigo.$$"
+      # Nomes únicos por criação atômica, não por PID: com um `.antigo.<pid>`
+      # de execução interrompida ainda no lugar, a reutilização do PID fazia
+      # `mv "$destino" "$velho"` aninhar DENTRO da sobra e o `rm -rf` seguinte
+      # apagava a edição local que o aviso prometeu preservar (review rodada
+      # 5). O `rmdir` devolve o nome livre, já reservado.
+      if ! novo="$(mktemp -d "$destino.novo.XXXXXX")" || ! rmdir "$novo"; then
+        falhas="$falhas $nome"
+        continue
+      fi
+      if ! velho="$(mktemp -d "$destino.antigo.XXXXXX")" || ! rmdir "$velho"; then
+        falhas="$falhas $nome"
+        continue
+      fi
       # Duas renomeações: o destino só deixa de existir no instante do `mv`, e
       # se o segundo falhar a versão local volta. Antes era `rm -rf destino &&
       # mv`: um `rm` parcial (subdiretório sem escrita, arquivo em uso no WSL)
@@ -423,7 +457,7 @@ etapa6_skills_cockpit() {
   [ -z "$falhas" ] || status=falhou
   # Bloqueante quando FALHA de verdade (FR-007 é um MUST); `pulada`, com o
   # diretório skills/ ainda inexistente, segue não-bloqueante (review rodada 4).
-  registrar_item "Skills do cockpit ($instaladas instalada(s); substituídas com edição local avisada:${divergentes:- nenhuma}${falhas:+; falhou:$falhas})" "$status" \
+  registrar_item "Skills do cockpit ($instaladas instalada(s); substituídas com edição local avisada:${divergentes:- nenhuma}${falhas:+; falhou:$falhas}${sobras:+; sobras de troca interrompida a remover à mão:$sobras})" "$status" \
     "$([ "$status" = ok ] && echo false || echo true)"
   log_etapa_fim 6 "$([ "$status" = ok ] && echo "concluída" || echo "falhou")"
 }

@@ -146,8 +146,11 @@ while IFS= read -r -d '' arquivo; do
     continue
   fi
   # Gitlink (submódulo): o repositório-pai versiona só o ponteiro. O caminho já
-  # foi casado acima; não há conteúdo deste repositório para varrer.
-  if [ -d "$arquivo" ]; then
+  # foi casado acima; não há conteúdo deste repositório para varrer. Conferir o
+  # modo 160000 e não só "é diretório": um arquivo versionado que virou
+  # diretório no worktree (merge abortado, troca manual) tem blob no índice, e
+  # pular por `-d` era falso negativo da guarda (review rodada 5).
+  if [ -d "$arquivo" ] && git ls-files -s -- "$arquivo" | grep -q '^160000'; then
     continue
   fi
   if [ -f "$arquivo" ]; then
