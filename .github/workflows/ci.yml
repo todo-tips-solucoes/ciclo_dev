@@ -1,0 +1,102 @@
+# CI do cockpit-dev.
+#
+# Três garantias independentes, cada uma no seu job, para que o relatório da
+# PR diga qual delas barrou (User Story 3; contracts/cli.md §Workflow de CI;
+# plan.md §CI do cockpit):
+#   - shellcheck  → portabilidade/qualidade de shell de todo .sh (FR-017)
+#   - agnostico   → scripts/verificar-agnostico.sh (FR-018)
+#   - segredos    → gitleaks binário, dir . --redact (FR-019, FR-020, FR-021)
+#
+# Gatilho: pull_request e push em main — nunca pull_request_target
+# (CICD-SEC-4, plan.md §Superfície de Segurança: pull_request roda o código
+# do fork com token somente-leitura e sem segredos).
+#
+# Permissão mínima: contents: read no nível do workflow (CICD-SEC-2).
+#
+# Actions de terceiro fixadas por SHA de commit, nunca tag móvel (A03,
+# CICD-SEC-8) — fonte de cada pin abaixo, lida via context-mode (Princípio V):
+#   actions/checkout@v7.0.1 → SHA 3d3c42e5aac5ba805825da76410c181273ba90b1,
+#   confirmado em https://api.github.com/repos/actions/checkout/releases/latest
+#   e https://api.github.com/repos/actions/checkout/commits/v7.0.1
+#   (cross-checado com https://github.com/actions/checkout/releases).
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  shellcheck:
+    name: shellcheck
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Instalar shellcheck
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y shellcheck
+
+      - name: Rodar shellcheck em todo .sh versionado
+        run: |
+          set -euo pipefail
+          ARQUIVOS=$(git ls-files '*.sh')
+          if [ -z "$ARQUIVOS" ]; then
+            echo "nenhum .sh versionado — nada a verificar"
+            exit 0
+          fi
+          echo "$ARQUIVOS" | xargs shellcheck
+
+  agnostico:
+    name: agnostico
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Verificar agnosticismo (FR-018)
+        run: ./scripts/verificar-agnostico.sh
+
+  segredos:
+    name: segredos
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      # Binário baixado e conferido no job — nunca a Action de terceiro
+      # (research Decision 15: gitleaks/gitleaks-action exige
+      # GITLEAKS_LICENSE em repositório de organização e não é mais MIT).
+      # Versão e nomes de asset confirmados via context-mode em
+      # https://api.github.com/repos/gitleaks/gitleaks/releases/latest e
+      # https://github.com/gitleaks/gitleaks/releases (linux_x64, não
+      # linux_amd64). Checksum conferido contra o checksums.txt publicado
+      # ao lado, formato "<sha256>  <arquivo>" confirmado por leitura
+      # literal do arquivo — sha256sum --ignore-missing -c ignora as
+      # linhas dos demais 9 assets de outras plataformas, não baixados.
+      - name: Baixar e conferir gitleaks
+        run: |
+          set -euo pipefail
+          VERSAO="8.30.1"
+          TARBALL="gitleaks_${VERSAO}_linux_x64.tar.gz"
+          CHECKSUMS="gitleaks_${VERSAO}_checksums.txt"
+          BASE_URL="https://github.com/gitleaks/gitleaks/releases/download/v${VERSAO}"
+          curl -fsSLO "${BASE_URL}/${TARBALL}"
+          curl -fsSLO "${BASE_URL}/${CHECKSUMS}"
+          sha256sum --ignore-missing -c "${CHECKSUMS}"
+          tar -xzf "${TARBALL}" gitleaks
+          chmod +x gitleaks
+
+      # --redact é obrigatória (não cosmética, FR-019): sem ela, o console
+      # default do gitleaks imprime o campo Secret: com o valor achado, e
+      # barrar um vazamento publicaria o segredo no log da PR. Sem -c/-i:
+      # .gitleaks.toml e .gitleaksignore da raiz são lidos por default
+      # (FR-021 — exceção só existe versionada e revisável no diff da PR).
+      - name: Rodar gitleaks (FR-019, FR-020, FR-021)
+        run: ./gitleaks dir . --redact

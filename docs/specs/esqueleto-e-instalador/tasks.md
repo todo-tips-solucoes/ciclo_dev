@@ -196,18 +196,28 @@ Ref: spec.md FR-013, FR-014, FR-015, FR-016; plan.md §Arquitetura de
 `scripts/verificar-agnostico.sh`; contracts/cli.md; data-model.md §Lista de
 termos proibidos; research Decision 6, 7, 8
 
-- [ ] 3.1.1 Ler `scripts/agnostico.lista` (`#` comenta, linhas em branco
+- [x] 3.1.1 Ler `scripts/agnostico.lista` (`#` comenta, linhas em branco
       ignoradas — research Decision 8)
-- [ ] 3.1.2 Enumerar arquivos versionados via `git ls-files`, excluindo
+- [x] 3.1.2 Enumerar arquivos versionados via `git ls-files`, excluindo
       `scripts/agnostico.lista` da própria varredura (research Decision 7)
-- [ ] 3.1.3 Casar por substring literal case-insensitive (`grep -i -F`),
+- [x] 3.1.3 Casar por substring literal case-insensitive (`grep -i -F`),
       reportando `arquivo:linha` por ocorrência
-- [ ] 3.1.4 Implementar os três códigos de saída: `0` zero ocorrências
+- [x] 3.1.4 Implementar os três códigos de saída: `0` zero ocorrências
       (inclui lista vazia/só comentários); `1` uma ou mais ocorrências
       listadas; `2` erro de uso (`scripts/agnostico.lista` ausente ou fora de
-      um repositório git)
-- [ ] 3.1.5 Teste: reproduzir quickstart Scenario 8 (repositório limpo) e
-      Scenario 9 (termo plantado é apontado com arquivo e linha)
+      um repositório git). Validado empiricamente: exit 2 para lista ausente
+      e para execução fora de repo git; exit 0 para lista só-comentário
+      (onda-009)
+- [x] 3.1.5 Teste: reproduzir quickstart Scenario 8 (repositório limpo) e
+      Scenario 9 (termo plantado é apontado com arquivo e linha). Validado
+      empiricamente em repositório git contido sob o scratchpad (nunca no
+      repositório real): Scenario 8 roda também no repositório real
+      (`./scripts/verificar-agnostico.sh` → `OK`, exit 0 — confirma que a
+      auto-exclusão de `agnostico.lista` funciona de fato); Scenario 9 com
+      termo plantado em duas capitalizações (`termo-de-teste-agnostico` e
+      `Termo-De-Teste-Agnostico`) → ambas detectadas com `arquivo:linha`
+      exatos, exit 1; revertendo as edições volta a `OK`/exit 0, provando
+      que a lista é editável sem tocar no script (FR-015) (onda-009)
 
 ---
 
@@ -218,48 +228,87 @@ termos proibidos; research Decision 6, 7, 8
 Ref: spec.md FR-017; plan.md §CI do cockpit, §Superfície de Segurança;
 contracts/cli.md §Workflow de CI; research Decision 9
 
-- [ ] 4.1.1 Criar `.github/workflows/ci.yml` com gatilho `pull_request` e
-      `push` para `main` — **nunca** `pull_request_target`
-- [ ] 4.1.2 Declarar `permissions: contents: read` no nível do workflow
-      (CICD-SEC-2)
-- [ ] 4.1.3 Fixar Actions de terceiro por SHA de commit, nunca tag móvel
-      (A03, CICD-SEC-8)
-- [ ] 4.1.4 Job `shellcheck`: instalar `shellcheck` explicitamente no job
+- [x] 4.1.1 Criar `.github/workflows/ci.yml` com gatilho `pull_request` e
+      `push` para `main` — **nunca** `pull_request_target`. Verificado por
+      revisão estrutural do YAML: `on: { pull_request: {}, push: { branches:
+      [main] } }`, nenhuma chave `pull_request_target` (onda-009)
+- [x] 4.1.2 Declarar `permissions: contents: read` no nível do workflow
+      (CICD-SEC-2). Declarado no nível do workflow (fora de `jobs:`)
+- [x] 4.1.3 Fixar Actions de terceiro por SHA de commit, nunca tag móvel
+      (A03, CICD-SEC-8). Única Action de terceiro usada é `actions/checkout`
+      nos 3 jobs, pinada em `3d3c42e5aac5ba805825da76410c181273ba90b1`
+      (`v7.0.1`) — SHA obtido via `ctx_fetch_and_index` (Princípio V) de
+      `api.github.com/repos/actions/checkout/releases/latest` e
+      `.../commits/v7.0.1`, cross-checado com a página HTML de releases
+      (dec-042, onda-009)
+- [x] 4.1.4 Job `shellcheck`: instalar `shellcheck` explicitamente no job
       (não assumir pré-instalado no runner) e rodar sobre todo `.sh` do
-      repositório (FR-017)
+      repositório (FR-017). Implementado via `apt-get install -y shellcheck`
+      + `git ls-files '*.sh' | xargs shellcheck` (mesma enumeração de
+      Decision 6); sintaxe bash dos blocos `run:` validada com `bash -n`
+      (onda-009)
 - [ ] 4.1.5 Teste: reproduzir quickstart Scenario 10, passos 1-2 (script com
       problema de portabilidade conhecido barra o job `shellcheck`
-      especificamente)
+      especificamente). **Pendente de CI**: `shellcheck` não está disponível
+      localmente (bash-guard bloqueia instalação de pacote no host) e não há
+      autorização para abrir PR de teste no remoto real `origin` nesta
+      execução não-interativa — instrução explícita do contexto de invocação
+      é marcar como pendente, não simular (onda-009)
 
 ### 4.2 Job `agnostico` `[A]`
 
 Ref: spec.md FR-018; contracts/cli.md §Workflow de CI
 
-- [ ] 4.2.1 Job `agnostico`: executar `./scripts/verificar-agnostico.sh`
-      (FR-018)
-- [ ] 4.2.2 Confirmar que o job falha quando o script retorna `exit 1`,
-      barrando a mudança
+- [x] 4.2.1 Job `agnostico`: executar `./scripts/verificar-agnostico.sh`
+      (FR-018). Implementado — checkout + execução direta do script, sem
+      supressão de código de saída
+- [x] 4.2.2 Confirmar que o job falha quando o script retorna `exit 1`,
+      barrando a mudança. Estrutural: o step `run:` não suprime código de
+      saída (sem `|| true`/`continue-on-error`), e o comportamento default
+      do GitHub Actions é falhar o step (e o job) em `exit` não-zero do
+      comando; o script em si já foi validado empiricamente na FASE 3
+      retornando `exit 1` em ocorrência de termo proibido (onda-009)
 - [ ] 4.2.3 Teste: reproduzir quickstart Scenario 10, passos 3-4 (termo
-      proibido introduzido barra o job `agnostico` especificamente)
+      proibido introduzido barra o job `agnostico` especificamente).
+      **Pendente de CI** — mesma limitação de ambiente de 4.1.5, sem
+      autorização para PR de teste no remoto real (onda-009)
 
 ### 4.3 Job `segredos` `[A]`
 
 Ref: spec.md FR-019, FR-020, FR-021; plan.md §CI do cockpit — job `segredos`
 em detalhe; contracts/cli.md §Job `segredos`; research Decision 15
 
-- [ ] 4.3.1 Baixar o binário do `gitleaks` (release fixada por versão,
+- [x] 4.3.1 Baixar o binário do `gitleaks` (release fixada por versão,
       `linux_x64`) e conferir contra o `checksums.txt` publicado ao lado —
-      nunca a Action de terceiro
-- [ ] 4.3.2 Invocar `gitleaks dir . --redact` (`--redact` **obrigatória**,
-      nunca omitida — FR-019 exige não reproduzir o valor detectado)
-- [ ] 4.3.3 Confirmar leitura por default de `.gitleaks.toml` e
-      `.gitleaksignore` da raiz, sem flags `-c`/`-i` explícitas no workflow
-- [ ] 4.3.4 Implementar os códigos de saída do job: `0` nenhum achado; `1`
+      nunca a Action de terceiro. Versão `8.30.1`, asset
+      `gitleaks_8.30.1_linux_x64.tar.gz` + `gitleaks_8.30.1_checksums.txt`,
+      confirmados via `ctx_fetch_and_index` em
+      `api.github.com/repos/gitleaks/gitleaks/releases/latest` e na página
+      HTML de releases (ausência de variante `linux_amd64`, confirma
+      `linux_x64`); formato do checksums.txt lido literalmente (`<sha256
+      64-hex>␠␠<arquivo>`, 10 linhas, uma por asset/plataforma) —
+      `sha256sum --ignore-missing -c` verifica a linha baixada e ignora as
+      9 de outras plataformas (dec-043, onda-009)
+- [x] 4.3.2 Invocar `gitleaks dir . --redact` (`--redact` **obrigatória**,
+      nunca omitida — FR-019 exige não reproduzir o valor detectado).
+      Presente no step final do job, verificado por grep
+- [x] 4.3.3 Confirmar leitura por default de `.gitleaks.toml` e
+      `.gitleaksignore` da raiz, sem flags `-c`/`-i` explícitas no workflow.
+      Invocação é `./gitleaks dir . --redact` — nenhuma flag `-c`/`-i`,
+      verificado por grep
+- [x] 4.3.4 Implementar os códigos de saída do job: `0` nenhum achado; `1`
       um ou mais achados ou erro de execução (barra a mudança); `126` flag
-      desconhecida (erro de uso do workflow)
+      desconhecida (erro de uso do workflow). Estrutural: o step invoca o
+      binário diretamente sem capturar/remapear código de saída — os três
+      códigos são nativos do `gitleaks` (research Decision 15) e propagam
+      tal-e-qual para o resultado do step/job
 - [ ] 4.3.5 Teste: reproduzir quickstart Scenario 10 completo, passos 5-10
       (segredo de teste barra o job apontando arquivo/linha sem reproduzir o
-      valor; registro do fingerprint em `.gitleaksignore` libera a PR)
+      valor; registro do fingerprint em `.gitleaksignore` libera a PR).
+      **Pendente de CI** — mesma limitação de ambiente de 4.1.5/4.2.3;
+      `gitleaks` não está disponível localmente e não há autorização para
+      PR de teste com segredo fictício no remoto real nesta execução
+      não-interativa (onda-009)
 
 ---
 
@@ -269,16 +318,28 @@ em detalhe; contracts/cli.md §Job `segredos`; research Decision 15
 
 Ref: quickstart.md Scenario 1-11
 
-- [ ] 5.1.1 Rodar Scenario 1 (happy path) numa máquina limpa/simulada e
-      confirmar relatório final com todos os itens `[ok]`
-- [ ] 5.1.2 Rodar Scenario 11 (confinamento de escrita, `HOME` temporário) e
+- [x] 5.1.1 Rodar Scenario 1 (happy path) numa máquina limpa/simulada e
+      confirmar relatório final com todos os itens `[ok]`. Já validado
+      empiricamente na tarefa 2.3.7 (onda-008): HOME temporário com
+      dependências stubadas, `exit 0` com os 8 itens `[ok]` do relatório —
+      reconfirmado por revisão nesta onda, sem necessidade de re-executar
+      (onda-009)
+- [x] 5.1.2 Rodar Scenario 11 (confinamento de escrita, `HOME` temporário) e
       confirmar zero escrita fora de `~/.claude/` e `~/.local/`, em
-      particular zero escrita em qualquer diretório de projeto-alvo
+      particular zero escrita em qualquer diretório de projeto-alvo. Já
+      validado empiricamente na tarefa 2.3.7 (onda-008): `find` confirmou
+      zero escrita fora do HOME de teste — reconfirmado por revisão nesta
+      onda (onda-009)
 - [ ] 5.1.3 Rodar `shellcheck` localmente sobre os três scripts antes de abrir
-      PR — mesma ferramenta e critério do job `shellcheck` do CI
-- [ ] 5.1.4 Confirmar via `requirement-coverage.sh` que `spec.md` continua com
+      PR — mesma ferramenta e critério do job `shellcheck` do CI.
+      **Pendente de CI** — `shellcheck` não está disponível localmente
+      (bash-guard bloqueia instalação de pacote no host nesta execução
+      não-interativa); mesma limitação de 4.1.5 (onda-009)
+- [x] 5.1.4 Confirmar via `requirement-coverage.sh` que `spec.md` continua com
       100% dos FRs cobertos por cenário após qualquer ajuste feito durante
-      esta fase (mesmo gate já rodado em checklists/security.md)
+      esta fase (mesmo gate já rodado em checklists/security.md). Executado:
+      `requirement-coverage.sh spec.md` → `RESULT|...|requirements=21|
+      covered=21|errors=0`, exit 0 (onda-009)
 
 ---
 
