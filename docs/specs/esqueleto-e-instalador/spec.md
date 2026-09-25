@@ -213,9 +213,12 @@ que a checagem automática da mudança falha nos três casos, apontando qual che
   código. Falha na instalação/atualização do plugin obrigatório MUST falhar o comando
   inteiro; falha na instalação/atualização do plugin recomendado MUST ser reportada
   apenas no status individual desse item (FR-009), sem falhar o comando.
-- **FR-009**: O sistema MUST, ao final da execução, validar que cada item preparado
-  (ferramentas de base, ferramenta de implementação, skills, plugins) responde
-  corretamente, e MUST relatar o status individual de cada um.
+- **FR-009**: O sistema MUST, ao final da execução, relatar o status individual de
+  cada item preparado (ferramentas de base, ferramenta de implementação, skills,
+  plugins) com o resultado do comando que o preparou; a ferramenta de implementação
+  MUST adicionalmente ser conferida por uma chamada de versão (FR-005). *(Redação
+  alinhada ao plan na revisão de código, rodada 1: reconsulta pós-instalação por item
+  foi avaliada e descartada pelo owner.)*
 - **FR-010**: O comando de preparo da máquina MUST ser idempotente — executá-lo mais de
   uma vez MUST produzir o mesmo estado final, sem duplicar registros nem sobrescrever
   configuração local sem aviso.

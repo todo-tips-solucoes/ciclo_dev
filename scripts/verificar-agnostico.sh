@@ -3,8 +3,9 @@
 #
 # Garante o Princípio I (Agnosticismo Verificável, NON-NEGOTIABLE): nenhum
 # arquivo versionado cita termo de projeto, cliente, organização, domínio ou
-# credencial reais. Lê scripts/agnostico.lista (data-model.md §Lista de
-# termos proibidos) e varre todo o repositório contra ela.
+# credencial reais — nem no conteúdo, nem no caminho. Lê
+# scripts/agnostico.lista (data-model.md §Lista de termos proibidos) e varre
+# todo o repositório contra ela.
 #
 # Uso: ./scripts/verificar-agnostico.sh   (sem parâmetros — nenhum modo
 # parcial: a garantia é sobre "todo arquivo do repositório")
@@ -13,9 +14,10 @@
 #
 # Códigos de saída (contracts/cli.md):
 #   0  zero ocorrências (inclui lista vazia ou só com comentários)
-#   1  uma ou mais ocorrências, listadas com arquivo e linha
-#   2  erro de uso — agnostico.lista ausente, ou execução fora de um
-#      repositório git (a enumeração depende de git ls-files)
+#   1  uma ou mais ocorrências, listadas como arquivo:linha:texto; ocorrência
+#      no caminho do arquivo sai como arquivo:0:(caminho)
+#   2  erro de uso — agnostico.lista ausente, execução fora de um repositório
+#      git (a enumeração depende de git ls-files), ou arquivo ilegível
 set -euo pipefail
 
 LISTA_REL="scripts/agnostico.lista"
@@ -40,10 +42,13 @@ TERMOS_TMP="$(mktemp)"
 ACHADOS_TMP="$(mktemp)"
 trap 'rm -f "$TERMOS_TMP" "$ACHADOS_TMP"' EXIT
 
-# Filtrar termos reais: '#' comenta, linhas em branco ignoradas
-# (research Decision 8). O que sobra são os termos, um por linha, casados
-# como substring literal (grep -F, alimentado por -f para todos de uma vez).
-grep -vE '^[[:space:]]*(#|$)' "$LISTA_REL" > "$TERMOS_TMP" || true
+# Termos: tira CR (lista salva com CRLF) e espaço nas pontas ANTES de filtrar
+# — sem isso "<termo>\r" ou "<termo> " nunca casariam (review rodada 1). Depois,
+# '#' comenta e linha em branco é ignorada (research Decision 8). O que sobra
+# são os termos, um por linha, casados como substring literal (grep -F,
+# alimentado por -f para todos de uma vez).
+sed -e 's/\r$//' -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' "$LISTA_REL" \
+  | grep -vE '^(#|$)' > "$TERMOS_TMP" || true
 
 if [ ! -s "$TERMOS_TMP" ]; then
   echo "Agnosticismo: OK — nenhuma ocorrência de termo proibido."
@@ -53,11 +58,26 @@ fi
 # Enumerar arquivos versionados via git ls-files (research Decision 6),
 # excluindo a própria lista da varredura (research Decision 7 — senão ela
 # casaria contra si mesma e a verificação falharia sempre).
+#
+# Conteúdo: grep -a trata todo arquivo como texto, independente do locale —
+# sem isso um .md em Latin-1 era classificado como binário em C.UTF-8 e a
+# ocorrência sumia em silêncio. -H prefixa "arquivo:linha:" sem interpolar o
+# nome num programa sed (nome com '|', '&', '\' ou newline quebrava o sed e
+# o achado era descartado). rc 1 = sem ocorrência; qualquer outro rc é erro
+# real e sai com 2 em vez de ser engolido (review rodada 1).
 while IFS= read -r -d '' arquivo; do
   [ "$arquivo" = "$LISTA_REL" ] && continue
   [ -f "$arquivo" ] || continue
-  grep -inF -f "$TERMOS_TMP" -- "$arquivo" 2>/dev/null \
-    | sed "s|^|${arquivo}:|" >> "$ACHADOS_TMP" || true
+  if printf '%s\n' "$arquivo" | grep -qiF -f "$TERMOS_TMP"; then
+    printf '%s:0:(caminho)\n' "$arquivo" >> "$ACHADOS_TMP"
+  fi
+  grep -inaHF -f "$TERMOS_TMP" -- "$arquivo" >> "$ACHADOS_TMP" || {
+    rc=$?
+    if [ "$rc" -ne 1 ]; then
+      echo "Agnosticismo: erro ao ler '$arquivo' (grep rc=$rc)." >&2
+      exit 2
+    fi
+  }
 done < <(git ls-files -z)
 
 if [ ! -s "$ACHADOS_TMP" ]; then

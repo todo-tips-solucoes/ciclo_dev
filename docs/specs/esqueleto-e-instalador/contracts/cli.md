@@ -46,7 +46,7 @@ Relatório de preparo da máquina:
 |--------|-------------|
 | `0` | Nenhum item **bloqueante** falhou. Itens não-bloqueantes podem ter falhado e aparecem como `[falhou]` no relatório (FR-008). |
 | `1` | Ao menos um item bloqueante falhou. O relatório identifica qual. |
-| `2` | Pré-requisitos de máquina ausentes ou abaixo do mínimo. Encerra antes das demais etapas, listando **todos** os faltantes de uma vez (Edge Case da spec). |
+| `2` | Pré-requisitos de máquina ausentes ou abaixo do mínimo. Encerra antes das demais etapas, listando **todos** os faltantes de uma vez (Edge Case da spec). Também `HOME` indefinido e execução como root/sudo: recusadas antes de qualquer etapa, com mensagem própria e sem relatório (review rodada 1). |
 | `3` | Permissão de escrita insuficiente em `~/.claude/` e/ou `~/.local/`, detectada por uma pré-checagem (criar e remover um arquivo temporário) dentro da etapa 1, antes de qualquer etapa escrever algo. A mensagem identifica qual área falhou. Nenhum estado parcial: a checagem roda antes de qualquer escrita real (Edge Case da spec, Acceptance Scenario 8). |
 
 > Separar `2` de `1` e `3` de ambos é deliberado: "sua máquina não tem as ferramentas de
@@ -98,12 +98,14 @@ Sucesso (zero ocorrências — FR-013):
 Agnosticismo: OK — nenhuma ocorrência de termo proibido.
 ```
 
-Falha (FR-014) — uma linha por ocorrência, com arquivo e linha exatos:
+Falha (FR-014) — uma linha por ocorrência, com arquivo e linha exatos; ocorrência
+no **caminho** do arquivo sai com linha `0`:
 
 ```
-Agnosticismo: FALHOU — 2 ocorrência(s) de termo proibido:
-  docs/exemplo.md:42: <trecho da linha>
-  README.md:7: <trecho da linha>
+Agnosticismo: FALHOU — 3 ocorrência(s) de termo proibido:
+  docs/exemplo.md:42:<trecho da linha>
+  README.md:7:<trecho da linha>
+  docs/<termo>-contrato.md:0:(caminho)
 ```
 
 ### Códigos de saída
@@ -111,8 +113,8 @@ Agnosticismo: FALHOU — 2 ocorrência(s) de termo proibido:
 | Código | Significado |
 |--------|-------------|
 | `0` | Zero ocorrências (FR-013). Inclui o caso de lista vazia ou só com comentários. |
-| `1` | Uma ou mais ocorrências; todas listadas com arquivo e linha (FR-014). |
-| `2` | Erro de uso — `scripts/agnostico.lista` ausente, ou execução fora de um repositório git (a enumeração depende de `git ls-files`). |
+| `1` | Uma ou mais ocorrências; todas listadas com arquivo e linha (FR-014); ocorrência no caminho sai como `arquivo:0:(caminho)`. |
+| `2` | Erro de uso — `scripts/agnostico.lista` ausente, execução fora de um repositório git (a enumeração depende de `git ls-files`), ou arquivo versionado ilegível (erro de leitura nunca é engolido como "OK"). |
 
 ### Regras de varredura
 
@@ -120,9 +122,10 @@ Agnosticismo: FALHOU — 2 ocorrência(s) de termo proibido:
 |-------|-------|
 | Enumera por `git ls-files` | exclui `.git/` e o que o `.gitignore` já ignora, sem lista de exclusão manual (research Decision 6) |
 | **Exclui `scripts/agnostico.lista`** | a lista contém todos os termos; sem isso casaria contra si mesma e falharia sempre (research Decision 7) |
-| Casamento literal, case-insensitive (`grep -i -F`) | termos são nomes próprios, não padrões (research Decision 8) |
+| Casamento literal, case-insensitive (`grep -i -F`); termos passam por trim e remoção de CR antes | termos são nomes próprios, não padrões (research Decision 8); lista salva com CRLF ou espaço final não pode silenciar um termo (review rodada 1) |
+| Varre também o **caminho** de cada arquivo versionado | o caminho vai para o remoto tanto quanto o conteúdo (review rodada 1, decisão do owner); ocorrência sai como `arquivo:0:(caminho)` |
 | Não abre exceção para contexto educativo | decidido nos Edge Cases da spec — qualquer ocorrência é reportada |
-| Assume conteúdo textual | colisão binária está fora de escopo por decisão explícita da spec |
+| Trata todo arquivo como texto (`grep -a`), prefixo por `grep -H` | o resultado não pode depender do locale do runner: sem `-a`, um `.md` em Latin-1 era classificado como binário em `C.UTF-8` e a ocorrência sumia em silêncio; `-H` evita interpolar o nome do arquivo num programa `sed` (nome com `\|`, `&`, `\` ou newline quebrava e o achado era descartado). Colisão em binário de verdade é reportada como qualquer outra (review rodada 1) |
 
 ---
 
@@ -139,7 +142,7 @@ não por tag móvel.
 |-----|---------|------------------------|-----|
 | `shellcheck` | instala `shellcheck` e roda sobre todo `.sh` do repositório | há problema de portabilidade de shell | FR-017 |
 | `agnostico` | `./scripts/verificar-agnostico.sh` | há termo proibido | FR-018 |
-| `segredos` | instala o binário do `gitleaks` e roda `gitleaks dir . --redact` | há segredo em arquivo versionado | FR-019, FR-020, FR-021 |
+| `segredos` | instala o binário do `gitleaks` e roda `gitleaks dir . --redact -v` | há segredo em arquivo versionado | FR-019, FR-020, FR-021 |
 
 Jobs independentes, para que a falha identifique **qual** garantia barrou (User
 Story 3, cenários 1 a 3).
@@ -152,27 +155,31 @@ Princípio V (research Decision 9). O `gitleaks` segue o mesmo padrão.
 
 **Instalação no job**: tarball da release fixada por versão
 (`gitleaks_<versao>_linux_x64.tar.gz` — o padrão é `linux_x64`, **não**
-`linux_amd64`), conferido contra o `gitleaks_<versao>_checksums.txt` publicado ao
-lado. Nunca a Action de terceiro: ela exige `GITLEAKS_LICENSE` em repositório de
-organização e não é mais MIT (research Decision 15). A versão fixada mora no
-workflow, não em `versoes.env` — não é piso de pré-requisito e o instalador não a
-lê (research Decision 15).
+`linux_amd64`), conferido contra um **sha256 literal fixado no workflow**, copiado
+do `gitleaks_<versao>_checksums.txt` da release no momento do bump (review rodada
+1, decisão do owner: o `checksums.txt` lido na hora vem da mesma origem mutável que
+o tarball e só cobriria corrupção de download, não troca de asset). Download e
+extração acontecem em `$RUNNER_TEMP`, fora do diretório varrido. Nunca a Action de
+terceiro: ela exige `GITLEAKS_LICENSE` em repositório de organização e não é mais
+MIT (research Decision 15). A versão fixada mora no workflow, não em `versoes.env`
+— não é piso de pré-requisito e o instalador não a lê (research Decision 15).
 
-**Invocação**: `gitleaks dir . --redact`
+**Invocação**: `gitleaks dir . --redact -v`
 
 | Elemento | Valor | Razão |
 |----------|-------|-------|
 | Subcomando `dir` | varre a árvore de arquivos | mesmo recorte de `verificar-agnostico.sh`; `git` varreria o histórico e exigiria *baseline* (research Decision 15) |
-| `--redact` | **obrigatória** | o console default imprime o campo `Secret:` com o valor achado; FR-019 exige arquivo e linha sem reproduzir o valor |
-| *(sem `-c`)* | `.gitleaks.toml` da raiz é lido por default | exceção precisa estar versionada e visível na PR (FR-021) |
+| `--redact` | **obrigatória** | o console imprime o campo `Secret:` com o valor achado; FR-019 exige arquivo e linha sem reproduzir o valor |
+| `-v` | **obrigatória** | sem ela o console só diz `leaks found: N`, sem `File:`/`Line:`, e a PR barrada não aponta onde está o segredo; com `--redact`, `Secret:` sai como `REDACTED` (medido com 8.30.1, review rodada 1) |
+| *(sem `-c`)* | `.gitleaks.toml` da raiz é lido por default | exceção precisa estar versionada e visível na PR (FR-021). **O arquivo precisa do bloco `[extend] useDefault = true`**: um `.gitleaks.toml` na raiz *substitui* a configuração embutida (README oficial), e sem o bloco o job rodaria com zero regras (review rodada 1, crítico) |
 | *(sem `-i`)* | `.gitleaksignore` da raiz é lido por default (`--gitleaks-ignore-path` já é `.`) | idem |
 
 **Entrada de dados versionada** (FR-021):
 
 | Arquivo | Conteúdo | Uso |
 |---------|----------|-----|
-| `.gitleaksignore` | uma linha por *fingerprint* `<commit>:<file>:<ruleID>:<line>` | ignorar um achado pontual já revisado |
-| `.gitleaks.toml` | blocos `[[allowlists]]` / `[[rules.allowlists]]` com `paths`, `regexes`, `stopwords` | ignorar uma **classe** de placeholder (ex.: chaves de exemplo de template) |
+| `.gitleaksignore` | uma linha por *fingerprint* `<file>:<ruleID>:<line>` — três campos, sem commit, no modo `dir` (medido com 8.30.1; o formato de quatro campos é do modo `git`) | ignorar um achado pontual já revisado |
+| `.gitleaks.toml` | `[extend] useDefault = true` obrigatório, mais blocos `[[allowlists]]` / `[[rules.allowlists]]` com `paths`, `regexes`, `stopwords` | ignorar uma **classe** de placeholder (ex.: chaves de exemplo de template) |
 
 Nenhum dos dois é editável fora do repositório — toda exceção entra por PR e é
 revisada no diff.

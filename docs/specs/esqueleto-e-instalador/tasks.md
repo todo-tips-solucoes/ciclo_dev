@@ -401,3 +401,42 @@ flowchart TD
 | Conteúdo real do catálogo `skills/` além do esqueleto | Skills concretas do cockpit | `skills/` ainda não existe nesta frente (research Decision 13); etapa 6 do `instalar.sh` reporta `pulada` até existir |
 | Verificação de assinatura/pinning do binário `cstk` | Confiança no canal upstream | Risco residual aceito 1 do plan.md — exigiria fonte de assinatura upstream inexistente e emenda constitucional (Princípio VII fechado) |
 | Janela de maturação (*soak*) nas atualizações do `cstk` | Atraso deliberado antes de adotar release nova | Risco residual aceito 2 do plan.md — Princípio IV exige manter a máquina na última release, com redação MUST |
+
+## Review Findings — bmad-code-review rodada 1 (2026-09-25)
+
+Escopo: diff `origin/main..HEAD`, grupo código (`instalar.sh`, `scripts/`, `.github/workflows/ci.yml`, `.gitleaks.toml`, `.gitleaksignore`, `.gitignore`). Camadas: Blind Hunter (15), Edge Case Hunter (18, com reprodução empírica em sandbox usando gitleaks 8.30.1 e shellcheck 0.10.0), Acceptance Auditor (11). Após dedupe: 23 achados, 3 descartados. Severidade: 1 crítico, 3 altos, 10 médios, 9 baixos.
+
+### Decision-needed
+
+- [x] [Review][Decision] Termo proibido presente só no caminho do arquivo não é detectado — `verificar-agnostico.sh` só grepa conteúdo; `docs/acme-contrato.md` com conteúdo neutro passa. Incluir varredura de caminhos (`git ls-files -z | grep -ziF`, reportando `caminho:0`) ou documentar a exclusão no contrato. (edge, médio) [scripts/verificar-agnostico.sh:57] → decidido pelo owner: incluir varredura de caminhos (aplicado)
+- [x] [Review][Decision] Checksum do gitleaks vem da mesma origem mutável que o tarball — `checksums.txt` da release protege contra corrupção, não contra troca de asset. Pinar o sha256 literal no workflow (uma linha, atualizada a cada bump) ou manter o risco aceito em dec-018. (blind, médio) [.github/workflows/ci.yml:96-98] → decidido pelo owner: pinar sha256 literal no workflow (aplicado)
+- [x] [Review][Decision] FR-009 pede validar que cada item "responde corretamente"; o relatório reflete só o exit code da instalação (exceto cstk, que tem a etapa 3). Reconsultar após instalar (`cstk list`, `claude plugin list --json`) ou alinhar a redação de FR-009 ao que o plan já descreve (relatório por item). (auditor, baixo) [instalar.sh etapas 5 e 7] → decidido pelo owner: alinhar a redação de FR-009 ao plan (aplicado na spec)
+
+### Patch
+
+- [x] [Review][Patch] CRÍTICO: `.gitleaks.toml` só com comentários substitui a config padrão do gitleaks — sem `[extend] useDefault = true` o job `segredos` roda com zero regras; reproduzido com 8.30.1 (segredo real: `no leaks found`, rc 0) e confirmado no README oficial (blind+edge+auditor) [.gitleaks.toml:1]
+- [x] [Review][Patch] ALTO: `gitleaks dir . --redact` sem `-v` não imprime arquivo nem linha do achado; a spec exige "apontando arquivo e linha" (edge) [.github/workflows/ci.yml:102]
+- [x] [Review][Patch] ALTO: máquina nova — `~/.local/bin` não entra no PATH do processo após o bootstrap do cstk; etapas 3, 4 e 5 falham em cascata e o happy path sai com 1 (blind+edge+auditor) [instalar.sh etapa 2 → 3]
+- [x] [Review][Patch] ALTO: arquivo de texto não-UTF-8 com termo proibido passa em silêncio — grep em C.UTF-8 classifica como binário, escreve em stderr (engolido por `2>/dev/null`) e o script diz OK; resultado depende do locale (edge) [scripts/verificar-agnostico.sh:59-60]
+- [x] [Review][Patch] MÉDIO: nome de arquivo com `|` ou newline quebra o `sed`, `&` e `\` deturpam o nome, `|| true` engole o erro e o achado some (blind+edge) [scripts/verificar-agnostico.sh:60]
+- [x] [Review][Patch] MÉDIO: termo com CRLF ou espaço nas pontas nunca casa; data-model exige trim (blind+edge) [scripts/verificar-agnostico.sh:46]
+- [x] [Review][Patch] MÉDIO: `versoes.env` ausente, sem `CSTK_MIN=`, com `export` ou espaços → `grep` falha sob pipefail, script morre sem relatório com exit 1 ou 2 (colide com o código 2 do contrato) (blind+edge) [instalar.sh:174]
+- [x] [Review][Patch] MÉDIO: comparação de versão não sanitiza entrada — CRLF, aspas, comentário inline ou vazio fazem o piso passar indevidamente; sufixo pré-release (`10.9.0-rc1`, node nightly) aborta com `unbound variable` (blind+edge) [instalar.sh:61-62,84,174]
+- [x] [Review][Patch] MÉDIO: bootstrap do cstk abre prompt de telemetria (`/dev/tty`) e, se aceito, grava em `~/.bashrc`/`~/.zshrc` — fora de `~/.claude` e `~/.local`, contra FR-011 e Princípio VII; falta `CSTK_INSTALL_TELEMETRY=no` (edge, lido no install.sh oficial) [instalar.sh:141]
+- [x] [Review][Patch] MÉDIO: etapa 5 decide install vs update por `ls -A ~/.claude/skills` (diretório padrão de skills do Claude Code, quase sempre não-vazio) em vez do marcador `~/.claude/skills/.cstk-manifest` que o cstk grava (blind+edge+auditor) [instalar.sh:200]
+- [x] [Review][Patch] MÉDIO: `.gitleaksignore` documenta fingerprint `<commit>:<arquivo>:<ruleID>:<linha>`; no modo `dir` o gitleaks gera `<arquivo>:<ruleID>:<linha>` (reproduzido); a frase sobre reescrita de histórico só vale para `git` (blind+edge) [.gitleaksignore:8]
+- [x] [Review][Patch] MÉDIO: `gitleaks dir .` varre também o tarball, o `checksums.txt` e o binário baixados no workspace; baixar/extrair em `$RUNNER_TEMP` mantém o recorte "arquivo versionado" (blind+auditor) [.github/workflows/ci.yml:96-102]
+- [x] [Review][Patch] BAIXO: `cstk --version` ou `git --version` sem `x.y.z` → `grep` sob pipefail aborta o script sem relatório (blind+edge) [instalar.sh:78,166]
+- [x] [Review][Patch] BAIXO: etapa 6 não converge — `cp -r` nunca remove arquivo excluído na origem, o aviso de divergência sai em toda execução, `cp` fora de `if` sob `set -e` aborta sem relatório, e o nome da skill divergente não chega ao relatório (blind+edge+auditor) [instalar.sh:230-235]
+- [x] [Review][Patch] BAIXO: CLI `claude` ausente — etapa 7 falha bloqueante com `command not found` engolido, sem nomear a causa no relatório (blind+edge+auditor) [instalar.sh etapa 7]
+- [x] [Review][Patch] BAIXO: etapa 7 sempre imprime "concluída", mesmo com plugin obrigatório falhando (blind+auditor) [instalar.sh log_etapa_fim 7]
+- [x] [Review][Patch] BAIXO: recusa de root sai com 1, código reservado a "item bloqueante falhou"; usar 2 e registrar no contrato (blind+auditor) [instalar.sh:477-480]
+- [x] [Review][Patch] BAIXO: `mktemp` grava em /tmp, fora de `~/.claude` e `~/.local` (FR-011, quickstart cenário 11) (auditor) [instalar.sh:141]
+- [x] [Review][Patch] BAIXO: `$HOME` indefinido → `HOME: unbound variable`, exit 1 sem diagnóstico (edge) [instalar.sh:107]
+- [x] [Review][Patch] BAIXO: `xargs` sem `-0`/`-r` no job shellcheck — caminho com espaço é partido (blind) [.github/workflows/ci.yml:55-60]
+
+### Dismissed (3)
+
+- Instalador do cstk como alvo móvel `latest` sem pin (blind): é o desenho pedido pela spec (piso ≠ alvo, máquina sempre na última release) e o risco residual já está aceito em dec-018.
+- `.gitignore` ganha `.mcp.json` (auditor, não solicitado): commit de chore anterior à frente, deliberado; declarado no corpo da PR como caminho tocado.
+- Submodule não varrido por `verificar-agnostico.sh` (edge): o repositório não usa submodules; exclusão anotada aqui, sem ação.

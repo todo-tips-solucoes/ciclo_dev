@@ -12,9 +12,23 @@
 # Códigos de saída (contracts/cli.md):
 #   0  nenhum item bloqueante falhou
 #   1  algum item bloqueante falhou
-#   2  pré-requisito ausente ou abaixo do mínimo
+#   2  pré-requisito ausente ou abaixo do mínimo, HOME indefinido ou
+#      execução como root/sudo (recusadas antes de qualquer etapa)
 #   3  sem permissão de escrita em ~/.claude/ e/ou ~/.local/
 set -euo pipefail
+
+if [ -z "${HOME:-}" ]; then
+  echo "instalar.sh: HOME não definido — não há onde instalar (~/.claude/, ~/.local/)." >&2
+  exit 2
+fi
+# O bootstrap do cstk instala em ~/.local/bin sem alterar o PATH do processo
+# (o install.sh oficial só avisa). Sem isto, numa máquina nova as etapas 3-5
+# falhariam em cascata logo depois de a etapa 2 instalar (review rodada 1).
+case ":$PATH:" in
+  *":$HOME/.local/bin:"*) LOCAL_BIN_JA_NO_PATH=true ;;
+  *) LOCAL_BIN_JA_NO_PATH=false ;;
+esac
+export PATH="$HOME/.local/bin:$PATH"
 
 CSTK_INSTALL_URL="https://github.com/JotJunior/cstk/releases/latest/download/install.sh"
 CTX_MODE_REPO="mksglu/context-mode"
@@ -56,10 +70,12 @@ versao_ge() {
   IFS=. read -ra b <<<"$min"
   local i ai bi
   for i in 0 1 2; do
-    ai="${a[i]:-0}"
-    bi="${b[i]:-0}"
-    if ((10#${ai:-0} > 10#${bi:-0})); then return 0; fi
-    if ((10#${ai:-0} < 10#${bi:-0})); then return 1; fi
+    # Só a parte numérica de cada campo: "0-rc1", "1\r" ou "3 # x" viravam
+    # erro aritmético ou 'unbound variable' sob set -u (review rodada 1).
+    ai="${a[i]:-0}"; ai="${ai%%[^0-9]*}"; ai="${ai:-0}"
+    bi="${b[i]:-0}"; bi="${bi%%[^0-9]*}"; bi="${bi:-0}"
+    if ((10#$ai > 10#$bi)); then return 0; fi
+    if ((10#$ai < 10#$bi)); then return 1; fi
   done
   return 0
 }
@@ -75,15 +91,20 @@ checar_prerequisitos() {
     fi
     case "$ferramenta" in
       git)
-        v="$(git --version | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1)"
-        if ! versao_ge "$v" "2.36"; then
+        # `|| true`: saída sem x.y.z não pode matar o script sob pipefail
+        # antes do relatório (review rodada 1); vazio vira pré-requisito falho.
+        v="$(git --version 2>/dev/null | grep -oE '[0-9]+(\.[0-9]+)+' | head -1 || true)"
+        if [ -z "$v" ]; then
+          faltantes+=("git: versão não identificada na saída de 'git --version'")
+        elif ! versao_ge "$v" "2.36"; then
           faltantes+=("git: versão $v encontrada, mínima exigida 2.36")
         fi
         ;;
       node)
-        v="$(node --version)"
-        v="${v#v}"
-        if ! versao_ge "$v" "20"; then
+        v="$(node --version 2>/dev/null | grep -oE '[0-9]+(\.[0-9]+)+' | head -1 || true)"
+        if [ -z "$v" ]; then
+          faltantes+=("node: versão não identificada na saída de 'node --version'")
+        elif ! versao_ge "$v" "20"; then
           faltantes+=("node: versão $v encontrada, mínima exigida 20")
         fi
         ;;
@@ -137,14 +158,25 @@ etapa2_cstk_instalar_ou_atualizar() {
     if cstk self-update --yes; then status=ok; else status=falhou; fi
     registrar_item "cstk atualizado" "$status" true
   else
-    tmp="$(mktemp)"
-    if curl -fsSL "$CSTK_INSTALL_URL" -o "$tmp" && sh "$tmp"; then
+    # Temporário dentro de ~/.local (FR-011: nada fora de ~/.claude e ~/.local;
+    # a etapa 1 já garantiu que ~/.local existe e é gravável).
+    # CSTK_INSTALL_TELEMETRY=no: o install.sh oficial abre um prompt de
+    # telemetria em /dev/tty e, se aceito, grava no rc do shell — fora da área
+    # permitida e contra o "sem interação" do contrato. O dev habilita depois
+    # com `cstk help telemetry` se quiser (review rodada 1).
+    tmp="$(mktemp "$HOME/.local/.instalar-cstk.XXXXXX")"
+    if curl -fsSL "$CSTK_INSTALL_URL" -o "$tmp" && CSTK_INSTALL_TELEMETRY=no sh "$tmp"; then
       status=ok
     else
       status=falhou
     fi
     rm -f "$tmp"
-    registrar_item "cstk instalado" "$status" true
+    hash -r
+    local dica=""
+    if [ "$LOCAL_BIN_JA_NO_PATH" = false ]; then
+      dica=" — ~/.local/bin não está no PATH do seu shell; adicione-o para usar o cstk fora deste script"
+    fi
+    registrar_item "cstk instalado${dica}" "$status" true
   fi
   log_etapa_fim 2 "$([ "$status" = ok ] && echo "concluída" || echo "falhou")"
 }
@@ -163,17 +195,39 @@ etapa3_cstk_responde() {
   printf '%s\n' "$saida"
   CSTK_VERSAO_INSTALADA=""
   if [ "$status" = ok ]; then
-    CSTK_VERSAO_INSTALADA="$(printf '%s' "$saida" | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1)"
+    # `|| true`: saída sem x.y.z deixa a versão vazia e a etapa 4 registra
+    # falha, em vez de pipefail matar o script sem relatório (review rodada 1).
+    CSTK_VERSAO_INSTALADA="$(printf '%s' "$saida" | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1 || true)"
   fi
   registrar_item "cstk responde à checagem de versão${detalhe}" "$status" true
   log_etapa_fim 3 "$([ "$status" = ok ] && echo "concluída" || echo "falhou")"
 }
 
+# ler_cstk_min — extrai CSTK_MIN de versoes.env sem `source` e sem morrer:
+# tolera CRLF, `export`, espaços em volta do `=`, aspas e comentário inline;
+# devolve vazio se o arquivo ou a chave faltarem (a etapa 4 decide o que
+# fazer com vazio). Nunca aborta o script (review rodada 1: grep sob
+# pipefail matava o instalador sem relatório e com exit code colidindo com 2).
+ler_cstk_min() {
+  local arq="$REPO_ROOT/versoes.env" v=""
+  [ -f "$arq" ] || return 0
+  v="$(sed -e 's/\r$//' "$arq" \
+    | grep -E '^[[:space:]]*(export[[:space:]]+)?CSTK_MIN[[:space:]]*=' \
+    | head -1 | cut -d= -f2- || true)"
+  v="${v%%#*}"
+  v="${v//\"/}"
+  v="${v//\'/}"
+  printf '%s' "$v" | tr -d '[:space:]'
+}
+
 etapa4_cstk_piso() {
   log_etapa_inicio 4 "conferindo piso mínimo do cstk"
-  CSTK_MIN="$(grep -E '^CSTK_MIN=' "$REPO_ROOT/versoes.env" | cut -d= -f2)"
+  CSTK_MIN="$(ler_cstk_min)"
   local status detalhe
-  if [ -z "$CSTK_VERSAO_INSTALADA" ]; then
+  if ! [[ "$CSTK_MIN" =~ ^[0-9]+(\.[0-9]+){1,2}$ ]]; then
+    status=falhou
+    detalhe="CSTK_MIN ausente ou inválido em versoes.env (lido: '${CSTK_MIN:-vazio}')"
+  elif [ -z "$CSTK_VERSAO_INSTALADA" ]; then
     status=falhou
     detalhe="versão instalada desconhecida — etapa anterior falhou"
   elif versao_ge "$CSTK_VERSAO_INSTALADA" "$CSTK_MIN"; then
@@ -197,7 +251,11 @@ etapa5_catalogo() {
     log_etapa_fim 5 "falhou"
     return
   fi
-  if [ -d "$HOME/.claude/skills" ] && [ -n "$(ls -A "$HOME/.claude/skills" 2>/dev/null)" ]; then
+  # Primeira execução = catálogo ausente, detectado pelo manifest que o
+  # próprio cstk grava. ~/.claude/skills é o diretório padrão de skills do
+  # Claude Code e quase nunca está vazio — "não-vazio" mandava `update` para
+  # um catálogo que nunca fora instalado (review rodada 1).
+  if [ -f "$HOME/.claude/skills/.cstk-manifest" ]; then
     if cstk update --yes; then status=ok; else status=falhou; fi
   else
     if cstk install --yes; then status=ok; else status=falhou; fi
@@ -219,24 +277,27 @@ etapa6_skills_cockpit() {
     return
   fi
   mkdir -p "$HOME/.claude/skills"
-  local instaladas=0 divergentes=0 skill_dir nome destino
+  local instaladas=0 divergentes="" falhas="" skill_dir nome destino status
   for skill_dir in "$origem"/*/; do
     [ -d "$skill_dir" ] || continue
     nome="$(basename "$skill_dir")"
     destino="$HOME/.claude/skills/$nome"
     if [ ! -d "$destino" ]; then
-      cp -r "$skill_dir" "$destino"
-      instaladas=$((instaladas + 1))
+      if cp -r "$skill_dir" "$destino"; then instaladas=$((instaladas + 1)); else falhas="$falhas $nome"; fi
     elif diff -rq "$skill_dir" "$destino" >/dev/null 2>&1; then
       : # já atualizada — nada a fazer
     else
-      echo "Aviso: ~/.claude/skills/$nome tem edição local divergente — atualizando mesmo assim." >&2
-      cp -r "$skill_dir." "$destino/"
-      divergentes=$((divergentes + 1))
+      # Espelho, não sobreposição: cp -r nunca remove arquivo que saiu da
+      # origem, e a divergência (avisada) voltaria em toda execução, contra a
+      # idempotência de SC-002 (review rodada 1). O aviso já anuncia a troca.
+      echo "Aviso: ~/.claude/skills/$nome tem edição local divergente — substituindo pela versão do cockpit." >&2
+      if rm -rf "$destino" && cp -r "$skill_dir" "$destino"; then divergentes="$divergentes $nome"; else falhas="$falhas $nome"; fi
     fi
   done
-  registrar_item "Skills do cockpit ($instaladas instalada(s), $divergentes atualizada(s) com edição local avisada)" ok false
-  log_etapa_fim 6 "concluída"
+  status=ok
+  [ -z "$falhas" ] || status=falhou
+  registrar_item "Skills do cockpit ($instaladas instalada(s); substituídas com edição local avisada:${divergentes:- nenhuma}${falhas:+; falhou:$falhas})" "$status" false
+  log_etapa_fim 6 "$([ "$status" = ok ] && echo "concluída" || echo "falhou")"
 }
 
 # --- etapa 7: plugins ----------------------------------------------------
@@ -274,6 +335,15 @@ provisionar_plugin() {
 etapa7_plugins() {
   log_etapa_inicio 7 "provisionando plugins"
   local status_cm status_pt
+  # O CLI claude não é pré-requisito de máquina (Princípio VII), mas sem ele
+  # a etapa inteira falha: nomear a causa no relatório em vez de deixar um
+  # "command not found" engolido (review rodada 1).
+  if ! command -v claude >/dev/null 2>&1; then
+    registrar_item "Plugin context-mode — CLI claude não encontrada no PATH" falhou true
+    registrar_item "Plugin ponytail — CLI claude não encontrada no PATH (não bloqueante)" falhou false
+    log_etapa_fim 7 "falhou"
+    return
+  fi
   provisionar_plugin "context-mode" "context-mode" "$CTX_MODE_REPO"
   status_cm="$PLUGIN_STATUS"
   registrar_item "Plugin context-mode" "$status_cm" true
@@ -285,7 +355,7 @@ etapa7_plugins() {
   else
     registrar_item "Plugin ponytail — não bloqueante" falhou false
   fi
-  log_etapa_fim 7 "concluída"
+  log_etapa_fim 7 "$([ "$status_cm" = ok ] && echo "concluída" || echo "falhou")"
 }
 
 # --- relatório final e código de saída (FR-009, FR-012 via contracts/cli.md) --
@@ -308,7 +378,7 @@ imprimir_relatorio_e_sair() {
 main() {
   if [ "$(id -u)" -eq 0 ]; then
     echo "instalar.sh recusa rodar como root/sudo — os alvos são ~/.claude/ e ~/.local/ do próprio usuário." >&2
-    exit 1
+    exit 2
   fi
   etapa1_prerequisitos
   etapa2_cstk_instalar_ou_atualizar

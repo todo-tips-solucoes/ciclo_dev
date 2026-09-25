@@ -1,17 +1,24 @@
-# .gitleaks.toml — exceções por CLASSE de achado da varredura de segredo
-# (FR-021).
+# .gitleaks.toml — configuração da varredura de segredo do cockpit (FR-021).
 #
-# Lido por padrão pelo `gitleaks dir . --redact` quando está na raiz do alvo
-# (sem precisar da flag "-c") — CI do cockpit, job "segredos".
+# Lido por padrão pelo `gitleaks dir . --redact -v` quando está na raiz do
+# alvo (sem precisar da flag "-c") — CI do cockpit, job "segredos".
 #
-# Use um bloco [[allowlists]] (global) ou [[rules.allowlists]] (restrito a
-# uma regra) apenas para um PADRÃO RECORRENTE de falso positivo — por
-# exemplo, uma chave de exemplo que todo template do cockpit carrega. Um
-# achado pontual já revisado vai em .gitleaksignore, não aqui: uma entrada
-# de allowlist cobre todas as ocorrências presentes e futuras do padrão, por
-# isso exige justificativa mais forte na revisão da PR.
+# ATENÇÃO: um .gitleaks.toml na raiz SUBSTITUI a configuração embutida no
+# binário. Sem o bloco [extend] abaixo o gitleaks rodaria com zero regras e o
+# job ficaria verde com segredo real (README oficial: "define your own
+# configuration, default rules do not apply"). O bloco herda todas as regras
+# padrão do binário — nunca o remova.
+[extend]
+useDefault = true
+
+# Exceções por CLASSE de achado: use um bloco [[allowlists]] (global) ou
+# [[rules.allowlists]] (restrito a uma regra) apenas para um PADRÃO RECORRENTE
+# de falso positivo — por exemplo, uma chave de exemplo que todo template do
+# cockpit carrega. Um achado pontual já revisado vai em .gitleaksignore, não
+# aqui: uma entrada de allowlist cobre todas as ocorrências presentes e
+# futuras do padrão, por isso exige justificativa mais forte na revisão da PR.
 #
 # Campos aceitos em cada bloco: paths, regexes, stopwords (documentação
 # oficial de gitleaks/gitleaks).
 #
-# Este arquivo nasce sem nenhuma allowlist ativa — zero exceções.
+# Nenhuma allowlist ativa — zero exceções.
