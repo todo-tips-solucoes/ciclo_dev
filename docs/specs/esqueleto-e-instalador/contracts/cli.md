@@ -32,8 +32,8 @@ Uma linha por etapa, em pt-BR, com status individual. Forma proposta:
 ```
 Relatório de preparo da máquina:
   [ok]      Pré-requisitos de máquina
-  [ok]      cstk atualizado (10.8.0)
-  [ok]      Versão do cstk >= CSTK_MIN (10.8.0)
+  [ok]      cstk atualizado
+  [ok]      Versão do cstk >= CSTK_MIN (<instalada> >= <piso>)
   [ok]      Catálogo de skills do toolkit
   [pulada]  Skills do cockpit — diretório skills/ ainda não existe
   [ok]      Plugin context-mode
@@ -62,8 +62,9 @@ Cada um com a fonte que o confirma — nenhum foi reconstruído de memória.
 | `cstk` ausente | o instalador oficial `https://github.com/JotJunior/cstk/releases/latest/download/install.sh`, **baixado para arquivo temporário (em `~/.local`) e então executado** com `CSTK_INSTALL_TELEMETRY=no sh <arquivo>` — não canalizado direto para o shell (ver §Superfície de Segurança do plan.md). O one-liner publicado no README é `curl -fsSL <url> \| sh`; usar a mesma URL sem o pipe mantém o canal oficial e elimina a execução parcial de download truncado. A variável desliga o prompt de telemetria que, aceito, gravaria no rc do shell (fora de `~/.claude`/`~/.local`). | FONTE OFICIAL — README de `JotJunior/cstk` (research Decision 1); `install.sh` da release lido: função `telemetry_optin` lê `CSTK_INSTALL_TELEMETRY` (yes/no) e, sem TTY, assume `no` (review rodadas 1-2) |
 | `cstk` presente | `cstk self-update --yes` | FONTE OFICIAL — README; *"updates the cstk binary itself + cli/lib"*. `--yes` MEDIDO em `cstk --help`: flag global, *"Pula confirmacoes interativas"* |
 | Conferir versão | `cstk --version` | MEDIDO — devolve `cstk v10.8.0` |
-| Catálogo, 1ª vez | `cstk install --yes` — critério: manifest `~/.claude/skills/.cstk-manifest` **ausente ou com skill listada sem diretório** | FONTE OFICIAL — README; instala o perfil `sdd` em `~/.claude/skills/`. MEDIDO (10.8.0): formato do manifest (`<skill>\t<versao>\t<sha256>\t<data>` após cabeçalho `#`); `update --yes` sobre manifest órfão avisa *"skill no manifest mas dir ausente"* e sai **0** — por isso o critério exige manifest íntegro; `install --yes` sobre catálogo parcial preserva edição local e recria o manifest (review rodadas 1-2) |
-| Catálogo, demais | `cstk update --yes` | FONTE OFICIAL — README; *"applies new releases preserving local edits"* |
+| Catálogo, máquina sem manifest | `cstk install --yes` (cheio) — só quando `~/.claude/skills/.cstk-manifest` não existe | FONTE OFICIAL — README; instala o perfil `sdd` em `~/.claude/skills/`. Cheio **apenas aqui**: sem catálogo não há edição local a preservar |
+| Catálogo, o que falta | `cstk install --yes <skill>...` (cherry-pick; `SKILL...` no `--help`), com a lista tirada de `cstk install --dry-run` (linhas `[dry-run] install: <nome>`) | MEDIDO: `install --yes` **sem argumentos** sobrescreve toda edição local de skills, commands e agents em silêncio (rc 0); o cherry-pick instala só a nomeada e preserva as demais. Cobre skill apagada do disco e skill nova de release mais recente (review rodada 3) |
+| Catálogo, o que já existe | `cstk update --yes`; **rc 4 é sucesso** | FONTE OFICIAL — README; *"applies new releases preserving local edits"*. `cstk update --help` §EXIT CODES: `4` = *"artefato pulado por edicao local sem --force/--keep"* — a preservação é o comportamento correto, não falha (review rodada 3) |
 | Detectar marketplace | `claude plugin marketplace list --json`, campo `.name` | MEDIDO — saída real do `--json` nesta máquina |
 | Registrar marketplace | `claude plugin marketplace add <source>` | MEDIDO — `claude plugin marketplace add --help` |
 | Detectar plugin | `claude plugin list --json`, campos `.id` e `.scope`; **"presente" = instalado no escopo `user`** (plugin só em `project`/`local` conta como ausente e é instalado em `user`) | MEDIDO — saída real do `--json` nesta máquina (review rodada 2) |
@@ -108,6 +109,7 @@ Agnosticismo: FALHOU — 3 ocorrência(s) de termo proibido:
   docs/exemplo.md:42:<trecho da linha>
   README.md:7:<trecho da linha>
   docs/<termo>-contrato.md:0:(caminho)
+  docs/link:0:(alvo do symlink)
 ```
 
 ### Códigos de saída
@@ -116,7 +118,7 @@ Agnosticismo: FALHOU — 3 ocorrência(s) de termo proibido:
 |--------|-------------|
 | `0` | Zero ocorrências (FR-013). Inclui o caso de lista vazia ou só com comentários. |
 | `1` | Uma ou mais ocorrências; todas listadas com arquivo e linha (FR-014); ocorrência no caminho sai como `arquivo:0:(caminho)`. |
-| `2` | Erro de uso — `scripts/agnostico.lista` ausente, execução fora de um repositório git (a enumeração depende de `git ls-files`), ou arquivo versionado ilegível (erro de leitura nunca é engolido como "OK"). |
+| `2` | Erro de uso — `scripts/agnostico.lista` ausente ou ilegível, execução fora de um repositório git (a enumeração depende de `git ls-files`), `git ls-files` falhando ou sem listar o próprio script (cópia sem `.git` dentro de outro repositório), arquivo versionado ilegível, ou falha ao criar arquivo temporário. Erro de leitura nunca é engolido como "OK". |
 
 ### Regras de varredura
 
@@ -126,6 +128,8 @@ Agnosticismo: FALHOU — 3 ocorrência(s) de termo proibido:
 | **Exclui `scripts/agnostico.lista`** | a lista contém todos os termos; sem isso casaria contra si mesma e falharia sempre (research Decision 7) |
 | Casamento literal, case-insensitive (`grep -i -F`); termos passam por trim e remoção de CR antes | termos são nomes próprios, não padrões (research Decision 8); lista salva com CRLF ou espaço final não pode silenciar um termo (review rodada 1) |
 | Varre também o **caminho** de cada arquivo versionado | o caminho vai para o remoto tanto quanto o conteúdo (review rodada 1, decisão do owner); ocorrência sai como `arquivo:0:(caminho)` |
+| Symlink: casa o **alvo textual**, sem seguir o link | é o alvo que o git versiona; seguir o link varreria arquivo fora do repositório. Ocorrência sai como `arquivo:0:(alvo do symlink)` (review rodadas 2-3) |
+| Arquivo no índice mas ausente do disco (sparse checkout, `skip-worktree`): varre o blob do índice | o que vai ao remoto é o blob, não o worktree (review rodada 3) |
 | Não abre exceção para contexto educativo | decidido nos Edge Cases da spec — qualquer ocorrência é reportada |
 | Trata todo arquivo como texto (`grep -a`), prefixo por `grep -H` | o resultado não pode depender do locale do runner: sem `-a`, um `.md` em Latin-1 era classificado como binário em `C.UTF-8` e a ocorrência sumia em silêncio; `-H` evita interpolar o nome do arquivo num programa `sed` (nome com `\|`, `&`, `\` ou newline quebrava e o achado era descartado). Colisão em binário de verdade é reportada como qualquer outra (review rodada 1) |
 
@@ -144,7 +148,7 @@ não por tag móvel.
 |-----|---------|------------------------|-----|
 | `shellcheck` | instala `shellcheck` e roda sobre todo `.sh` do repositório | há problema de portabilidade de shell | FR-017 |
 | `agnostico` | `./scripts/verificar-agnostico.sh` | há termo proibido | FR-018 |
-| `segredos` | instala o binário do `gitleaks` e roda `gitleaks dir . --redact -v` | há segredo em arquivo versionado | FR-019, FR-020, FR-021 |
+| `segredos` | instala o binário do `gitleaks` e roda dois passos: `gitleaks dir . --redact -v` (árvore) e, no `pull_request`, `gitleaks git . --redact -v --log-opts="origin/<base>..HEAD"` (histórico da PR) | há segredo em arquivo versionado, **ou** em qualquer commit do range da PR | FR-019, FR-020, FR-021 |
 
 Jobs independentes, para que a falha identifique **qual** garantia barrou (User
 Story 3, cenários 1 a 3).
@@ -166,11 +170,20 @@ terceiro: ela exige `GITLEAKS_LICENSE` em repositório de organização e não �
 MIT (research Decision 15). A versão fixada mora no workflow, não em `versoes.env`
 — não é piso de pré-requisito e o instalador não a lê (research Decision 15).
 
-**Invocação**: `gitleaks dir . --redact -v`
+**Invocação**: dois passos, ambos com `--redact -v`:
+
+| Passo | Comando | Quando |
+|-------|---------|--------|
+| árvore | `gitleaks dir . --redact -v` | sempre |
+| histórico da PR | `gitleaks git . --redact -v --log-opts="origin/<base>..HEAD"` | só `pull_request` |
+
+O checkout do job usa `fetch-depth: 0` — o raso (default `1`) não teria os
+patches do range (input documentado no README de `actions/checkout`).
 
 | Elemento | Valor | Razão |
 |----------|-------|-------|
-| Subcomando `dir` | varre a árvore de arquivos | mesmo recorte de `verificar-agnostico.sh`; `git` varreria o histórico e exigiria *baseline* (research Decision 15) |
+| Subcomando `dir` | varre a árvore de arquivos | mesmo recorte de `verificar-agnostico.sh` (research Decision 15) |
+| Subcomando `git` com `--log-opts="origin/<base>..HEAD"` | varre os patches só do range da PR | a árvore final não basta: segredo que entra num commit e sai no seguinte passa no `dir` e entra no histórico de `main` após o merge (reproduzido, review rodada 3). O range dispensa o *baseline* que tornaria inviável varrer o histórico inteiro |
 | `--redact` | **obrigatória** | o console imprime o campo `Secret:` com o valor achado; FR-019 exige arquivo e linha sem reproduzir o valor |
 | `-v` | **obrigatória** | sem ela o console só diz `leaks found: N`, sem `File:`/`Line:`, e a PR barrada não aponta onde está o segredo; com `--redact`, `Secret:` sai como `REDACTED` (medido com 8.30.1, review rodada 1) |
 | *(sem `-c`)* | `.gitleaks.toml` da raiz é lido por default | exceção precisa estar versionada e visível na PR (FR-021). **O arquivo precisa do bloco `[extend] useDefault = true`**: um `.gitleaks.toml` na raiz *substitui* a configuração embutida (README oficial), e sem o bloco o job rodaria com zero regras (review rodada 1, crítico) |
@@ -180,7 +193,7 @@ MIT (research Decision 15). A versão fixada mora no workflow, não em `versoes.
 
 | Arquivo | Conteúdo | Uso |
 |---------|----------|-----|
-| `.gitleaksignore` | uma linha por *fingerprint* `<file>:<ruleID>:<line>` — três campos, sem commit, no modo `dir` (medido com 8.30.1; o formato de quatro campos é do modo `git`) | ignorar um achado pontual já revisado |
+| `.gitleaksignore` | um comentário `# motivo:` e o *fingerprint*: `<file>:<ruleID>:<line>` (três campos, impresso pelo passo da árvore, e conferido também no passo de histórico) ou `<commit>:<file>:<ruleID>:<line>` (quatro campos, impresso pelo passo de histórico) — ver o cabeçalho do próprio arquivo | ignorar um achado pontual já revisado |
 | `.gitleaks.toml` | `[extend] useDefault = true` obrigatório, mais blocos `[[allowlists]]` / `[[rules.allowlists]]` com `paths`, `regexes`, `stopwords` | ignorar uma **classe** de placeholder (ex.: chaves de exemplo de template) |
 
 Nenhum dos dois é editável fora do repositório — toda exceção entra por PR e é

@@ -473,3 +473,38 @@ Mesmo escopo da rodada 1. Camadas: Blind Hunter (7), Edge Case Hunter (13, repro
 - Instalador do cstk como alvo móvel `latest` sem pin (blind): já descartado na rodada 1 — desenho da spec (piso ≠ alvo), risco aceito em dec-018.
 - `claude plugin update "$plugin"` sem `@marketplace` (blind): medido no smoke test real desta máquina (`claude plugin update context-mode -s user` → "already at the latest version"); o contrato registra `update <plugin>` pelo `--help`.
 - Nome de arquivo com newline conta duas ocorrências (edge): sem falso negativo (rc 1 mantido); só a contagem fica cosmética num caso patológico.
+
+## Review Findings — bmad-code-review rodada 3 (2026-09-25, sobre a2b2da2)
+
+Mesmo escopo. Camadas: Blind Hunter (8), Edge Case Hunter (10, com reprodução usando o cstk 10.8.0 real em HOME temporário), Acceptance Auditor (5). Após dedupe: 20 achados, 3 descartados. Severidade: 0 crítico, 1 alto, 6 médios, 13 baixos. **Gate não fechado (1 alto) — rodada 4 obrigatória.** Todos aplicados e validados em sandbox.
+
+### Patch (todos aplicados)
+
+- [x] [Review][Patch] ALTO: `cstk install --yes` **cheio** no ramo "catálogo não íntegro" apaga em silêncio toda edição local de skills, commands e agents (medido: toda skill do perfil marcada `updated`, edição perdida, rc 0). Regressão da rodada 2, que trocou `ls -A` pelo manifest e passou a cair nesse ramo. Etapa 5 reescrita: cheio só sem manifest; senão cherry-pick por nome do que falta (`cstk install --yes <skill>`, medido: `installed: 1`, demais intactas) + `update` (edge) [instalar.sh etapa5]
+- [x] [Review][Patch] MÉDIO: `cstk update` sai **rc 4** quando preserva edição local (`--help` §EXIT CODES: "artefato pulado por edicao local sem --force/--keep") e o instalador tratava isso como `[falhou]` bloqueante — qualquer máquina com um ajuste local saía 1 em toda execução. rc 4 agora é sucesso com aviso no relatório (edge) [instalar.sh etapa5]
+- [x] [Review][Patch] MÉDIO: skill nova de uma release mais recente nunca chegava a máquina já provisionada (`update` só mexe no que está no manifest). O cherry-pick usa `cstk install --dry-run`, que marca cada artefato como `install:` ou `update:` — cobre os dois casos com um mecanismo só (edge) [instalar.sh skills_faltantes]
+- [x] [Review][Patch] MÉDIO: `tr | grep -qxF` sob `pipefail` — o `grep -q` encerra no primeiro casamento, o `tr` leva SIGPIPE e o script sai 2 com "não consta de git ls-files". Latente hoje (12 bytes após a entrada), determinístico acima de ~64 KiB de caminhos, e `skills/`/`templates/` vêm depois no índice. Trocado por `grep -zqxF` direto no arquivo (blind+edge+auditor) [scripts/verificar-agnostico.sh]
+- [x] [Review][Patch] MÉDIO: a "troca atômica" da rodada 2 só protegia o `cp` — um `rm -rf "$destino"` parcial (subdiretório sem escrita, arquivo em uso no WSL) deixava o dev sem a versão local e sem a nova. Agora são duas renomeações com restauração se a segunda falhar (blind) [instalar.sh etapa6]
+- [x] [Review][Patch] MÉDIO: `.gitleaksignore` instruía só o formato de 3 campos, mas o CI passou a rodar também o passo de histórico, que imprime 4 campos. Cabeçalho reescrito com os dois formatos, quando cada um se aplica e o fato de a entrada com commit expirar ao rebasear (blind+edge+auditor) [.gitleaksignore]
+- [x] [Review][Patch] MÉDIO: contrato e research não registravam o passo `gitleaks git`, o `fetch-depth: 0` nem o novo critério da etapa 5, e o contrato ainda afirmava que "`git` exigiria baseline" e que o `install` cheio preserva edição local — o que a medição desmente (auditor) [contracts/cli.md; research.md]
+- [x] [Review][Patch] BAIXO: `locale -a | grep -q` tem o mesmo SIGPIPE — em máquina com muitos locales o `LC_ALL=C.UTF-8` quase nunca era exportado. Trocado por `case` (edge) [scripts/verificar-agnostico.sh]
+- [x] [Review][Patch] BAIXO: `catalogo_integro` ignorava a última linha do manifest sem newline final (falso "íntegro"). A função saiu inteira na reescrita da etapa 5 (blind+edge) [instalar.sh]
+- [x] [Review][Patch] BAIXO: `mktemp` falhando saía 1 — mesmo código de "termo encontrado", e o CI acusaria ocorrência sem lista. Agora `|| exit 2` nas três chamadas (blind) [scripts/verificar-agnostico.sh]
+- [x] [Review][Patch] BAIXO: `readlink` e `shellcheck` sem `--` — nome começando com hífen vira opção (blind) [scripts/verificar-agnostico.sh; .github/workflows/ci.yml]
+- [x] [Review][Patch] BAIXO: `.mcp.json` sem `/` no .gitignore ignorava o arquivo em qualquer subdiretório, tirando-o também de `git ls-files` e das varreduras (blind) [.gitignore]
+- [x] [Review][Patch] BAIXO: resíduo `<skill>.novo.<pid>` de execução interrompida virava uma skill visível ao Claude Code. Limpeza no topo do laço, best-effort, com aviso nomeando o diretório quando a remoção falha (edge) [instalar.sh etapa6]
+- [x] [Review][Patch] BAIXO: arquivo no índice mas ausente do disco (sparse checkout, `skip-worktree`) tinha só o caminho varrido; agora o blob do índice é varrido (edge) [scripts/verificar-agnostico.sh]
+- [x] [Review][Patch] BAIXO: `cut -c1-200` corta multibyte no meio; trocado por `-b` (o GNU cut conta bytes de qualquer forma) (edge) [scripts/verificar-agnostico.sh]
+- [x] [Review][Patch] BAIXO: contrato e plan não registravam `arquivo:0:(alvo do symlink)`, a varredura do blob nem os motivos novos de exit 2 (auditor) [contracts/cli.md; plan.md]
+- [x] [Review][Patch] BAIXO: literal da versão em comentários do instalador, no exemplo de relatório do contrato, na árvore do plan e no data-model — Princípio IV manda o número viver só em `versoes.env`. Registros datados de medição de saída de ferramenta externa (research, este log) não são duplicata do piso e ficam (auditor) [instalar.sh; contracts/cli.md; plan.md; data-model.md]
+
+### Defeitos encontrados na própria aplicação (validação em sandbox, não pelos revisores)
+
+- [x] `skills_faltantes` usava `2>/dev/null`, mas o cstk imprime o plano do `--dry-run` em **stderr** (medido: 33 linhas em stderr, 0 em stdout) — a lista vinha sempre vazia e o cherry-pick nunca rodava, reabrindo o alto da rodada 2 (catálogo vazio com `[ok]`). Corrigido para `2>&1` e revalidado nos quatro cenários.
+- [x] A limpeza do diretório antigo na etapa 6 rodava sem guarda sob `set -e`: um `rm` que falha matava o script **sem relatório**. Agora é best-effort com aviso.
+
+### Dismissed (3)
+
+- Instalador do cstk como alvo móvel `latest` sem pin (blind, 3ª vez): o desenho é da spec e de `versoes.env` ("o instalador mantém a máquina na última release"; piso ≠ alvo). Pinar contradiria o requisito. Risco aceito em dec-018.
+- `claude plugin update "$plugin"` sem `@marketplace` (blind, 2ª vez): executado de verdade no smoke test desta máquina, funciona; o contrato registra a forma pelo `--help`.
+- Nome de arquivo com newline conta duas ocorrências (edge, 2ª vez): sem falso negativo, só contagem cosmética num caso patológico.

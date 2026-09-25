@@ -562,3 +562,14 @@ com a fonte de cada um (Princípio V). Detalhe por achado em
 | `cstk --yes` é flag global (*"Pula confirmacoes interativas"*); manifest `~/.claude/skills/.cstk-manifest` no formato `<skill>\t<versao>\t<sha256>\t<data>`; `cstk update --yes` sobre manifest órfão sai 0 com aviso | medido com cstk 10.8.0 nesta máquina |
 | `claude plugin install|update` aceitam `-s, --scope`; `plugin list --json` expõe `.id`/`.scope`; `marketplace list --json` expõe `.name` | medido com `--help` e `--json` nesta máquina |
 | `sed 's/\r$//'` é extensão GNU (BSD sed lê `\r` como `r`); `tr -d '\r'` é POSIX | regra do próprio plan (nenhuma extensão GNU assumida); não reproduzido neste host |
+
+### Adendo — rodada 3
+
+| Fato | Fonte |
+|------|-------|
+| `cstk update` sai **4** (`Pelo menos um artefato foi pulado por edicao local sem --force/--keep`) e **preserva** a edição; é o comportamento correto, não falha | `cstk update --help` §EXIT CODES; reproduzido em HOME temporário (rc 4, edição intacta) |
+| `cstk install --yes` **sem argumentos** sobrescreve toda edição local de skills, commands e agents em silêncio (rc 0); `cstk install --yes <skill>` (cherry-pick, `SKILL...` no `--help`) instala só a nomeada e preserva as demais | medido em HOME temporário: cheio → `updated: N`, edição perdida; cherry-pick → `installed: 1`, edição intacta |
+| `cstk install --dry-run` classifica cada artefato como `[dry-run] install: <nome>` (ausente) ou `update: <nome>` (presente) — é como o instalador descobre o que falta, incluindo skill nova de uma release mais recente | medido em HOME temporário |
+| O gitleaks confere o *fingerprint* sem commit (`<file>:<rule>:<line>`) para todo achado, inclusive no modo `git` — por isso a entrada de 3 campos silencia os dois passos quando a linha coincide | `detect/detect.go` da tag v8.30.1 (função que registra o achado), lido via context-mode |
+| `fetch-depth: 0` no `actions/checkout` traz todo o histórico; o default `1` traria só o commit do evento | README oficial de `actions/checkout` |
+| `grep -q` encerra no primeiro casamento; sob `pipefail`, o escritor do pipe morre com SIGPIPE (141) e o comando composto "falha" | comportamento POSIX de `grep -q`; reproduzido com lista acima do buffer de pipe |

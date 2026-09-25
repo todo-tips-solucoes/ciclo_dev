@@ -221,6 +221,8 @@ ler_cstk_min() {
   [ -f "$arq" ] || return 0
   # tr, não sed 's/\r$//': no BSD sed (macOS) o \r é um 'r' literal. tail -1:
   # mesma semântica de `source`, a última atribuição vale (review rodada 2).
+  # O literal do piso vive só em versoes.env (Princípio IV) — nem aqui, nem
+  # em comentário, nem em mensagem.
   v="$(tr -d '\r' < "$arq" \
     | grep -E '^[[:space:]]*(export[[:space:]]+)?CSTK_MIN[[:space:]]*=' \
     | tail -1 | cut -d= -f2- || true)"
@@ -253,17 +255,16 @@ etapa4_cstk_piso() {
 
 # --- etapa 5: catálogo de skills do toolkit -----------------------------
 
-# catalogo_integro — manifest presente E toda skill listada nele tem diretório.
-# Formato do manifest (medido nesta máquina, cstk 10.8.0): linhas '#' de
-# cabeçalho, depois <skill>\t<versao-toolkit>\t<sha256>\t<data>.
-catalogo_integro() {
-  local m="$HOME/.claude/skills/.cstk-manifest" nome
-  [ -f "$m" ] || return 1
-  while IFS=$'\t' read -r nome _; do
-    case "$nome" in ''|'#'*) continue ;; esac
-    [ -d "$HOME/.claude/skills/$nome" ] || return 1
-  done < "$m"
-  return 0
+# skills_faltantes — nomes que o catálogo da release tem e esta máquina não.
+# `cstk install --dry-run` marca cada artefato como `install:` (ausente) ou
+# `update:` (presente); só os primeiros interessam. Cobre tanto skill apagada
+# do disco quanto skill nova de uma release mais recente. Falha de parse
+# devolve lista vazia — degrada para "só update", nunca para escrita cega.
+skills_faltantes() {
+  # 2>&1 e não 2>/dev/null: o cstk imprime o plano do --dry-run em STDERR
+  # (medido: 33 linhas em stderr, 0 em stdout). Descartá-lo devolvia lista
+  # vazia sempre e o cherry-pick nunca rodava.
+  cstk install --dry-run 2>&1 | sed -n 's/.*\[dry-run\] install: *//p' || true
 }
 
 etapa5_catalogo() {
@@ -274,19 +275,47 @@ etapa5_catalogo() {
     log_etapa_fim 5 "falhou"
     return
   fi
-  # Primeira execução = catálogo ausente OU quebrado. ~/.claude/skills é o
-  # diretório padrão de skills do Claude Code e quase nunca está vazio, então
-  # "não-vazio" não serve (review rodada 1); e só o manifest também não serve:
-  # `rm -rf ~/.claude/skills/*` preserva o dotfile, e `cstk update --yes` sobre
-  # esse estado avisa "dir ausente" e sai 0 — relatava [ok] com catálogo vazio
-  # (review rodada 2). `install --yes` sobre catálogo parcial preserva edição
-  # local e recria o manifest (medido com 10.8.0).
-  if catalogo_integro; then
-    if cstk update --yes; then status=ok; else status=falhou; fi
-  else
+  # Sem manifest não há catálogo: instalação cheia, nada a preservar.
+  # Com manifest, NUNCA `install --yes` cheio — ele sobrescreve toda edição
+  # local de skills, commands e agents em silêncio (medido: toda skill do perfil marcada `updated`,
+  # edição local perdida, rc 0). O que restaura o que falta sem tocar no resto
+  # é o cherry-pick por nome (medido: `installed: 1`, edição das demais
+  # intacta). Depois, `update` para o que já existe.
+  #   Histórico: "não-vazio" (r1) mandava update a máquina sem catálogo;
+  #   "manifest presente" (r2) relatava [ok] com catálogo vazio; o cherry-pick
+  #   fecha os dois e ainda traz skill nova de release mais recente (r3).
+  local faltantes=() n
+  if [ ! -f "$HOME/.claude/skills/.cstk-manifest" ]; then
     if cstk install --yes; then status=ok; else status=falhou; fi
+    registrar_item "Catálogo de skills do toolkit" "$status" true
+    log_etapa_fim 5 "$([ "$status" = ok ] && echo "concluída" || echo "falhou")"
+    return
   fi
-  registrar_item "Catálogo de skills do toolkit" "$status" true
+  while IFS= read -r n; do [ -n "$n" ] && faltantes+=("$n"); done < <(skills_faltantes)
+  status=ok
+  local detalhe=""
+  if [ "${#faltantes[@]}" -gt 0 ]; then
+    if cstk install --yes "${faltantes[@]}"; then
+      detalhe=" — ${#faltantes[@]} item(ns) ausente(s) reinstalado(s): ${faltantes[*]}"
+    else
+      status=falhou
+    fi
+  fi
+  if [ "$status" = ok ]; then
+    # rc 4 é `CSTK_EXIT_LOCAL_EDIT` ("artefato pulado por edicao local sem
+    # --force/--keep", `cstk update --help` §EXIT CODES): a preservação é o
+    # comportamento correto e documentado, não uma falha — tratá-la como
+    # bloqueante fazia toda execução sair 1 numa máquina com qualquer ajuste
+    # local (review rodada 3). Sem --force e sem --keep de propósito: o aviso
+    # nativo do cstk nomeia o artefato e passa sem filtro (dec-036).
+    cstk update --yes && rc=0 || rc=$?
+    case "$rc" in
+      0) : ;;
+      4) detalhe="$detalhe — edição local preservada (nada sobrescrito)" ;;
+      *) status=falhou ;;
+    esac
+  fi
+  registrar_item "Catálogo de skills do toolkit${detalhe}" "$status" true
   log_etapa_fim 5 "$([ "$status" = ok ] && echo "concluída" || echo "falhou")"
 }
 
@@ -309,11 +338,16 @@ etapa6_skills_cockpit() {
     log_etapa_fim 6 "falhou"
     return
   fi
-  local instaladas=0 divergentes="" falhas="" skill_dir nome destino novo status
+  local instaladas=0 divergentes="" falhas="" skill_dir nome destino novo velho status
   for skill_dir in "$origem"/*/; do
     [ -d "$skill_dir" ] || continue
     nome="$(basename "$skill_dir")"
     destino="$HOME/.claude/skills/$nome"
+    # Resíduo de execução interrompida (outro PID) não pode virar uma skill
+    # visível ao Claude Code. Fora do ramo divergente para que um resíduo já
+    # removível saia na execução seguinte. Best-effort: uma remoção que falha
+    # não pode matar o script (set -e) — quem criou o resíduo já avisou.
+    rm -rf -- "$destino".novo.* "$destino".antigo.* 2>/dev/null || true
     if [ ! -e "$destino" ] && [ ! -L "$destino" ]; then
       if cp -r "$skill_dir" "$destino"; then instaladas=$((instaladas + 1)); else falhas="$falhas $nome"; fi
     elif [ -d "$destino" ] && diff -rq "$skill_dir" "$destino" >/dev/null 2>&1; then
@@ -327,10 +361,23 @@ etapa6_skills_cockpit() {
       # intacta (review rodada 2).
       echo "Aviso: ~/.claude/skills/$nome tem edição local divergente — substituindo pela versão do cockpit." >&2
       novo="$destino.novo.$$"
-      if rm -rf "$novo" && cp -r "$skill_dir" "$novo" && rm -rf "$destino" && mv "$novo" "$destino"; then
+      velho="$destino.antigo.$$"
+      # Duas renomeações: o destino só deixa de existir no instante do `mv`, e
+      # se o segundo falhar a versão local volta. Antes era `rm -rf destino &&
+      # mv`: um `rm` parcial (subdiretório sem escrita, arquivo em uso no WSL)
+      # deixava o dev sem a versão local E sem a nova (review rodada 3).
+      if cp -r "$skill_dir" "$novo" \
+         && mv "$destino" "$velho" \
+         && { mv "$novo" "$destino" || { mv "$velho" "$destino"; false; }; }; then
+        # A troca já aconteceu: a skill está correta. Remover a cópia antiga é
+        # limpeza — se falhar (diretório sem permissão de escrita), avisa e
+        # segue; matar o script aqui deixaria o dev sem relatório algum.
+        if ! rm -rf -- "$velho" 2>/dev/null; then
+          echo "Aviso: não consegui remover a cópia anterior em $velho — remova-a à mão (o Claude Code a leria como skill)." >&2
+        fi
         divergentes="$divergentes $nome"
       else
-        rm -rf "$novo"
+        rm -rf -- "$novo" 2>/dev/null || true
         falhas="$falhas $nome"
       fi
     fi

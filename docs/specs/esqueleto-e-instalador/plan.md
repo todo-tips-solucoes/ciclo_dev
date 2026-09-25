@@ -82,7 +82,7 @@ docs/specs/esqueleto-e-instalador/
 │   ├── verificar-agnostico.sh        # NOVO
 │   └── agnostico.lista               # NOVO
 ├── instalar.sh                       # NOVO
-├── versoes.env                       # existe — CSTK_MIN=10.8.0
+├── versoes.env                       # existe — chave CSTK_MIN (única fonte do piso)
 ├── README.md                         # existe
 ├── LICENSE                           # existe
 └── .gitignore                        # existe
@@ -122,7 +122,7 @@ script). Fora de escopo por ora, por decisão do owner (YAGNI): flag
 | 2 | `cstk` ausente → one-liner oficial; presente → `cstk self-update` | FR-002, FR-003 | Sim |
 | 3 | `cstk --version` responde? | FR-005 | Sim |
 | 4 | Versão do `cstk` >= `CSTK_MIN` (lido de `versoes.env`) | FR-004 | Sim |
-| 5 | `cstk install` (1ª vez) / `cstk update` (demais) — catálogo de skills | FR-006 | Sim |
+| 5 | catálogo de skills: `cstk install` cheio só sem manifest; senão cherry-pick do que falta + `cstk update` | FR-006 | Sim |
 | 6 | Skills do cockpit de `skills/` → `~/.claude/skills/` | FR-007 | Não (ver Decision 13: `skills/` ainda não existe → item `pulada`) |
 | 7 | Plugins: `context-mode` e `ponytail` pelos marketplaces, **por plugin**: ausente → instala; presente → atualiza (mesmo padrão da etapa 2 com o `cstk`) | FR-008 | `context-mode` sim; `ponytail` **não** |
 | — | Relatório final com status por item | FR-009 | — |
@@ -170,9 +170,11 @@ Três passos:
 3. Casar por substring literal, sem distinção de maiúsculas (`grep -i -a -F`,
    todo arquivo tratado como texto, independente de locale), reportando
    `arquivo:linha` por ocorrência. O caminho de cada entrada versionada
-   (inclusive gitlink e symlink, cujo alvo textual também é casado) entra na
-   varredura e sai como `arquivo:0:(caminho)`. Termos passam por remoção de
-   CR/BOM e trim antes de casar (review rodadas 1-2).
+   (inclusive gitlink) entra na varredura e sai como `arquivo:0:(caminho)`; o
+   alvo textual de um symlink, sem seguir o link, sai como
+   `arquivo:0:(alvo do symlink)`; entrada no índice ausente do disco (sparse
+   checkout) tem o blob varrido. Termos passam por remoção de CR/BOM e trim
+   antes de casar (review rodadas 1-3).
 
 Saída: `0` com zero ocorrências (FR-013); `1` listando arquivo e linha de cada
 ocorrência (FR-014). Sem efeito colateral — o script só lê (FR-016).

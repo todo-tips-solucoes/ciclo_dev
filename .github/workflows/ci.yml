@@ -46,8 +46,9 @@ jobs:
       - name: Rodar shellcheck em todo .sh versionado
         run: |
           set -euo pipefail
-          # -z/-0: caminho com espaço não é partido; -r: lista vazia não roda.
-          git ls-files -z '*.sh' | xargs -0 -r shellcheck
+          # -z/-0: caminho com espaço não é partido; -r: lista vazia não roda;
+          # --: arquivo cujo nome começa com hífen não vira opção.
+          git ls-files -z '*.sh' | xargs -0 -r shellcheck --
 
   agnostico:
     name: agnostico

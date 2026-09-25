@@ -18,8 +18,8 @@
 #      no caminho sai como arquivo:0:(caminho) e no alvo de um symlink como
 #      arquivo:0:(alvo do symlink)
 #   2  erro de uso — agnostico.lista ausente ou ilegível, execução fora de um
-#      repositório git, git ls-files falhando ou sem listar este script, ou
-#      arquivo versionado ilegível
+#      repositório git, git ls-files falhando ou sem listar este script,
+#      arquivo versionado ilegível, ou falha ao criar arquivo temporário
 set -euo pipefail
 
 LISTA_REL="scripts/agnostico.lista"
@@ -28,9 +28,12 @@ SELF_REL="scripts/verificar-agnostico.sh"
 # Caixa fora do ASCII (Promoção vs PROMOÇÃO) só dobra em locale UTF-8; o runner
 # do GitHub já é C.UTF-8, uma máquina local pode estar em C/POSIX e divergir em
 # silêncio (review rodada 2). Só exporta se o locale existir.
-if locale -a 2>/dev/null | grep -qiE '^C\.utf-?8$'; then
-  export LC_ALL=C.UTF-8
-fi
+# Sem pipe para `grep -q`: ele encerra no primeiro casamento, o escritor leva
+# SIGPIPE e, sob pipefail, o `if` falha — numa máquina com muitos locales o
+# export quase nunca acontecia (review rodada 3).
+case "$(locale -a 2>/dev/null || true)" in
+  *C.UTF-8*|*C.utf8*) export LC_ALL=C.UTF-8 ;;
+esac
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)" || {
   echo "Agnosticismo: erro de uso — não foi possível resolver a raiz do script." >&2
@@ -52,10 +55,13 @@ if [ ! -r "$LISTA_REL" ]; then
   exit 2
 fi
 
-TERMOS_TMP="$(mktemp)"
-ACHADOS_TMP="$(mktemp)"
-ARQS_TMP="$(mktemp)"
-trap 'rm -f "$TERMOS_TMP" "$ACHADOS_TMP" "$ARQS_TMP"' EXIT
+# `|| exit 2`: TMPDIR cheio ou sem permissão sairia 1 por `set -e`, o mesmo
+# código de "termo proibido encontrado", e o CI acusaria ocorrência sem lista
+# (review rodada 3).
+TERMOS_TMP="$(mktemp)" || exit 2
+ACHADOS_TMP="$(mktemp)" || exit 2
+ARQS_TMP="$(mktemp)" || exit 2
+trap 'rm -f "$TERMOS_TMP" "$TERMOS_TMP.raw" "$ACHADOS_TMP" "$ARQS_TMP"' EXIT
 
 # Termos. Normalização ANTES de filtrar, senão "<termo>\r", "<termo> " ou um
 # BOM grudado no primeiro termo nunca casariam (review rodadas 1-2):
@@ -89,7 +95,10 @@ git ls-files -z > "$ARQS_TMP" || {
   echo "Agnosticismo: erro de uso — git ls-files falhou." >&2
   exit 2
 }
-if ! tr '\0' '\n' < "$ARQS_TMP" | grep -qxF "$SELF_REL"; then
+# `grep -z` direto no arquivo, sem `tr |`: com a lista passando do buffer do
+# pipe (~64 KiB), o `grep -q` encerrava cedo, o `tr` levava SIGPIPE e o
+# pipefail transformava isso em "erro de uso" falso (review rodada 3).
+if ! grep -zqxF -- "$SELF_REL" "$ARQS_TMP"; then
   echo "Agnosticismo: erro de uso — $SELF_REL não consta de git ls-files (cópia sem .git dentro de outro repositório?)." >&2
   exit 2
 fi
@@ -111,19 +120,32 @@ while IFS= read -r -d '' arquivo; do
     printf '%s:0:(caminho)\n' "$arquivo" >> "$ACHADOS_TMP"
   fi
   if [ -L "$arquivo" ]; then
-    if readlink "$arquivo" | grep -qiF -f "$TERMOS_TMP"; then
+    # `--`: nome começando com hífen viraria opção do readlink e o alvo
+    # escaparia da varredura (review rodada 3).
+    if readlink -- "$arquivo" | grep -qiF -f "$TERMOS_TMP"; then
       printf '%s:0:(alvo do symlink)\n' "$arquivo" >> "$ACHADOS_TMP"
     fi
     continue
   fi
-  [ -f "$arquivo" ] || continue
-  grep -inaHF -f "$TERMOS_TMP" -- "$arquivo" >> "$ACHADOS_TMP" || {
-    rc=$?
-    if [ "$rc" -ne 1 ]; then
-      echo "Agnosticismo: erro ao ler '$arquivo' (grep rc=$rc)." >&2
-      exit 2
-    fi
-  }
+  if [ -f "$arquivo" ]; then
+    grep -inaHF -f "$TERMOS_TMP" -- "$arquivo" >> "$ACHADOS_TMP" || {
+      rc=$?
+      if [ "$rc" -ne 1 ]; then
+        echo "Agnosticismo: erro ao ler '$arquivo' (grep rc=$rc)." >&2
+        exit 2
+      fi
+    }
+    continue
+  fi
+  # Versionado mas ausente do disco (sparse checkout, skip-worktree): o que vai
+  # ao remoto é o blob do índice, não o worktree — varrer o blob, senão o
+  # conteúdo passaria em silêncio (review rodada 3). O nome é prefixado por
+  # printf, nunca interpolado num programa sed.
+  git cat-file -p ":$arquivo" 2>/dev/null \
+    | grep -inaF -f "$TERMOS_TMP" \
+    | while IFS= read -r ocorrencia; do
+        printf '%s:%s\n' "$arquivo" "$ocorrencia" >> "$ACHADOS_TMP"
+      done || true
 done < "$ARQS_TMP"
 
 if [ ! -s "$ACHADOS_TMP" ]; then
@@ -135,5 +157,7 @@ N="$(wc -l < "$ACHADOS_TMP" | tr -d '[:space:]')"
 echo "Agnosticismo: FALHOU — ${N} ocorrência(s) de termo proibido:"
 # Coluna de texto truncada: um binário com o termo despejaria o blob inteiro
 # no log da PR (review rodada 2). O contrato pede a colisão, não o conteúdo.
-cut -c1-200 "$ACHADOS_TMP" | sed 's/^/  /'
+# `-b`, não `-c`: o GNU cut conta bytes de qualquer forma, e dizer "bytes"
+# evita prometer um corte por caractere que não acontece (review rodada 3).
+cut -b1-200 "$ACHADOS_TMP" | sed 's/^/  /'
 exit 1

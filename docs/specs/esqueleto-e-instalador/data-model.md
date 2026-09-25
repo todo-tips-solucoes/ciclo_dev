@@ -13,7 +13,7 @@ Fonte de verdade: **`versoes.env` na raiz, e nenhum outro arquivo** (Princípio 
 
 | Campo | Tipo | Constraints | Notes |
 |-------|------|-------------|-------|
-| `CSTK_MIN` | string SemVer `MAJOR.MINOR.PATCH` | obrigatória; sem prefixo `v` | Valor atual MEDIDO: `10.8.0` |
+| `CSTK_MIN` | string SemVer `MAJOR.MINOR.PATCH` | obrigatória; sem prefixo `v` | O valor vive só aqui (Princípio IV) — nenhum outro arquivo o repete |
 
 **Formato do arquivo**: `CHAVE=valor`, uma por linha; linhas iniciadas por `#` são
 comentário. O arquivo já existe e já documenta a regra no próprio cabeçalho.

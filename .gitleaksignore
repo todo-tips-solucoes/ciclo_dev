@@ -5,13 +5,22 @@
 #
 # Cada exceção ocupa duas linhas: um comentário com o MOTIVO (a Key Entity da
 # spec exige localização E motivo) e o fingerprint do achado já revisado e
-# reconhecido como falso positivo. No modo `dir` (o que o CI usa) o
-# fingerprint NÃO tem commit — são três campos:
+# reconhecido como falso positivo, copiado do campo "Fingerprint:" que o
+# gitleaks imprime no log do job (é para isso que o -v existe):
 #   # motivo: <por que é falso positivo>, revisado na PR #<n>
-#   <arquivo>:<ruleID>:<linha>
-# Copie o valor do campo "Fingerprint:" que o próprio gitleaks imprime no log
-# do job (é para isso que o -v existe). Uma entrada no formato de quatro
-# campos, com commit (formato do modo `git`), nunca casa no modo `dir`.
+#   <fingerprint>
+#
+# O job roda dois passos e cada um imprime um formato:
+#   - "árvore" (`gitleaks dir`)      -> <arquivo>:<ruleID>:<linha>, 3 campos
+#   - "histórico da PR" (`gitleaks git`) -> <commit>:<arquivo>:<ruleID>:<linha>
+# A entrada de 3 campos silencia os DOIS passos quando a linha do achado
+# coincide (o gitleaks confere o fingerprint sem commit para todo achado,
+# inclusive no modo git). Prefira-a. Duas situações pedem a entrada de 4
+# campos, tirada do log do passo de histórico: achado que só existe num commit
+# intermediário, ou achado cuja linha mudou entre o commit e a árvore final —
+# aí registre as duas. Entrada com commit expira ao rebasear (o SHA muda) e o
+# job volta a barrar: comportamento esperado, não defeito.
+#
 # Recurso marcado como experimental pela documentação oficial do gitleaks.
 #
 # Este arquivo nasce sem nenhuma exceção ativa.
