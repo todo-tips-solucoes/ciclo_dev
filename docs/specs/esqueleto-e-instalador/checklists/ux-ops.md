@@ -61,23 +61,18 @@ pelo dev e cobertura dos caminhos de erro operacionais. Domínio customizado
 
 ## Cobertura de Edge Cases
 
-- [ ] CHK010 - O Edge Case "máquina sem permissão de escrita na área de
-      configuração" (spec.md) não tem Acceptance Scenario, cenário de quickstart,
-      código de saída dedicado nem mecanismo de arquitetura (ex.: escrita
-      atômica, pré-checagem de permissão como etapa própria do pipeline) que
-      sustente "falhar... em vez de falhar a meio caminho deixando estado
-      parcial". A promessa existe como texto de Edge Case; o COMO fica
-      inteiramente implícito na implementação. [Gap, Spec Edge Cases — "não tem
-      permissão de escrita"; Plan §Arquitetura de `instalar.sh` (sem menção);
-      Contracts/cli.md §Códigos de saída (sem código dedicado); Quickstart (sem
-      cenário correspondente)] {auto}
-- [ ] CHK011 - O Edge Case "plugin necessário ausente mas ferramenta de
-      implementação já correta → instala apenas o que falta, sem reinstalar o
-      que já está correto" não tem Acceptance Scenario nem cenário de quickstart
-      dedicado — a garantia existe só como texto de Edge Case, sem verificação
-      executável descrita (Scenario 7 do quickstart cobre falha do plugin
-      recomendado, não instalação parcial seletiva). [Gap, Spec Edge Cases;
-      Quickstart (sem cenário correspondente)] {auto}
+- [x] CHK010 - O Edge Case "máquina sem permissão de escrita na área de
+      configuração" agora tem Acceptance Scenario (spec.md User Story 1 cenário 8),
+      cenário de quickstart (Scenario 12), código de saída dedicado (contracts/cli.md
+      exit `3`) e mecanismo de arquitetura (pré-checagem de escrita na etapa 1,
+      plan.md §Arquitetura de `instalar.sh`) que sustenta "falhar... sem estado
+      parcial" — a checagem roda antes de qualquer escrita real. {auto}
+- [x] CHK011 - O Edge Case "plugin necessário ausente mas ferramenta de
+      implementação já correta → instala apenas o que falta" agora tem Acceptance
+      Scenario (spec.md User Story 1 cenário 9), cenário de quickstart dedicado
+      (Scenario 13, distinto do Scenario 7 de falha do plugin recomendado) e
+      mecanismo de arquitetura (etapa 7 decide por plugin, plan.md §Arquitetura de
+      `instalar.sh`). {auto}
 
 ## Requisitos Não-Funcionais
 

@@ -498,6 +498,21 @@ nunca usa. O workflow é o único consumidor; o pino mora no único consumidor.
   saída se isso pesar: trocar a ferramenta por outra chamada do mesmo jeito
   (binário pinado dentro do job) — a troca fica contida no workflow e nos dois
   arquivos de exceção, sem tocar spec nem `instalar.sh`.
+- **NÃO VERIFICADO — arquivo binário (CHK012-security)**: se o `gitleaks dir .`
+  decodifica/tenta casar regex dentro de arquivo binário, pula por
+  heurística de conteúdo, ou trata diferente conforme extensão. O README lido
+  para esta feature (Decision 15) não documenta esse comportamento, e não há
+  canal de rede autorizado nesta execução (`bash-guard` bloqueia URL fora da
+  whitelist do projeto-alvo) para consultar a documentação/código-fonte além do
+  que já foi lido. Diferente da varredura de agnosticismo — que **declara
+  explicitamente** assumir conteúdo textual e deixa colisão binária fora de
+  escopo (spec.md Edge Cases, plan.md §Regras de varredura) — o job `segredos`
+  não herda essa mesma declaração porque é um binário de terceiro, não um
+  script desta frente: não se pode declarar o comportamento de uma ferramenta
+  externa sem fonte lida (Princípio V). Nenhum artefato desta frente afirma o
+  que o `gitleaks` faz com arquivo binário; se isso importar para o resultado
+  de uma execução real, é uma pergunta a fazer à fonte oficial (README/código)
+  numa sessão com acesso de rede, não a resolver por suposição aqui.
 
 **Alternatives considered**:
 
@@ -519,7 +534,14 @@ ambiente-alvo, tier de entrega) ficou em aberto: todos vêm decididos do briefin
 §6 (bash, GitHub Actions, sem persistência) e da constituição §Princípios IV e
 VII, sem inferência desta skill.
 
-Uma lacuna factual permanece declarada, não suprida por suposição: **se o binário
-do gitleaks faz chamada de rede ao avaliar candidatos a segredo** — a
-documentação oficial lida não afirma nem nega (Decision 15). Nenhuma afirmação
-sobre isso é feita em nenhum artefato desta frente.
+Duas lacunas factuais permanecem declaradas, não supridas por suposição:
+
+- **Se o binário do gitleaks faz chamada de rede ao avaliar candidatos a
+  segredo** — a documentação oficial lida não afirma nem nega (Decision 15).
+- **O comportamento do binário do gitleaks diante de arquivo binário**
+  (CHK012-security) — a documentação oficial lida não documenta esse caso, e
+  não há canal de rede autorizado nesta execução para consultar além do que já
+  foi lido (Decision 15, §Lacunas declaradas).
+
+Nenhuma afirmação sobre nenhum dos dois pontos é feita em qualquer artefato
+desta frente.

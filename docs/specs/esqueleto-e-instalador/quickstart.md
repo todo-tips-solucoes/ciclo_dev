@@ -192,6 +192,42 @@ Cobre User Story 3 cenários 1 a 4; FR-017; FR-018; FR-019; SC-004; SC-006.
 
 ---
 
+## Scenario 12: Sem permissão de escrita — falha na etapa 1, sem estado parcial
+
+Cobre User Story 1 cenário 8; Edge Case "sem permissão de escrita"; FR-011.
+
+1. Simular `~/.claude/` (ou `~/.local/`) sem permissão de escrita para o usuário
+   (ex.: `chmod 555` no diretório dentro do `HOME` temporário do cenário 11).
+2. Executar `./instalar.sh`.
+3. **Expected**:
+   - falha **na etapa 1**, antes de qualquer instalação (`cstk`, catálogo, skills,
+     plugins);
+   - a mensagem identifica **qual** área (`~/.claude/` ou `~/.local/`) não aceitou
+     a escrita;
+   - código de saída `3` (contracts/cli.md);
+   - nenhum arquivo novo fica para trás nas áreas escritas pelas etapas
+     seguintes — a pré-checagem roda antes delas.
+4. Restaurar a permissão do diretório.
+
+---
+
+## Scenario 13: Plugin ausente é instalado sem reinstalar o que já está correto
+
+Cobre User Story 1 cenário 9; Edge Case "plugin ausente"; FR-008.
+
+1. Numa máquina com `cstk` instalado na versão exigida e o plugin `context-mode`
+   já instalado e correto, mas com o `ponytail` ausente.
+2. Registrar o estado atual do `context-mode` (ex.: hash/timestamp do que o
+   marketplace já instalou).
+3. Executar `./instalar.sh`.
+4. **Expected**:
+   - o `ponytail` é instalado;
+   - o `context-mode` **não** é reinstalado nem afetado (estado do passo 2
+     inalterado);
+   - o relatório final mostra os dois plugins com status `[ok]`.
+
+---
+
 > **Nota sobre o cenário de roundtrip backend↔frontend** do template: não se
 > aplica. A feature é single-layer (scripts de shell e workflow de CI), sem
 > serviço, payload ou borda de serialização — conforme §Convenções de Borda do

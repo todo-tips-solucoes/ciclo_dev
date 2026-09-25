@@ -47,10 +47,11 @@ Relatório de preparo da máquina:
 | `0` | Nenhum item **bloqueante** falhou. Itens não-bloqueantes podem ter falhado e aparecem como `[falhou]` no relatório (FR-008). |
 | `1` | Ao menos um item bloqueante falhou. O relatório identifica qual. |
 | `2` | Pré-requisitos de máquina ausentes ou abaixo do mínimo. Encerra antes das demais etapas, listando **todos** os faltantes de uma vez (Edge Case da spec). |
+| `3` | Permissão de escrita insuficiente em `~/.claude/` e/ou `~/.local/`, detectada por uma pré-checagem (criar e remover um arquivo temporário) dentro da etapa 1, antes de qualquer etapa escrever algo. A mensagem identifica qual área falhou. Nenhum estado parcial: a checagem roda antes de qualquer escrita real (Edge Case da spec, Acceptance Scenario 8). |
 
-> Separar `2` de `1` é deliberado: "sua máquina não tem as ferramentas de base" e
-> "o preparo tentou e falhou" são diagnósticos diferentes para o dev (SC-005) e
-> exigem ações diferentes.
+> Separar `2` de `1` e `3` de ambos é deliberado: "sua máquina não tem as ferramentas de
+> base", "sua máquina não deixa escrever onde o comando precisa" e "o preparo tentou e
+> falhou" são diagnósticos diferentes para o dev (SC-005) e exigem ações diferentes.
 
 ### Comandos externos invocados
 

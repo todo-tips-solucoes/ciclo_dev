@@ -29,13 +29,11 @@ implementação (o job `segredos` ainda não existe no repositório — plan.md 
 
 ## Consistência de Requisitos
 
-- [ ] CHK005 - SC-006 afirma que "100% das tentativas de introduzir um segredo...
-      são detectadas", em redação absoluta e sem qualificação. O próprio plan
-      declara, como risco residual aceito, que "a varredura de segredo é regex +
-      entropia, não prova de ausência" e que "segredo em formato não coberto
-      passa". Uma leitura literal de SC-006 promete uma garantia mais forte do que
-      a arquitetura desenhada entrega. [Consistência/Conflict, Spec §SC-006; Plan
-      §Risco residual aceito item 3] {humano}
+- [x] CHK005 - SC-006 foi reescrito para qualificar a garantia ao que os
+      detectores do `gitleaks` reconhecem (regex + entropia), com link explícito
+      para plan.md §Risco residual aceito item 3 — deixou de prometer prova de
+      ausência de segredo em qualquer formato. [Consistência/Conflict, Spec
+      §SC-006; Plan §Risco residual aceito item 3] {auto}
 - [x] CHK006 - A garantia de agnosticismo (US2 — vazamento de nome próprio) e a
       garantia de varredura de segredo (US3 — credencial) estão claramente
       diferenciadas o suficiente para não serem lidas como o mesmo mecanismo?
@@ -69,13 +67,12 @@ implementação (o job `segredos` ainda não existe no repositório — plan.md 
       não aparece no relatório, e não só que a alteração é barrada? [Edge Case,
       Spec Edge Cases — "O que acontece quando um segredo real é detectado?"]
       {auto}
-- [ ] CHK012 - O Edge Case de "arquivo binário com colisão de bytes" (Spec Edge
-      Cases, US2) é declarado fora de escopo explicitamente só para a varredura de
-      agnosticismo (`verificar-agnostico.sh`). Nem a spec nem o plan declaram o
-      comportamento do job `segredos` diante de arquivo binário (gitleaks tenta
-      decodificar/pula binário por padrão?) — a mesma pergunta não recebeu a mesma
-      resposta explícita para a segunda varredura. [Gap, Spec Edge Cases; Plan §CI
-      do cockpit] {auto}
+- [x] CHK012 - plan.md §CI do cockpit (job `segredos`) e research.md Decision 15
+      agora declaram explicitamente que o comportamento do `gitleaks` diante de
+      arquivo binário é uma lacuna factual não verificada (Princípio V — sem fonte
+      oficial lida sobre esse caso, e sem canal de rede autorizado nesta execução
+      para consultá-la), em vez de ficar implícito por omissão. [Gap, Spec Edge
+      Cases; Plan §CI do cockpit] {auto}
 
 ## Requisitos Não-Funcionais
 

@@ -27,15 +27,15 @@ abertos de [checklists/security.md](./checklists/security.md) e
 
 Ref: checklists/ux-ops.md CHK010, CHK011
 
-- [ ] 1.1.1 Adicionar Edge Case explícito e Acceptance Scenario em spec.md, mais
+- [x] 1.1.1 Adicionar Edge Case explícito e Acceptance Scenario em spec.md, mais
       cenário correspondente em quickstart.md, cobrindo falha por ausência de
       permissão de escrita na área de configuração — definindo o mecanismo que
       impede estado parcial (ex.: pré-checagem de escrita como parte da etapa 1,
       ou escrita atômica por etapa) (CHK010-ux-ops)
-- [ ] 1.1.2 Adicionar Acceptance Scenario/cenário de quickstart cobrindo
+- [x] 1.1.2 Adicionar Acceptance Scenario/cenário de quickstart cobrindo
       instalação seletiva de plugin ausente sem reinstalar o que já está correto
       (CHK011-ux-ops)
-- [ ] 1.1.3 Validar que o mecanismo escolhido em 1.1.1 é implementável dentro do
+- [x] 1.1.3 Validar que o mecanismo escolhido em 1.1.1 é implementável dentro do
       confinamento de escrita já definido (FR-011, `~/.claude/` e `~/.local/`
       apenas) antes de codificar a etapa correspondente na FASE 2
 
@@ -43,32 +43,35 @@ Ref: checklists/ux-ops.md CHK010, CHK011
 
 Ref: checklists/security.md CHK005, CHK012
 
-- [ ] 1.2.1 Declarar em plan.md/research.md o comportamento do binário
+- [x] 1.2.1 Declarar em plan.md/research.md o comportamento do binário
       `gitleaks` diante de arquivo binário (fonte oficial lida, ou lacuna
       declarada explicitamente — nunca suposição) (CHK012-security)
-- [ ] 1.2.2 Revisar a redação de SC-006 em spec.md para refletir o limite
+- [x] 1.2.2 Revisar a redação de SC-006 em spec.md para refletir o limite
       "regex + entropia, não prova de ausência" já registrado em plan.md
       §Risco residual aceito item 3, evitando a leitura de garantia absoluta
       (CHK005-security)
-- [ ] 1.2.3 Registrar decisão sobre feedback de progresso do `instalar.sh`
+- [!] 1.2.3 Registrar decisão sobre feedback de progresso do `instalar.sh`
       durante etapas potencialmente demoradas — silêncio-até-o-fim vs. saída
       incremental — e documentar a escolha em plan.md (CHK012-ux-ops)
-      `{decisão do dono do produto}`
+      `{decisão do dono do produto}` — **bloqueado em block-002/dec-034**,
+      aguardando resposta do operador (onda-007)
 
 ### 1.3 Scaffolding de diretórios e arquivos de dados versionados `[A]`
 
 Ref: plan.md §Project Structure; data-model.md
 
-- [ ] 1.3.1 Criar diretório `scripts/` com `scripts/agnostico.lista` (cabeçalho
+- [x] 1.3.1 Criar diretório `scripts/` com `scripts/agnostico.lista` (cabeçalho
       de comentários explicando o formato, zero termos ativos — FR-015,
       data-model §Lista de termos proibidos)
-- [ ] 1.3.2 Criar `.gitleaks.toml` na raiz (cabeçalho de comentário, zero
+- [x] 1.3.2 Criar `.gitleaks.toml` na raiz (cabeçalho de comentário, zero
       allowlists ativas — FR-021, data-model §Exceção de varredura de segredo)
-- [ ] 1.3.3 Criar `.gitleaksignore` na raiz (cabeçalho de comentário, zero
+- [x] 1.3.3 Criar `.gitleaksignore` na raiz (cabeçalho de comentário, zero
       exceções ativas — FR-021)
-- [ ] 1.3.4 Confirmar que `versoes.env` já existente atende ao formato exigido
+- [x] 1.3.4 Confirmar que `versoes.env` já existente atende ao formato exigido
       (`CSTK_MIN=10.8.0`, chave única versionada) — sem alteração necessária,
-      só validação (data-model §Piso de versão do `cstk`)
+      só validação (data-model §Piso de versão do `cstk`). Validado
+      empiricamente: `grep -cE '^[A-Z_]+=.+$' versoes.env` → 1 linha de chave,
+      `CSTK_MIN=10.8.0`, formato `CHAVE=valor` conforme especificado.
 
 ---
 

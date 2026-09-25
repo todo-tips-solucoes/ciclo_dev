@@ -72,6 +72,15 @@ versão exigida — sem precisar de nenhuma outra parte desta feature.
 7. **Given** o comando de preparo terminou, **When** o dev consulta o relatório final,
    **Then** cada item verificado (ferramentas de base, ferramenta de implementação,
    skills, plugins) aparece com seu status individual de sucesso ou falha.
+8. **Given** uma máquina sem permissão de escrita em `~/.claude/` ou `~/.local/`, **When**
+   o comando de preparo é executado, **Then** ele falha imediatamente na etapa 1 — antes de
+   qualquer etapa que escreva algo — com mensagem clara indicando qual área não pôde ser
+   escrita, código de saída dedicado, e sem deixar nenhum estado parcial (nada chegou a ser
+   escrito).
+9. **Given** a ferramenta de implementação do ciclo já instalada na versão exigida, mas um
+   dos plugins necessários ausente enquanto o outro já está instalado e correto, **When** o
+   comando de preparo é executado, **Then** apenas o plugin ausente é instalado — o plugin
+   já correto não é reinstalado nem afetado.
 
 ---
 
@@ -144,8 +153,12 @@ que a checagem automática da mudança falha nos três casos, apontando qual che
 - O que acontece quando mais de um pré-requisito de máquina está ausente ao mesmo tempo?
   A mensagem de falha deve listar todos os ausentes, não parar no primeiro.
 - O que acontece quando a máquina não tem permissão de escrita na área onde o comando de
-  preparo grava suas configurações? Deve falhar com mensagem clara em vez de falhar a
-  meio caminho deixando estado parcial.
+  preparo grava suas configurações? O mecanismo que garante isso é uma pré-checagem de
+  escrita (criar e remover um arquivo temporário em `~/.claude/` e em `~/.local/`) feita
+  **dentro da etapa 1**, antes de qualquer etapa que escreva algo — por isso não há estado
+  parcial a desfazer: nada foi escrito ainda quando a falha é detectada. A falha usa um
+  código de saída dedicado (ver contracts/cli.md), distinto do código de pré-requisito de
+  ferramenta ausente, e a mensagem identifica qual área não pôde ser escrita.
 - O que acontece quando a ferramenta de implementação do ciclo está instalada, na versão
   exigida, mas um dos plugins necessários está ausente? A execução deve instalar apenas o
   que falta, sem reinstalar o que já está correto.
@@ -268,9 +281,11 @@ que a checagem automática da mudança falha nos três casos, apontando qual che
 - **SC-005**: Uma máquina com uma ferramenta abaixo da versão mínima recebe, na primeira
   execução do comando de preparo, um diagnóstico que identifica exatamente qual
   ferramenta e qual versão falta — sem precisar investigar log nenhum.
-- **SC-006**: 100% das tentativas de introduzir um segredo em arquivo versionado do
-  repositório são detectadas antes de chegarem a ser mergeadas, sem que o valor detectado
-  apareça no relatório da checagem.
+- **SC-006**: Toda tentativa de introduzir, em arquivo versionado do repositório, um
+  segredo em formato reconhecido pelos detectores do `gitleaks` (regex + entropia — não é
+  prova de ausência de segredo em qualquer formato; ver plan.md §Risco residual aceito
+  item 3) é detectada antes de chegar a ser mergeada, sem que o valor detectado apareça no
+  relatório da checagem.
 - **SC-007**: A lista de pré-requisitos da máquina do dev continua com os mesmos cinco
   itens depois da varredura de segredo entrar no ar — nenhuma ferramenta nova é exigida
   localmente.

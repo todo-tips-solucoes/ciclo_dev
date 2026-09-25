@@ -1,0 +1,14 @@
+# .gitleaksignore — exceções PONTUAIS da varredura de segredo (FR-021).
+#
+# Lido por padrão pelo `gitleaks dir . --redact` quando está na raiz do alvo
+# — CI do cockpit, job "segredos".
+#
+# Uma linha por fingerprint de achado já revisado e reconhecido como falso
+# positivo, no formato:
+#   <commit>:<arquivo>:<ruleID>:<linha>
+#
+# O fingerprint inclui o commit — reescrever a história invalida a entrada e
+# o achado volta a aparecer (comportamento desejado, não defeito). Recurso
+# marcado como experimental pela documentação oficial do gitleaks.
+#
+# Este arquivo nasce sem nenhuma exceção ativa.

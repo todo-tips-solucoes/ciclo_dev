@@ -107,13 +107,13 @@ cenário 7) imprime uma linha por etapa.
 
 | # | Etapa | FR | Bloqueante? |
 |---|-------|-----|-------------|
-| 1 | Pré-requisitos de máquina: presença de `git`, `gh`, `node`, `jq`, `curl` + versão de `git` (>= 2.36) e `node` (>= 20) | FR-001 | **Sim — e encerra aqui**, listando todos os ausentes de uma vez |
+| 1 | Pré-requisitos de máquina: presença de `git`, `gh`, `node`, `jq`, `curl` + versão de `git` (>= 2.36) e `node` (>= 20) **+ pré-checagem de escrita** (criar e remover arquivo temporário em `~/.claude/` e `~/.local/`) | FR-001, FR-011 | **Sim — e encerra aqui**, listando todos os ausentes de uma vez (exit `2`) ou a área sem permissão de escrita (exit `3`) |
 | 2 | `cstk` ausente → one-liner oficial; presente → `cstk self-update` | FR-002, FR-003 | Sim |
 | 3 | `cstk --version` responde? | FR-005 | Sim |
 | 4 | Versão do `cstk` >= `CSTK_MIN` (lido de `versoes.env`) | FR-004 | Sim |
 | 5 | `cstk install` (1ª vez) / `cstk update` (demais) — catálogo de skills | FR-006 | Sim |
 | 6 | Skills do cockpit de `skills/` → `~/.claude/skills/` | FR-007 | Não (ver Decision 13: `skills/` ainda não existe → item `pulada`) |
-| 7 | Plugins: `context-mode` e `ponytail` pelos marketplaces | FR-008 | `context-mode` sim; `ponytail` **não** |
+| 7 | Plugins: `context-mode` e `ponytail` pelos marketplaces, **por plugin**: ausente → instala; presente → atualiza (mesmo padrão da etapa 2 com o `cstk`) | FR-008 | `context-mode` sim; `ponytail` **não** |
 | — | Relatório final com status por item | FR-009 | — |
 
 **Corte em dois momentos**: a etapa 1 encerra a execução se algo faltar, porque
@@ -130,6 +130,22 @@ o mínimo testado, não o alvo.
 **Confinamento (FR-011)**: as únicas áreas escritas são `~/.local/` (binário e
 runtime do `cstk`, via one-liner oficial) e `~/.claude/` (catálogo, skills do
 cockpit, plugins). Nenhuma etapa aceita ou deriva um caminho de projeto-alvo.
+
+**Pré-checagem de escrita (CHK010, Acceptance Scenario 8)**: a etapa 1 cria e
+remove um arquivo temporário em `~/.claude/` e em `~/.local/` (criando os
+diretórios se ainda não existirem) antes de qualquer etapa 2-7 rodar. Se
+qualquer uma das duas áreas não aceitar a escrita, o script encerra com exit
+`3` (contracts/cli.md) identificando a área — sem estado parcial, porque
+nenhuma escrita real (`cstk`, catálogo, skills, plugins) ainda aconteceu. A
+checagem cabe dentro do mesmo confinamento do parágrafo acima: ela só toca as
+duas áreas já autorizadas por FR-011, nunca um caminho de projeto-alvo
+(validado em 1.1.3 — nenhuma mudança de confinamento necessária para
+implementar isto na FASE 2).
+
+**Instalação seletiva de plugin (CHK011, Acceptance Scenario 9)**: a etapa 7
+decide por plugin, não em bloco — o mesmo padrão "ausente instala, presente
+atualiza" da etapa 2 com o `cstk`. Um plugin já instalado e correto não é
+tocado quando só o outro está ausente.
 
 ## Arquitetura de `scripts/verificar-agnostico.sh`
 
@@ -183,6 +199,12 @@ conferido dentro do job, nunca a Action de terceiro (Decision 15).
 - **Ordem em relação ao `agnostico`**: jobs independentes e paralelos. São
   garantias distintas — nome próprio vs. credencial — e o valor de serem
   separados é o relatório dizer qual das duas barrou.
+- **Arquivo binário (CHK012-security)**: diferente de `verificar-agnostico.sh`
+  (que declara explicitamente assumir conteúdo textual — spec.md Edge Cases),
+  o comportamento do `gitleaks` diante de arquivo binário **não é declarado**
+  aqui — a documentação oficial lida (research Decision 15) não cobre esse
+  caso, e não há fonte adicional a citar sem violar o Princípio V. É uma
+  lacuna factual conhecida, não uma suposição.
 
 **Fora do escopo desta frente**: o render de templates com a config de exemplo —
 o briefing o lista no item 6, mas não há templates ainda, e a spec o difere
