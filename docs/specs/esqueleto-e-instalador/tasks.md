@@ -253,7 +253,10 @@ contracts/cli.md §Workflow de CI; research Decision 9
       localmente (bash-guard bloqueia instalação de pacote no host) e não há
       autorização para abrir PR de teste no remoto real `origin` nesta
       execução não-interativa — instrução explícita do contexto de invocação
-      é marcar como pendente, não simular (onda-009)
+      é marcar como pendente, não simular (onda-009). **Fora do escopo
+      autônomo** — decisão do operador (opção c, block-003/dec-045, onda-010):
+      validação orgânica na PR real desta feature (mesmo CI, mesmos
+      arquivos); não será executada por esta execução autônoma
 
 ### 4.2 Job `agnostico` `[A]`
 
@@ -271,7 +274,10 @@ Ref: spec.md FR-018; contracts/cli.md §Workflow de CI
 - [ ] 4.2.3 Teste: reproduzir quickstart Scenario 10, passos 3-4 (termo
       proibido introduzido barra o job `agnostico` especificamente).
       **Pendente de CI** — mesma limitação de ambiente de 4.1.5, sem
-      autorização para PR de teste no remoto real (onda-009)
+      autorização para PR de teste no remoto real (onda-009). **Fora do
+      escopo autônomo** — decisão do operador (opção c, block-003/dec-045,
+      onda-010): validação orgânica na PR real desta feature (mesmo CI,
+      mesmos arquivos); não será executada por esta execução autônoma
 
 ### 4.3 Job `segredos` `[A]`
 
@@ -308,7 +314,10 @@ em detalhe; contracts/cli.md §Job `segredos`; research Decision 15
       **Pendente de CI** — mesma limitação de ambiente de 4.1.5/4.2.3;
       `gitleaks` não está disponível localmente e não há autorização para
       PR de teste com segredo fictício no remoto real nesta execução
-      não-interativa (onda-009)
+      não-interativa (onda-009). **Fora do escopo autônomo** — decisão do
+      operador (opção c, block-003/dec-045, onda-010): validação orgânica na
+      PR real desta feature (mesmo CI, mesmos arquivos); não será executada
+      por esta execução autônoma
 
 ---
 
@@ -334,7 +343,10 @@ Ref: quickstart.md Scenario 1-11
       PR — mesma ferramenta e critério do job `shellcheck` do CI.
       **Pendente de CI** — `shellcheck` não está disponível localmente
       (bash-guard bloqueia instalação de pacote no host nesta execução
-      não-interativa); mesma limitação de 4.1.5 (onda-009)
+      não-interativa); mesma limitação de 4.1.5 (onda-009). **Fora do escopo
+      autônomo** — decisão do operador (opção c, block-003/dec-045,
+      onda-010): validação orgânica na PR real desta feature (mesmo CI,
+      mesmos arquivos); não será executada por esta execução autônoma
 - [x] 5.1.4 Confirmar via `requirement-coverage.sh` que `spec.md` continua com
       100% dos FRs cobertos por cenário após qualquer ajuste feito durante
       esta fase (mesmo gate já rodado em checklists/security.md). Executado:
