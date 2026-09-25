@@ -99,6 +99,36 @@ minhaempresa.com.br
 
 ---
 
+## Entity: Exceção de varredura de segredo
+
+Registro versionado de um achado reconhecido como falso positivo (FR-021). Duas
+formas, ambas na **raiz** do repositório e ambas lidas por default pela ferramenta
+de varredura, sem flag no workflow (research Decision 15).
+
+| Arquivo | Granularidade | Formato de uma entrada |
+|---------|---------------|------------------------|
+| `.gitleaksignore` | um achado específico | *fingerprint* `<commit>:<arquivo>:<ruleID>:<linha>`, uma por linha |
+| `.gitleaks.toml` | uma **classe** de achado | bloco `[[allowlists]]` (global) ou `[[rules.allowlists]]` (por regra), com `paths`, `regexes`, `stopwords` |
+
+**Regras**:
+
+- A exceção MUST viver no repositório e, portanto, aparecer no diff da PR que a
+  introduz (FR-021). Não existe supressão por configuração fora do repositório.
+- `.gitleaksignore` é a forma preferida para um achado pontual já revisado; o
+  bloco `[[allowlists]]` é para um padrão recorrente (ex.: chave de exemplo que
+  todo template carrega), porque uma entrada cobre todas as ocorrências presentes
+  e futuras — e por isso mesmo exige justificativa mais forte na revisão.
+- O *fingerprint* inclui o **commit**: reescrever a história invalida a entrada, e
+  o achado volta a aparecer. É comportamento desejado, não defeito.
+- Estado inicial entregue por esta frente: os dois arquivos existem com apenas o
+  cabeçalho de comentário explicando o formato — zero exceções ativas. Um
+  repositório que nasce com exceções nasce com a garantia já perfurada.
+- **Nota de estabilidade**: a documentação oficial marca o `.gitleaksignore` como
+  recurso *experimental, sujeito a mudança*. Registrado aqui porque é a única
+  ressalva conhecida sobre o formato (research Decision 15).
+
+---
+
 ## Entity: Item de relatório *(estrutura em memória, não persistida)*
 
 Acumulada por `instalar.sh` ao longo das sete etapas e impressa no final

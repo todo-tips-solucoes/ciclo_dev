@@ -22,6 +22,12 @@
   também traduzir/suprimir essa saída nativa? → A: Cobre só as mensagens autorais do
   script; a saída nativa de ferramentas externas (git/gh/cstk/curl) pode aparecer como
   está, em qualquer idioma que a ferramenta produza.
+- Q: O Princípio I promete que nada no cockpit nomeia credencial, mas o mecanismo citado
+  (casamento literal contra lista de nomes próprios) não detecta segredo. Ampliar o escopo
+  desta frente com varredura de segredo, ou ajustar a redação do princípio? → A: Ampliar o
+  escopo desta frente com uma varredura de segredo que rode **apenas** na checagem
+  automática do repositório — sem acrescentar pré-requisito à máquina do dev (Princípio VII
+  preservado) e sem emenda constitucional. Decidido pelo owner (block-001/dec-023).
 
 ## User Scenarios & Testing
 
@@ -103,8 +109,9 @@ arquivo e a linha exatos — sem depender de CI nem do instalador.
 ### User Story 3 - Barrar automaticamente uma quebra antes do merge (Priority: P3)
 
 O mantenedor do cockpit confia que toda alteração proposta é checada automaticamente
-antes de poder ser mergeada: nenhum script shell com problema de portabilidade e nenhuma
-menção a projeto/cliente/organização real passam despercebidos por revisão manual.
+antes de poder ser mergeada: nenhum script shell com problema de portabilidade, nenhuma
+menção a projeto/cliente/organização real e nenhum segredo passam despercebidos por
+revisão manual.
 
 **Why this priority**: automatiza a garantia das User Stories 1 e 2 a cada mudança, sem
 depender de alguém lembrar de rodar as checagens manualmente antes de abrir a PR. É a
@@ -112,8 +119,8 @@ menor prioridade das três porque seu valor só se realiza depois que o script d
 verificação (US2) e os scripts a verificar (US1) já existem.
 
 **Independent Test**: abrir uma alteração de teste com um problema de portabilidade de
-shell conhecido e outra com um termo proibido, e confirmar que a checagem automática da
-mudança falha em ambos os casos, apontando qual checagem barrou.
+shell conhecido, outra com um termo proibido e outra com um segredo de teste, e confirmar
+que a checagem automática da mudança falha nos três casos, apontando qual checagem barrou.
 
 **Acceptance Scenarios**:
 
@@ -123,7 +130,11 @@ mudança falha em ambos os casos, apontando qual checagem barrou.
 2. **Given** uma alteração que introduz um termo da lista proibida, **When** a checagem
    automática da mudança roda, **Then** ela falha pelo mesmo motivo que a User Story 2
    reportaria rodando manualmente.
-3. **Given** uma alteração sem nenhum dos dois problemas, **When** a checagem automática da
+3. **Given** uma alteração que introduz um segredo (credencial, token, chave privada ou
+   string de conexão) em qualquer arquivo versionado, **When** a checagem automática da
+   mudança roda, **Then** ela falha apontando o arquivo e a linha, sem reproduzir o valor
+   do segredo no relatório.
+4. **Given** uma alteração sem nenhum dos três problemas, **When** a checagem automática da
    mudança roda, **Then** ela termina com sucesso e libera a mudança para revisão humana.
 
 ---
@@ -148,6 +159,13 @@ mudança falha em ambos os casos, apontando qual checagem barrou.
   cockpit usa para *ensinar* o que não fazer? A lista proibida não distingue contexto
   educativo de vazamento real — qualquer ocorrência é reportada; ajustar a lista ou o
   texto do exemplo é responsabilidade de quem escreve o conteúdo.
+- O que acontece quando a varredura de segredo acusa um placeholder de exemplo (uma chave
+  fictícia num template ou numa skill) como se fosse credencial real? A exceção é
+  registrada num arquivo versionado do repositório, revisável na própria PR — nunca
+  suprimida por edição de configuração fora do repositório nem por desligar a checagem.
+- O que acontece quando um segredo real é detectado? A checagem barra a mudança apontando
+  arquivo e linha, mas não reproduz o valor detectado no relatório — o relatório da
+  checagem automática é legível por qualquer um com acesso ao repositório.
 - O que acontece quando a checagem automática da mudança roda sobre um repositório onde
   ainda não existem templates a renderizar? Ela cobre apenas as checagens desta feature
   (portabilidade de shell e agnosticismo); a checagem de render de templates com a
@@ -209,6 +227,15 @@ mudança falha em ambos os casos, apontando qual checagem barrou.
 - **FR-018**: O sistema MUST checar automaticamente, a cada alteração proposta ao
   repositório, o agnosticismo do repositório inteiro (FR-013), e MUST barrar a alteração
   quando encontrar alguma ocorrência proibida.
+- **FR-019**: O sistema MUST checar automaticamente, a cada alteração proposta ao
+  repositório, se algum segredo (credencial, token, chave privada ou string de conexão)
+  foi introduzido em arquivo versionado, MUST barrar a alteração quando encontrar algum, e
+  MUST apontar arquivo e linha sem reproduzir o valor detectado.
+- **FR-020**: A varredura de segredo MUST rodar apenas na checagem automática do
+  repositório, sem acrescentar nenhum pré-requisito à máquina do dev (Princípio VII).
+- **FR-021**: As exceções da varredura de segredo (placeholders de exemplo reconhecidos
+  como falso positivo) MUST ser mantidas em arquivo versionado do repositório, revisável
+  na mesma alteração que as introduz.
 
 > Decisões de infraestrutura: N/A — feature stateless, sem scheduler, sessão persistente,
 > refresh de token externo, rotação de chave ou lock multi-processo. É um comando de
@@ -223,6 +250,8 @@ mudança falha em ambos os casos, apontando qual checagem barrou.
   referenciado por chave em todo o resto do sistema — nunca duplicado como literal.
 - **Lista de termos proibidos**: coleção versionada de termos que não podem aparecer em
   nenhum arquivo do repositório, mantida separada do mecanismo que a aplica.
+- **Exceção de varredura de segredo**: registro versionado de um achado reconhecido como
+  falso positivo, com a localização do achado e o motivo da exceção.
 
 ## Success Criteria
 
@@ -239,6 +268,12 @@ mudança falha em ambos os casos, apontando qual checagem barrou.
 - **SC-005**: Uma máquina com uma ferramenta abaixo da versão mínima recebe, na primeira
   execução do comando de preparo, um diagnóstico que identifica exatamente qual
   ferramenta e qual versão falta — sem precisar investigar log nenhum.
+- **SC-006**: 100% das tentativas de introduzir um segredo em arquivo versionado do
+  repositório são detectadas antes de chegarem a ser mergeadas, sem que o valor detectado
+  apareça no relatório da checagem.
+- **SC-007**: A lista de pré-requisitos da máquina do dev continua com os mesmos cinco
+  itens depois da varredura de segredo entrar no ar — nenhuma ferramenta nova é exigida
+  localmente.
 
 ## Delta Requirements
 

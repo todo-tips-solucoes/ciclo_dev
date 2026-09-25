@@ -138,10 +138,48 @@ não por tag móvel.
 |-----|---------|------------------------|-----|
 | `shellcheck` | instala `shellcheck` e roda sobre todo `.sh` do repositório | há problema de portabilidade de shell | FR-017 |
 | `agnostico` | `./scripts/verificar-agnostico.sh` | há termo proibido | FR-018 |
+| `segredos` | instala o binário do `gitleaks` e roda `gitleaks dir . --redact` | há segredo em arquivo versionado | FR-019, FR-020, FR-021 |
 
 Jobs independentes, para que a falha identifique **qual** garantia barrou (User
-Story 3, cenários 1 e 2).
+Story 3, cenários 1 a 3).
 
 O `shellcheck` é instalado explicitamente pelo job, não assumido pré-instalado na
 imagem do runner: afirmar o conteúdo da imagem sem fonte oficial lida violaria o
-Princípio V (research Decision 9).
+Princípio V (research Decision 9). O `gitleaks` segue o mesmo padrão.
+
+### Job `segredos` — varredura de segredo (FR-019, FR-020, FR-021)
+
+**Instalação no job**: tarball da release fixada por versão
+(`gitleaks_<versao>_linux_x64.tar.gz` — o padrão é `linux_x64`, **não**
+`linux_amd64`), conferido contra o `gitleaks_<versao>_checksums.txt` publicado ao
+lado. Nunca a Action de terceiro: ela exige `GITLEAKS_LICENSE` em repositório de
+organização e não é mais MIT (research Decision 15). A versão fixada mora no
+workflow, não em `versoes.env` — não é piso de pré-requisito e o instalador não a
+lê (research Decision 15).
+
+**Invocação**: `gitleaks dir . --redact`
+
+| Elemento | Valor | Razão |
+|----------|-------|-------|
+| Subcomando `dir` | varre a árvore de arquivos | mesmo recorte de `verificar-agnostico.sh`; `git` varreria o histórico e exigiria *baseline* (research Decision 15) |
+| `--redact` | **obrigatória** | o console default imprime o campo `Secret:` com o valor achado; FR-019 exige arquivo e linha sem reproduzir o valor |
+| *(sem `-c`)* | `.gitleaks.toml` da raiz é lido por default | exceção precisa estar versionada e visível na PR (FR-021) |
+| *(sem `-i`)* | `.gitleaksignore` da raiz é lido por default (`--gitleaks-ignore-path` já é `.`) | idem |
+
+**Entrada de dados versionada** (FR-021):
+
+| Arquivo | Conteúdo | Uso |
+|---------|----------|-----|
+| `.gitleaksignore` | uma linha por *fingerprint* `<commit>:<file>:<ruleID>:<line>` | ignorar um achado pontual já revisado |
+| `.gitleaks.toml` | blocos `[[allowlists]]` / `[[rules.allowlists]]` com `paths`, `regexes`, `stopwords` | ignorar uma **classe** de placeholder (ex.: chaves de exemplo de template) |
+
+Nenhum dos dois é editável fora do repositório — toda exceção entra por PR e é
+revisada no diff.
+
+### Códigos de saída — job `segredos`
+
+| Código | Significado |
+|--------|-------------|
+| `0` | Nenhum achado. Job verde. |
+| `1` | Um ou mais achados, **ou** erro de execução. Barra a mudança (FR-019). |
+| `126` | Flag desconhecida — erro de uso do próprio workflow. |

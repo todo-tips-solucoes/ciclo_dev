@@ -7,8 +7,9 @@
 Entregar os dois pilares do esqueleto do cockpit (itens 1 e 6 do MVP do briefing):
 `instalar.sh`, que deixa uma máquina pronta para o ciclo num comando só, e
 `scripts/verificar-agnostico.sh`, que transforma a promessa de agnosticismo em
-verificação executável — mais o CI do próprio cockpit que roda as duas garantias a
-cada alteração proposta.
+verificação executável — mais o CI do próprio cockpit, que a cada alteração
+proposta roda três garantias: portabilidade de shell, agnosticismo e ausência de
+segredo (esta última acrescentada pela resposta do owner ao block-001).
 
 Abordagem técnica: três arquivos de shell e um workflow, sem build, sem
 dependência nova. `instalar.sh` é um pipeline linear de sete etapas que **acumula
@@ -24,12 +25,12 @@ exclusão de `.git/` e do que o `.gitignore` já ignora.
 **Language/Version**: bash (Princípio VII: `set -euo pipefail`, shellcheck sem findings)
 **Primary Dependencies**: nenhuma acrescentada. Pré-requisitos de máquina fechados pelo Princípio VII em `git` (>= 2.36), `gh`, `node` (>= 20), `jq`, `curl`. `cstk` e os plugins são provisionados, não empacotados.
 **Storage**: N/A — feature stateless. A única "configuração" é `versoes.env`, texto versionado e somente leitura em runtime.
-**Testing**: `shellcheck` no CI (não é pré-requisito de máquina — Decision 9 do research); cenários manuais executáveis em [quickstart.md](./quickstart.md).
+**Testing**: `shellcheck` e `gitleaks` no CI — nenhum dos dois é pré-requisito de máquina (Decisions 9 e 15 do research); cenários manuais executáveis em [quickstart.md](./quickstart.md).
 **Target Platform**: Linux, WSL e macOS (briefing §5). Nenhuma extensão GNU assumida — daí a comparação de versão em bash puro (Decision 4).
 **Project Type**: CLI / scripts de automação de repositório. Single-layer.
 **Performance Goals**: N/A — execução única e interativa por máquina. Nenhuma meta numérica foi medida e nenhuma é afirmada.
 **Constraints**: `instalar.sh` escreve **apenas** em `~/.claude/` e `~/.local/`, nunca dentro de um projeto-alvo (Princípio VII e FR-011). Idempotência obrigatória nos dois scripts. `CSTK_MIN` existe num único lugar.
-**Scale/Scope**: 3 arquivos de shell + 1 workflow + 1 arquivo de lista. Um repositório varrido por execução.
+**Scale/Scope**: 3 arquivos de shell + 1 workflow + 3 arquivos de dados versionados (`agnostico.lista`, `.gitleaks.toml`, `.gitleaksignore`). Um repositório varrido por execução.
 
 ## Constitution Check
 
@@ -37,7 +38,7 @@ exclusão de `.git/` e do que o `.gitignore` já ignora.
 
 | Princípio | Status | Notas |
 |-----------|--------|-------|
-| I. Agnosticismo Verificável | PASS | A feature **é** o mecanismo do princípio: `scripts/verificar-agnostico.sh` + `scripts/agnostico.lista` versionada e separada da lógica, rodando no CI com zero ocorrências. Exemplos usam nomes fictícios (`minha-org/meu-projeto`). |
+| I. Agnosticismo Verificável | PASS | A feature **é** o mecanismo do princípio: `scripts/verificar-agnostico.sh` + `scripts/agnostico.lista` versionada e separada da lógica, rodando no CI com zero ocorrências. Exemplos usam nomes fictícios (`minha-org/meu-projeto`). A parte "credencial" da promessa, que o casamento literal não alcançava, passa a ser coberta pelo job `segredos` (FR-019, block-001 → dec-023). |
 | II. Cockpit sob o próprio ciclo | PASS | Frente de trilha completa: toca `scripts/`, `.github/` e a raiz. Nasceu em worktree com base explícita e está sendo implementada via `/feature-00c`; o registro SDD entra na PR em `docs/specs/esqueleto-e-instalador/`. |
 | III. Identidade de Commit Declarada | PASS | Nada nesta feature altera identidade de commit. O `instalar.sh` não escreve configuração de git. |
 | IV. Ferramentas externas são dependências | PASS | `cstk` instalado pelo one-liner oficial e atualizado por `cstk self-update`; plugins pelos respectivos marketplaces. `CSTK_MIN` lido de `versoes.env` e de nenhum outro lugar. Ordem `self-update` → piso respeitada. Nenhum hook copiado. |
@@ -70,7 +71,9 @@ docs/specs/esqueleto-e-instalador/
 .
 ├── .github/
 │   └── workflows/
-│       └── ci.yml                    # NOVO — shellcheck + agnosticismo
+│       └── ci.yml                    # NOVO — shellcheck + agnosticismo + segredos
+├── .gitleaks.toml                    # NOVO — allowlists de placeholder (FR-021)
+├── .gitleaksignore                   # NOVO — exceções por fingerprint (FR-021)
 ├── docs/
 │   ├── briefing.md                   # existe
 │   ├── constitution.md               # existe
@@ -148,17 +151,38 @@ estado inicial legítimo de um cockpit que ainda não catalogou termos, não um 
 
 ## CI do cockpit (`.github/workflows/ci.yml`)
 
-Dispara em `pull_request` e em `push` para `main`. Dois jobs independentes, para
-que o relatório diga qual garantia barrou (User Story 3, cenário 1 e 2):
+Dispara em `pull_request` e em `push` para `main`. Três jobs independentes, para
+que o relatório diga qual garantia barrou (User Story 3, cenários 1 a 3):
 
 | Job | O que faz | FR |
 |-----|-----------|-----|
 | `shellcheck` | instala `shellcheck` explicitamente e roda sobre todo `.sh` do repositório | FR-017 |
 | `agnostico` | executa `scripts/verificar-agnostico.sh` | FR-018 |
+| `segredos` | instala o binário do `gitleaks` (release fixada, checksum conferido) e roda `gitleaks dir . --redact` | FR-019, FR-020, FR-021 |
 
 O `shellcheck` é instalado pelo job em vez de assumido pré-instalado no runner:
 afirmar o conteúdo da imagem do runner sem fonte oficial lida violaria o
-Princípio V (Decision 9).
+Princípio V (Decision 9). O `gitleaks` segue o mesmo padrão — binário baixado e
+conferido dentro do job, nunca a Action de terceiro (Decision 15).
+
+**O job `segredos` em detalhe** (justificativa completa em research Decision 15):
+
+- **`--redact` é obrigatório, não cosmético**: o console default do gitleaks
+  imprime o campo `Secret:` com o valor encontrado. Sem `--redact`, barrar um
+  vazamento publicaria o segredo no log da PR — FR-019 exige apontar arquivo e
+  linha *sem* reproduzir o valor.
+- **Exceções versionadas (FR-021)**: `.gitleaksignore` na raiz (uma linha por
+  *fingerprint* `<commit>:<file>:<ruleID>:<line>`) para achados pontuais, e
+  `.gitleaks.toml` na raiz (blocos `[[allowlists]]` com `paths`/`regexes`/
+  `stopwords`) para classes de placeholder. Os dois são lidos por default quando
+  estão na raiz, sem flag. Nenhuma exceção é possível fora do repositório — é o
+  que mantém a garantia revisável na própria PR.
+- **`dir` e não `git`**: varre a árvore, o mesmo recorte de
+  `verificar-agnostico.sh`. Varrer o histórico faria qualquer achado antigo barrar
+  toda PR até alguém produzir um *baseline*.
+- **Ordem em relação ao `agnostico`**: jobs independentes e paralelos. São
+  garantias distintas — nome próprio vs. credencial — e o valor de serem
+  separados é o relatório dizer qual das duas barrou.
 
 **Fora do escopo desta frente**: o render de templates com a config de exemplo —
 o briefing o lista no item 6, mas não há templates ainda, e a spec o difere
@@ -184,12 +208,18 @@ código de PR.
 | Ação de terceiro mutável | Actions de terceiro fixadas por **SHA de commit**, não por tag móvel. | A03, CICD-SEC-8 |
 | Injeção por variável não citada em shell | `shellcheck` no CI é o controle — é exatamente a classe que ele detecta (variável sem aspas, `eval`, expansão de glob). | A05 |
 | Execução de código do PR no runner | Aceita: com `pull_request`, token somente-leitura e sem segredos, o raio de alcance é o runner efêmero. | CICD-SEC-4 |
+| Segredo real commitado por engano no repositório | Job `segredos` no CI (`gitleaks dir .`) barra a alteração antes do merge. É o mecanismo que faltava para o Princípio I entregar a parte "credencial" da sua promessa — a varredura de agnosticismo nunca detectou isso. | FR-019 |
+| O próprio relatório do CI vaza o segredo que acabou de detectar | `--redact` **obrigatório** na invocação: o console default do gitleaks imprime o campo `Secret:` com o valor. Sem a flag, barrar o vazamento seria publicá-lo no log da PR, legível por quem tem acesso ao repositório. | FR-019 |
+| Exceção de falso positivo vira porta dos fundos permanente | Exceção só existe em `.gitleaksignore` / `.gitleaks.toml` **versionados**, e portanto aparece no diff da PR que a introduz. Não há toggle fora do repositório, e desligar o job é mudança visível no workflow. | FR-021 |
+| Ferramenta de varredura de terceiro executando no CI | Binário fixado por versão de release e conferido contra o `checksums.txt` publicado, baixado dentro do job — **não** a Action de terceiro (que exigiria `GITLEAKS_LICENSE` para repositório de organização e não é mais MIT), **não** tag/branch móvel. Mesma disciplina do `shellcheck`. | A03, CICD-SEC-8 |
 | `versoes.env` interpretado como código | Ler `CSTK_MIN` por **parse explícito** (grep/cut), não por `source`. O arquivo é versionado e confiável, mas `source` transforma um arquivo de dados em script executável sem necessidade. | A08 |
 
-### Risco residual aceito — decidido pela constituição, não por esta frente
+### Risco residual aceito
 
-Dois riscos permanecem **por desenho**, porque a constituição ratificada os escolhe
-explicitamente. Ficam registrados aqui para que sejam visíveis, não invisíveis:
+Quatro riscos permanecem **por desenho**. Os dois primeiros porque a constituição
+ratificada os escolhe explicitamente; os dois últimos porque são o teto conhecido
+da varredura de segredo. Ficam registrados aqui para que sejam visíveis, não
+invisíveis:
 
 1. **Confiança no canal upstream do `cstk`, sem verificação de assinatura e sem
    pinning.** O bootstrap resolve sempre a última release e o `self-update` mantém
@@ -207,23 +237,45 @@ explicitamente. Ficam registrados aqui para que sejam visíveis, não invisívei
    decisão de compatibilidade, e `CSTK_MIN` é um piso de **compatibilidade, não um
    controle de segurança** — ele impede versão velha demais, nunca versão
    maliciosa nova.
+3. **A varredura de segredo é regex + entropia, não prova de ausência.** Ela
+   detecta o que os detectores conhecem; segredo em formato não coberto passa. E
+   o gitleaks está declarado *feature complete* pelo próprio autor — só correções
+   de segurança, sem detectores novos (Decision 15). O caminho de saída está
+   contido: a troca por outra ferramenta afeta o workflow e os dois arquivos de
+   exceção, nada mais.
+4. **NÃO VERIFICADO**: se o binário do gitleaks faz chamada de rede ao avaliar
+   candidatos. A documentação oficial lida não afirma nem nega, e o Princípio V
+   não deixa afirmar sem fonte. Mitigação estrutural já em vigor: o job roda com
+   `permissions: contents: read` e sem segredos disponíveis.
 
 > **Nota de escopo do Princípio I**: a varredura de agnosticismo é um controle de
 > **vazamento de nome próprio**, não de segredo. Casamento literal contra uma lista
 > de nomes não detecta chave de API, token, chave privada ou string de conexão.
-> Essa lacuna está registrada como bloqueio humano desta onda — ver §Pendência de
-> governança abaixo.
+> Essa lacuna foi levada ao owner como bloqueio humano e está fechada — ver
+> §Resolução de governança abaixo.
 
-### Pendência de governança (bloqueio humano registrado nesta onda)
+### Resolução de governança (block-001, respondido pelo owner)
 
 O Princípio I (NON-NEGOTIABLE) afirma que nada no cockpit nomeia *"projeto,
 cliente, organização, domínio, **credencial** ou referência de infraestrutura
 real"*, e nomeia `scripts/verificar-agnostico.sh` + `scripts/agnostico.lista` como
 o mecanismo que torna a garantia verificável. O mecanismo, porém, é casamento
 literal contra nomes próprios — estruturalmente incapaz de detectar credencial.
-A garantia declarada excede o que o mecanismo entrega, e fechar a diferença exige
-decisão do owner (ampliar o escopo desta frente com varredura de segredo, ou
-ajustar a redação do princípio). Não é decisão desta skill nem deste agente.
+A garantia declarada excedia o que o mecanismo entrega.
+
+**Decisão do owner (block-001 → dec-023)**: ampliar o escopo desta frente com uma
+varredura de segredo que roda **apenas no CI**, sem acrescentar pré-requisito à
+máquina do dev e **sem emenda constitucional**. As duas restrições são o que torna
+a decisão compatível com o texto ratificado:
+
+| Restrição | Por quê |
+|---|---|
+| Só CI, nunca `instalar.sh` | o Princípio VII fecha os pré-requisitos de máquina em `git`, `gh`, `node`, `jq` e `curl`; uma ferramenta de CI não é pré-requisito de máquina — mesma lógica já aplicada ao `shellcheck` (Decision 9) |
+| Sem emenda ao Princípio I | o princípio já prometia a garantia; faltava o mecanismo. Acrescentar o mecanismo *cumpre* o texto ratificado em vez de reescrevê-lo |
+
+Requisitos derivados: FR-019 (detectar, barrar, não reproduzir o valor), FR-020
+(só CI, zero pré-requisito local) e FR-021 (exceções em arquivo versionado). O
+desenho concreto está em §CI do cockpit e em research Decision 15.
 
 ## Convenções de Borda
 
@@ -255,7 +307,22 @@ Os três pontos que mereciam nova conferência após o design:
 - **Princípio V** — a lacuna da forma genérica de `claude plugin marketplace add`
   na documentação pública foi **declarada como lacuna** em research.md e suprida
   pela fonte primária (`--help` da CLI instalada), nunca por reconstrução
-  plausível.
+  plausível. A varredura de segredo acrescentou uma segunda lacuna declarada (o
+  comportamento de rede do binário do gitleaks) — igualmente declarada, não
+  suposta (Decision 15).
+
+**Re-check após a ampliação de escopo do block-001** (varredura de segredo no CI):
+
+- **Princípio I** — a ampliação *fecha* a distância entre o texto do princípio,
+  que já prometia "credencial", e o mecanismo, que só detectava nome próprio.
+  Nenhuma emenda constitucional foi necessária porque o princípio não muda: ganha
+  o mecanismo que faltava.
+- **Princípio VII** — a lista fechada de pré-requisitos (`git`, `gh`, `node`,
+  `jq`, `curl`) continua com os mesmos cinco itens. A ferramenta vive só no job de
+  CI, exatamente como o `shellcheck` (Decision 9), e FR-020 grava essa restrição
+  como requisito verificável em vez de convenção tácita (SC-007).
+- **Princípio IV** — a ferramenta é usada como dependência, chamada pelo binário
+  oficial pinado; nada dela é copiado nem reimplementado no repositório.
 
 **Resultado**: PASS em todos os sete princípios, sem violação a justificar.
 

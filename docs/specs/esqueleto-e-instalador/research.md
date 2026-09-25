@@ -27,14 +27,25 @@ Technical Context antes do design.
 ## Decision 1: Canal oficial de instalação do `cstk`
 
 **Decision**: quando `cstk` não está presente na máquina, `instalar.sh` usa o
-one-liner oficial de bootstrap publicado no README do repositório `JotJunior/cstk`:
+**instalador oficial** publicado nas releases do repositório `JotJunior/cstk` —
+baixando-o para arquivo temporário e **só então** executando:
 
 ```sh
-curl -fsSL https://github.com/JotJunior/cstk/releases/latest/download/install.sh | sh
+# Forma a implementar (endurecida na Phase 1 — ver §Superfície de Segurança do plan.md)
+tmp=$(mktemp)
+curl -fsSL https://github.com/JotJunior/cstk/releases/latest/download/install.sh -o "$tmp"
+sh "$tmp"
 ```
 
-O README declara, no próprio cabeçalho do bloco, que ele instala o `cstk` em
-`~/.local/bin/` — dentro da área que o Princípio VII autoriza (`~/.claude/` e
+> ⚠️ O README oficial publica este mesmo instalador como um one-liner canalizado
+> direto para o shell (`curl -fsSL <url> | sh`). **Não copie essa forma**: a URL é
+> a mesma e o canal continua sendo o oficial, mas canalizar para o shell faz um
+> download truncado executar parcialmente. O endurecimento foi decidido no gate
+> `owasp-security` da Phase 1 e é normativo — `plan.md` §Superfície de Segurança e
+> `contracts/cli.md` registram a mesma regra.
+
+O README declara, no próprio cabeçalho do bloco, que o instalador coloca o `cstk`
+em `~/.local/bin/` — dentro da área que o Princípio VII autoriza (`~/.claude/` e
 `~/.local/`).
 
 **Rationale**: o Princípio IV proíbe reimplementar ou embutir o `cstk`; a
@@ -414,9 +425,101 @@ custa uma linha e transforma perda silenciosa de trabalho em mensagem.
 
 ---
 
+## Decision 15: Varredura de segredo no CI — binário do `gitleaks`, não a Action nem o recurso nativo
+
+**Decision**: FR-019/FR-020/FR-021 são atendidos por `gitleaks` chamado como
+**binário** dentro do job de CI (release fixada por versão, baixada e conferida
+contra o `checksums.txt` publicado ao lado), com `--redact` e exceções em
+`.gitleaksignore`/`.gitleaks.toml` versionados. **Não** se usa a
+`gitleaks/gitleaks-action`, nem o secret scanning nativo do GitHub, nem
+`trufflehog`.
+
+**Rationale** — as três restrições que decidem, nesta ordem:
+
+1. *Zero pré-requisito de máquina* (FR-020, Princípio VII): vale para as três
+   candidatas, já que todas rodam só no CI. Não desempata.
+2. *Exceção precisa ser arquivo versionado e revisável na PR* (FR-021). Isto
+   **elimina o recurso nativo do GitHub**: FONTE OFICIAL — em repositório privado
+   de organização, secret scanning "Available with GitHub Secret Protection
+   enabled on GitHub Team or GitHub Enterprise Cloud" e push protection "Requires
+   GitHub Secret Protection to be enabled"
+   (<https://docs.github.com/en/code-security/secret-scanning/introduction/about-secret-scanning>,
+   <https://docs.github.com/en/code-security/secret-scanning/introduction/about-push-protection>).
+   É produto pago e ligado por *Settings* do repositório, não por arquivo no
+   repositório — a garantia não ficaria verificável por quem lê a PR.
+3. *Sem dependência de cadastro externo nem de tag móvel*. Isto **elimina a
+   Action oficial do gitleaks**: FONTE OFICIAL — o README da
+   `gitleaks/gitleaks-action` documenta `GITLEAKS_LICENSE` como *"required for
+   organizations, not required for user accounts"*, e a licença da própria Action
+   deixou de ser MIT na v2.0.0 (a API do GitHub reporta `NOASSERTION`). O
+   **binário** do gitleaks continua MIT (`spdx_id: "MIT"`) e não exige chave
+   nenhuma. E elimina também o `trufflehog`, cuja forma documentada de uso em
+   Actions é `uses: trufflesecurity/trufflehog@main` — um *branch móvel*, o oposto
+   direto do controle já adotado nesta frente (actions de terceiro fixadas por SHA).
+
+**Forma concreta** (tudo FONTE OFICIAL, README do gitleaks em
+<https://github.com/gitleaks/gitleaks/blob/master/README.md>):
+
+| Item | Valor | Observação |
+|---|---|---|
+| Subcomando | `gitleaks dir .` | `gitleaks detect` **não existe mais**; os subcomandos são `dir`, `git`, `stdin`, `version` |
+| Redação do valor | `--redact` (default 100%) | **obrigatório**: o console default imprime o campo `Secret:` com o valor achado. FR-019 exige apontar arquivo e linha sem reproduzir o valor |
+| Códigos de saída | `0` sem achado · `1` achado ou erro · `126` flag desconhecida | o `1` é o que barra a PR |
+| Exceções | `.gitleaksignore` na raiz, uma linha por *fingerprint* `<commit>:<file>:<ruleID>:<line>` | pego por default (`-i/--gitleaks-ignore-path`, default `.`); o README marca o recurso como *"experimental and is subject to change"* |
+| Exceções por padrão | `.gitleaks.toml` na raiz, blocos `[[allowlists]]` / `[[rules.allowlists]]` (`paths`, `regexes`, `stopwords`) | pego por default quando está na raiz do alvo, sem flag (`-c` é opcional) |
+| Instalação no job | tarball da release fixada: `gitleaks_<versao>_linux_x64.tar.gz` + `gitleaks_<versao>_checksums.txt` | atenção ao padrão: é `linux_x64`, **não** `linux_amd64` |
+
+**Por que `dir` e não `git`**: `dir` varre os arquivos como estão na árvore, que é
+exatamente o recorte de FR-019 ("arquivo versionado") e o mesmo recorte que
+`verificar-agnostico.sh` já usa (`git ls-files`, Decision 6). `git` varreria o
+histórico inteiro, o que faria qualquer achado histórico barrar toda PR até
+alguém produzir um *baseline* — custo de operação desproporcional numa frente
+cujo repositório acabou de nascer.
+
+**Por que a versão fixada mora no workflow e não em `versoes.env`**: `versoes.env`
+é, pelo seu próprio cabeçalho, o arquivo de **pisos de versão de pré-requisito**,
+lido por `instalar.sh` em runtime (Decision 5). A versão do gitleaks não é piso
+(é pino exato) e não é pré-requisito de máquina (é ferramenta de CI, FR-020) —
+colocá-la lá poria no arquivo que o instalador parseia um valor que o instalador
+nunca usa. O workflow é o único consumidor; o pino mora no único consumidor.
+
+**Lacunas declaradas (Princípio V — não preenchidas por suposição)**:
+
+- **NÃO VERIFICADO**: se o binário do gitleaks faz alguma chamada de rede para
+  validar candidatos a segredo. O README não afirma nem nega; o que ele afirma do
+  motor é regex + entropia (`entropy`, `secretGroup`). Como o job roda com
+  `permissions: contents: read` e sem segredos, o risco de uma eventual chamada é
+  limitado, mas a afirmação "é 100% offline" **não pode ser feita** com o que foi
+  lido.
+- **Teto conhecido**: o README do gitleaks abre com *"Gitleaks is feature
+  complete. I'm not merging new features into Gitleaks. Future releases will be
+  security patches only"*, com o autor migrando o foco para outro projeto. Ou
+  seja: correções de segurança continuam, **detectores novos não**. Caminho de
+  saída se isso pesar: trocar a ferramenta por outra chamada do mesmo jeito
+  (binário pinado dentro do job) — a troca fica contida no workflow e nos dois
+  arquivos de exceção, sem tocar spec nem `instalar.sh`.
+
+**Alternatives considered**:
+
+- *`gitleaks/gitleaks-action`*. Rejeitada: exige `GITLEAKS_LICENSE` em repositório
+  de organização (cadastro externo + secret de org) e sua licença não é mais MIT.
+- *Secret scanning + push protection nativos do GitHub*. Rejeitada: pagos em
+  repositório privado e configurados fora do repositório, o que quebra FR-021.
+- *`trufflehog`*. Rejeitada nesta rodada: a forma oficialmente documentada em
+  Actions é `@main`, branch móvel, incompatível com o controle de fixação por SHA
+  já adotado. É a candidata mais forte de substituição se o teto de manutenção do
+  gitleaks pesar — está mais ativa (release de 2026-09-24) e não exige chave.
+
+---
+
 ## Unknowns remanescentes
 
-Nenhum. Nenhum eixo estrutural (linguagem/runtime, stack, arquitetura,
-persistência, ambiente-alvo, tier de entrega) ficou em aberto: todos vêm
-decididos do briefing §6 (bash, GitHub Actions, sem persistência) e da
-constituição §Princípios IV e VII, sem inferência desta skill.
+Nenhum eixo estrutural (linguagem/runtime, stack, arquitetura, persistência,
+ambiente-alvo, tier de entrega) ficou em aberto: todos vêm decididos do briefing
+§6 (bash, GitHub Actions, sem persistência) e da constituição §Princípios IV e
+VII, sem inferência desta skill.
+
+Uma lacuna factual permanece declarada, não suprida por suposição: **se o binário
+do gitleaks faz chamada de rede ao avaliar candidatos a segredo** — a
+documentação oficial lida não afirma nem nega (Decision 15). Nenhuma afirmação
+sobre isso é feita em nenhum artefato desta frente.

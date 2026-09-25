@@ -155,9 +155,9 @@ Cobre User Story 2 cenários 2 e 3; FR-014; FR-015; SC-003.
 
 ---
 
-## Scenario 10: CI barra as duas classes de problema
+## Scenario 10: CI barra as três classes de problema
 
-Cobre User Story 3 cenários 1, 2 e 3; FR-017; FR-018; SC-004.
+Cobre User Story 3 cenários 1 a 4; FR-017; FR-018; FR-019; SC-004; SC-006.
 
 1. Abrir uma alteração de teste que introduza um script shell com problema de
    portabilidade conhecido que o `shellcheck` detecte.
@@ -167,8 +167,16 @@ Cobre User Story 3 cenários 1, 2 e 3; FR-017; FR-018; SC-004.
 3. Abrir outra alteração de teste que introduza um termo da lista proibida.
 4. **Expected**: o job `agnostico` falha pelo mesmo motivo que o Scenario 9
    reportaria localmente; o job `shellcheck` passa.
-5. Abrir uma alteração sem nenhum dos dois problemas.
-6. **Expected**: os dois jobs passam e a mudança segue para revisão humana.
+5. Abrir outra alteração de teste que introduza um segredo de teste (uma chave
+   fictícia num formato que o detector reconheça — nunca uma credencial real).
+6. **Expected**: o job `segredos` falha apontando **arquivo e linha**, e o valor
+   detectado **não** aparece no log do job (efeito do `--redact` — FR-019); os
+   jobs `shellcheck` e `agnostico` passam.
+7. Registrar o *fingerprint* do achado do passo 5 em `.gitleaksignore` e reabrir.
+8. **Expected**: o job `segredos` passa, e a exceção está visível no diff da PR —
+   nenhuma supressão acontece fora do repositório (FR-021).
+9. Abrir uma alteração sem nenhum dos três problemas.
+10. **Expected**: os três jobs passam e a mudança segue para revisão humana.
 
 ---
 
