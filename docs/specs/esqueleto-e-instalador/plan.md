@@ -105,6 +105,17 @@ Pipeline linear de sete etapas. Cada etapa registra um status
 (`ok` | `falhou` | `pulada`) numa lista acumulada e o relatório final (FR-009,
 cenário 7) imprime uma linha por etapa.
 
+**Feedback de progresso (CHK012-ux-ops, block-002 → dec-036, respondido pelo
+owner)**: além do relatório final consolidado, cada uma das sete etapas
+imprime uma linha autoral em pt-BR ao **iniciar** e outra ao **concluir**
+(ex.: `Etapa 2/7: atualizando cstk...` / `Etapa 2/7: concluída` —
+`instalar.sh` não fica em silêncio até o fim). A saída nativa das
+ferramentas externas invocadas (`curl`, `cstk`, `claude plugin ...`) passa
+sem filtro, no idioma que a própria ferramenta produzir — coerente com a
+clarificação de FR-012 (o requisito de pt-BR cobre só a mensagem autoral do
+script). Fora de escopo por ora, por decisão do owner (YAGNI): flag
+`--quiet` e indicador visual tipo *spinner*.
+
 | # | Etapa | FR | Bloqueante? |
 |---|-------|-----|-------------|
 | 1 | Pré-requisitos de máquina: presença de `git`, `gh`, `node`, `jq`, `curl` + versão de `git` (>= 2.36) e `node` (>= 20) **+ pré-checagem de escrita** (criar e remover arquivo temporário em `~/.claude/` e `~/.local/`) | FR-001, FR-011 | **Sim — e encerra aqui**, listando todos os ausentes de uma vez (exit `2`) ou a área sem permissão de escrita (exit `3`) |

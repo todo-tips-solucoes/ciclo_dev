@@ -50,11 +50,12 @@ Ref: checklists/security.md CHK005, CHK012
       "regex + entropia, não prova de ausência" já registrado em plan.md
       §Risco residual aceito item 3, evitando a leitura de garantia absoluta
       (CHK005-security)
-- [!] 1.2.3 Registrar decisão sobre feedback de progresso do `instalar.sh`
+- [x] 1.2.3 Registrar decisão sobre feedback de progresso do `instalar.sh`
       durante etapas potencialmente demoradas — silêncio-até-o-fim vs. saída
-      incremental — e documentar a escolha em plan.md (CHK012-ux-ops)
-      `{decisão do dono do produto}` — **bloqueado em block-002/dec-034**,
-      aguardando resposta do operador (onda-007)
+      incremental — e documentar a escolha em plan.md (CHK012-ux-ops).
+      Resolvido pelo owner (block-002 → dec-036, onda-008): saída
+      incremental — uma linha autoral pt-BR ao iniciar e ao concluir cada
+      uma das 7 etapas; ver plan.md §Arquitetura de `instalar.sh`
 
 ### 1.3 Scaffolding de diretórios e arquivos de dados versionados `[A]`
 
@@ -82,84 +83,108 @@ Ref: plan.md §Project Structure; data-model.md
 Ref: spec.md FR-001; plan.md §Arquitetura de `instalar.sh` (etapa 1);
 data-model.md §Pré-requisito de máquina; quickstart.md Scenario 2
 
-- [ ] 2.1.1 Implementar checagem de presença de `git`, `gh`, `node`, `jq`,
+- [x] 2.1.1 Implementar checagem de presença de `git`, `gh`, `node`, `jq`,
       `curl` no `PATH`
-- [ ] 2.1.2 Implementar comparação de versão mínima para `git` (>=2.36) e
+- [x] 2.1.2 Implementar comparação de versão mínima para `git` (>=2.36) e
       `node` (>=20) por campo numérico, sem `sort -V` (research Decision 4)
-- [ ] 2.1.3 Acumular TODOS os ausentes/abaixo-do-mínimo antes de reportar —
+- [x] 2.1.3 Acumular TODOS os ausentes/abaixo-do-mínimo antes de reportar —
       nunca parar no primeiro (Edge Case da spec)
-- [ ] 2.1.4 Encerrar com `exit 2` e mensagem listando todos os faltantes,
+- [x] 2.1.4 Encerrar com `exit 2` e mensagem listando todos os faltantes,
       antes de tentar qualquer instalação subsequente
-- [ ] 2.1.5 Teste: reproduzir quickstart Scenario 2 (dois ou mais
-      pré-requisitos ausentes simultaneamente)
+- [x] 2.1.5 Teste: reproduzir quickstart Scenario 2 (dois ou mais
+      pré-requisitos ausentes simultaneamente). Validado empiricamente em
+      HOME temporário com PATH reduzido (gh e jq ausentes): saída lista os
+      dois de uma vez, `exit 2`, antes de qualquer instalação (onda-008)
 
 ### 2.2 Etapas 2-4 — Instalação/atualização e conferência de piso do `cstk` `[A]`
 
 Ref: spec.md FR-002, FR-003, FR-004, FR-005; contracts/cli.md §Comandos
 externos invocados; research Decision 1, Decision 2
 
-- [ ] 2.2.1 Implementar detecção de `cstk` ausente → baixar o instalador
+- [x] 2.2.1 Implementar detecção de `cstk` ausente → baixar o instalador
       oficial para arquivo temporário e só então executar (nunca
       `curl | sh` direto — controle de segurança, plan §Superfície de
       Segurança)
-- [ ] 2.2.2 Implementar `cstk` presente → `cstk self-update`, sempre antes de
+- [x] 2.2.2 Implementar `cstk` presente → `cstk self-update`, sempre antes de
       qualquer comparação de piso (ordem não-negociável — research Decision 2)
-- [ ] 2.2.3 Implementar checagem `cstk --version` responde (FR-005) — falhar
+- [x] 2.2.3 Implementar checagem `cstk --version` responde (FR-005) — falhar
       com mensagem clara se não responder, `exit 1`
-- [ ] 2.2.4 Implementar leitura de `CSTK_MIN` a partir de `versoes.env` por
+- [x] 2.2.4 Implementar leitura de `CSTK_MIN` a partir de `versoes.env` por
       parse explícito (`grep`/`cut`), nunca `source` (controle de segurança —
       plan §Superfície de Segurança)
-- [ ] 2.2.5 Implementar comparação da versão instalada contra `CSTK_MIN`,
+- [x] 2.2.5 Implementar comparação da versão instalada contra `CSTK_MIN`,
       falhando com mensagem citando versão instalada e piso exigido
       (`exit 1`)
-- [ ] 2.2.6 Teste: reproduzir quickstart Scenario 3 (atualiza antes de
+- [x] 2.2.6 Teste: reproduzir quickstart Scenario 3 (atualiza antes de
       conferir), Scenario 4 (abaixo do piso) e Scenario 5 (`cstk` não
-      responde)
+      responde). Validado empiricamente com `cstk`/`curl`/`claude` stubados
+      em HOME temporário (nunca a instalação real desta máquina): self-update
+      sempre roda antes da conferência de piso; `CSTK_MIN=99.0.0` produz
+      `exit 1` citando `instalada 10.8.0, piso exigido 99.0.0`; `cstk`
+      quebrado produz `exit 1` com "cstk --version não respondeu" e nunca
+      prossegue silenciosamente (onda-008)
 
 ### 2.3 Etapas 5-7 — Catálogo, skills do cockpit e plugins `[A]`
 
 Ref: spec.md FR-006, FR-007, FR-008, FR-009; research Decision 12, 13, 14;
 contracts/cli.md §Comandos externos invocados
 
-- [ ] 2.3.1 Implementar `cstk install` (1ª vez) / `cstk update` (demais) para
+- [x] 2.3.1 Implementar `cstk install` (1ª vez) / `cstk update` (demais) para
       o catálogo de skills
-- [ ] 2.3.2 Implementar cópia idempotente de `skills/` → `~/.claude/skills/`
+- [x] 2.3.2 Implementar cópia idempotente de `skills/` → `~/.claude/skills/`
       com comparação de conteúdo (research Decision 14: ausente → copia;
       idêntico → no-op reportando `ja atualizada`; diverge → avisa e reporta
       `atualizada (havia edicao local)`), tratando `skills/` inexistente como
       etapa `pulada` (research Decision 13)
-- [ ] 2.3.3 Implementar registro do marketplace + instalação do plugin
+- [x] 2.3.3 Implementar registro do marketplace + instalação do plugin
       obrigatório `context-mode` pelos canais oficiais (`claude plugin
       marketplace add` / `claude plugin install`), sem `--accept-command`
       automático (controle de segurança)
-- [ ] 2.3.4 Implementar instalação/atualização do plugin recomendado
+- [x] 2.3.4 Implementar instalação/atualização do plugin recomendado
       `ponytail` — falha reportada apenas no status individual desse item,
       nunca falha o comando inteiro (FR-008)
-- [ ] 2.3.5 Capturar explicitamente o status de cada etapa não-fatal (`set -e`
+- [x] 2.3.5 Capturar explicitamente o status de cada etapa não-fatal (`set -e`
       é a principal armadilha — research Decision 12): usar
       `comando || status=falhou` em vez de deixar o script abortar antes do
       relatório
-- [ ] 2.3.6 Recusar execução como root/`sudo` antes de qualquer etapa
-      (controle de segurança — plan §Superfície de Segurança)
-- [ ] 2.3.7 Teste: reproduzir quickstart Scenario 1 (happy path), Scenario 6
+- [x] 2.3.6 Recusar execução como root/`sudo` antes de qualquer etapa
+      (controle de segurança — plan §Superfície de Segurança). Implementado
+      via `[ "$(id -u)" -eq 0 ]` no início de `main()`; não exercitado
+      empiricamente nesta onda (execução não-interativa sem privilégio de
+      root disponível) — revisão de código confirma a guarda antes de
+      qualquer etapa
+- [x] 2.3.7 Teste: reproduzir quickstart Scenario 1 (happy path), Scenario 6
       (idempotência), Scenario 7 (plugin recomendado falha) e Scenario 11
-      (confinamento de escrita, `HOME` temporário)
+      (confinamento de escrita, `HOME` temporário). Validado empiricamente
+      com `git`/`gh`/`node`/`curl`/`cstk`/`claude` stubados sob HOME temporário
+      no scratchpad (nunca a instalação real desta máquina — `find` confirmou
+      zero escrita fora do HOME de teste): Scenario 1 fecha com `exit 0` e os
+      8 itens do relatório; Scenario 6 (3 execuções) confirma 2ª execução sem
+      duplicar registro de marketplace/plugin (log de chamadas conferido) e
+      3ª execução avisa a divergência local sem sobrescrever em silêncio;
+      Scenario 7 confirma `ponytail` falho → `exit 0`, `context-mode` falho →
+      `exit 1`; Scenario 13 (plugin ausente instalado sem afetar o já
+      correto) também validado (onda-008)
 
 ### 2.4 Relatório final e códigos de saída `[A]`
 
 Ref: spec.md FR-009, FR-012; contracts/cli.md §Saída — relatório final,
 §Códigos de saída; data-model.md §Item de relatório
 
-- [ ] 2.4.1 Implementar acumulação de item de relatório por etapa (`nome`,
+- [x] 2.4.1 Implementar acumulação de item de relatório por etapa (`nome`,
       `status` ok/falhou/pulada, `detalhe`, `bloqueante`)
-- [ ] 2.4.2 Implementar impressão do relatório final no formato pt-BR
+- [x] 2.4.2 Implementar impressão do relatório final no formato pt-BR
       especificado em contracts/cli.md §Saída
-- [ ] 2.4.3 Implementar os três códigos de saída distintos (`0` nenhum
+- [x] 2.4.3 Implementar os três códigos de saída distintos (`0` nenhum
       bloqueante falhou; `1` algum bloqueante falhou; `2` pré-requisitos
-      ausentes ou abaixo do mínimo)
-- [ ] 2.4.4 Teste: confirmar que toda mensagem autoral está em pt-BR sem
+      ausentes ou abaixo do mínimo) — e o `3` de permissão insuficiente
+      (contracts/cli.md), também exercitado empiricamente (Scenario 12)
+- [x] 2.4.4 Teste: confirmar que toda mensagem autoral está em pt-BR sem
       tocar na saída nativa de ferramentas externas (FR-012, Clarifications
-      Q3)
+      Q3). Revisão de código confirma zero string autoral em outro idioma;
+      saída nativa do `cstk`/`claude` passa sem filtro (nenhum `>/dev/null`
+      nos comandos que executam a ação — só nas consultas internas
+      `list --json`), conforme block-002/dec-036 (onda-008)
 
 ---
 
