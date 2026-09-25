@@ -58,10 +58,14 @@ fi
 # `|| exit 2`: TMPDIR cheio ou sem permissão sairia 1 por `set -e`, o mesmo
 # código de "termo proibido encontrado", e o CI acusaria ocorrência sem lista
 # (review rodada 3).
-TERMOS_TMP="$(mktemp)" || exit 2
-ACHADOS_TMP="$(mktemp)" || exit 2
-ARQS_TMP="$(mktemp)" || exit 2
-trap 'rm -f "$TERMOS_TMP" "$TERMOS_TMP.raw" "$ACHADOS_TMP" "$ARQS_TMP"' EXIT
+# Template explícito: o `mktemp` do BSD (macOS, alvo declarado no plan) exige
+# template e falharia sem argumento, saindo 2 em toda máquina local
+# (review rodada 4).
+TERMOS_TMP="$(mktemp "${TMPDIR:-/tmp}/agnostico.XXXXXX")" || exit 2
+ACHADOS_TMP="$(mktemp "${TMPDIR:-/tmp}/agnostico.XXXXXX")" || exit 2
+ARQS_TMP="$(mktemp "${TMPDIR:-/tmp}/agnostico.XXXXXX")" || exit 2
+BLOB_TMP="$(mktemp "${TMPDIR:-/tmp}/agnostico.XXXXXX")" || exit 2
+trap 'rm -f "$TERMOS_TMP" "$TERMOS_TMP.raw" "$TERMOS_TMP.trim" "$ACHADOS_TMP" "$ARQS_TMP" "$BLOB_TMP" "$BLOB_TMP.oc"' EXIT
 
 # Termos. Normalização ANTES de filtrar, senão "<termo>\r", "<termo> " ou um
 # BOM grudado no primeiro termo nunca casariam (review rodadas 1-2):
@@ -77,9 +81,23 @@ tr -d '\r' < "$LISTA_REL" > "$TERMOS_TMP.raw" || {
   echo "Agnosticismo: erro de uso — falha ao ler $LISTA_REL." >&2
   exit 2
 }
+# Sem pipeline com `|| true`: ele engolia também uma falha do sed ou da
+# escrita (TMPDIR cheio) e o script anunciava "OK" sem ter aplicado um único
+# termo — falso negativo da guarda (review rodada 4). Em etapas separadas, só
+# o rc 1 do `grep -v` (lista só com comentários) é aceitável.
 sed -e "1s/^$BOM//" -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' "$TERMOS_TMP.raw" \
-  | grep -vE '^(#|$)' > "$TERMOS_TMP" || true
-rm -f "$TERMOS_TMP.raw"
+  > "$TERMOS_TMP.trim" || {
+  echo "Agnosticismo: erro de uso — falha ao normalizar $LISTA_REL." >&2
+  exit 2
+}
+grep -vE '^(#|$)' "$TERMOS_TMP.trim" > "$TERMOS_TMP" || {
+  rc=$?
+  if [ "$rc" -ne 1 ]; then
+    echo "Agnosticismo: erro de uso — falha ao filtrar $LISTA_REL (grep rc=$rc)." >&2
+    exit 2
+  fi
+}
+rm -f "$TERMOS_TMP.raw" "$TERMOS_TMP.trim"
 
 if [ ! -s "$TERMOS_TMP" ]; then
   echo "Agnosticismo: OK — nenhuma ocorrência de termo proibido."
@@ -127,6 +145,11 @@ while IFS= read -r -d '' arquivo; do
     fi
     continue
   fi
+  # Gitlink (submódulo): o repositório-pai versiona só o ponteiro. O caminho já
+  # foi casado acima; não há conteúdo deste repositório para varrer.
+  if [ -d "$arquivo" ]; then
+    continue
+  fi
   if [ -f "$arquivo" ]; then
     grep -inaHF -f "$TERMOS_TMP" -- "$arquivo" >> "$ACHADOS_TMP" || {
       rc=$?
@@ -141,11 +164,28 @@ while IFS= read -r -d '' arquivo; do
   # ao remoto é o blob do índice, não o worktree — varrer o blob, senão o
   # conteúdo passaria em silêncio (review rodada 3). O nome é prefixado por
   # printf, nunca interpolado num programa sed.
-  git cat-file -p ":$arquivo" 2>/dev/null \
-    | grep -inaF -f "$TERMOS_TMP" \
-    | while IFS= read -r ocorrencia; do
-        printf '%s:%s\n' "$arquivo" "$ocorrencia" >> "$ACHADOS_TMP"
-      done || true
+  if ! git cat-file -p ":$arquivo" > "$BLOB_TMP" 2>/dev/null; then
+    # Não engolir: o ramo do worktree acima trata erro de leitura como exit 2
+    # e o cabeçalho promete o mesmo. Gitlink não checado já saiu no `-d`; o
+    # que sobra aqui é índice corrompido ou objeto ausente (review rodada 4).
+    if git ls-files -s -- "$arquivo" | grep -q '^160000'; then
+      continue
+    fi
+    echo "Agnosticismo: erro ao ler o blob de '$arquivo' no índice." >&2
+    exit 2
+  fi
+  grep -inaF -f "$TERMOS_TMP" "$BLOB_TMP" > "$BLOB_TMP.oc" || {
+    rc=$?
+    if [ "$rc" -ne 1 ]; then
+      echo "Agnosticismo: erro ao varrer o blob de '$arquivo' (grep rc=$rc)." >&2
+      exit 2
+    fi
+  }
+  # Prefixo por printf, nunca interpolado num programa sed.
+  while IFS= read -r ocorrencia; do
+    printf '%s:%s\n' "$arquivo" "$ocorrencia" >> "$ACHADOS_TMP"
+  done < "$BLOB_TMP.oc"
+  rm -f "$BLOB_TMP.oc"
 done < "$ARQS_TMP"
 
 if [ ! -s "$ACHADOS_TMP" ]; then

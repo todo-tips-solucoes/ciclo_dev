@@ -508,3 +508,24 @@ Mesmo escopo. Camadas: Blind Hunter (8), Edge Case Hunter (10, com reprodução 
 - Instalador do cstk como alvo móvel `latest` sem pin (blind, 3ª vez): o desenho é da spec e de `versoes.env` ("o instalador mantém a máquina na última release"; piso ≠ alvo). Pinar contradiria o requisito. Risco aceito em dec-018.
 - `claude plugin update "$plugin"` sem `@marketplace` (blind, 2ª vez): executado de verdade no smoke test desta máquina, funciona; o contrato registra a forma pelo `--help`.
 - Nome de arquivo com newline conta duas ocorrências (edge, 2ª vez): sem falso negativo, só contagem cosmética num caso patológico.
+
+## Review Findings — bmad-code-review rodada 4 (2026-09-25, sobre 92b047a) — PARCIAL
+
+**Rodada incompleta**: duas das três camadas (Edge Case Hunter, Acceptance Auditor) foram encerradas por limite de sessão da API antes de produzir resultado. Só o Blind Hunter concluiu, com 11 achados: 1 alto, 6 médios, 4 baixos. **O gate da constituição NÃO pode fechar com esta rodada** — ela não cobre as camadas de borda e de aceite.
+
+### Patch (aplicados)
+
+- [x] [Review][Patch] MÉDIO: `cstk install --dry-run | sed ... || true` — o `|| true` cobria o pipeline inteiro, então dry-run falhando (sem rede, subcomando renomeado) virava "nada faltando" e a etapa dizia `[ok]` numa máquina com skills faltando. `skills_faltantes` agora grava num arquivo e devolve o rc do próprio comando; rc ≠ 0 é falha bloqueante (blind) [instalar.sh]
+- [x] [Review][Patch] MÉDIO: os nomes vinham do stderr de outro programa e iam direto para `cstk install --yes "${faltantes[@]}"` — um token iniciado por hífen viraria FLAG, que é exatamente a escrita cega que a etapa existe para evitar. Filtro `^[A-Za-z0-9][A-Za-z0-9._@-]*$` (medido: `--force` e `../evil` descartados, `analyze` aceito) (blind) [instalar.sh]
+- [x] [Review][Patch] MÉDIO: a limpeza no topo do laço apagava `.antigo.*`, que pode ser a única cópia da edição local se uma troca anterior falhou nos dois sentidos. Agora só `.novo.*` sai automaticamente; `.antigo.*` vira aviso nomeando o diretório, e o rollback que falha imprime ERRO com o caminho (blind) [instalar.sh etapa6]
+- [x] [Review][Patch] MÉDIO: `sed | grep -v > termos || true` engolia falha do sed e da escrita — com TMPDIR cheio o script anunciava "OK" sem ter aplicado um único termo, falso negativo da guarda. Etapas separadas; só o rc 1 do `grep -v` é aceitável (blind) [scripts/verificar-agnostico.sh]
+- [x] [Review][Patch] MÉDIO: a varredura do blob do índice engolia todo erro (`2>/dev/null`, `|| true`), contra o próprio cabeçalho que promete exit 2 para arquivo ilegível. Agora erro de `cat-file` e rc ≠ 1 do grep saem 2; gitlink é reconhecido e pulado (caminho já casado) (blind) [scripts/verificar-agnostico.sh]
+- [x] [Review][Patch] MÉDIO: `mktemp` sem template falha no BSD/macOS, alvo declarado no plan — o script sairia 2 em toda máquina local. Template explícito nas quatro chamadas (blind) [scripts/verificar-agnostico.sh]
+- [x] [Review][Patch] BAIXO: `REPO_ROOT ... || exit 1` prometia um relatório que não existe; agora 2 com mensagem, como HOME e root (blind) [instalar.sh]
+- [x] [Review][Patch] BAIXO: etapa 6 era não-bloqueante em todos os ramos — zero skill instalada saía 0. `falhou` passa a bloquear (FR-007 é MUST); `pulada` segue não-bloqueante (blind) [instalar.sh]
+- [x] [Review][Patch] BAIXO: o `--dry-run` era a única chamada de cstk sem `--yes` e herdava o stdin do terminal; agora `--yes </dev/null` (blind) [instalar.sh]
+- [x] [Review][Patch] BAIXO: o plan afirmava que o shellcheck segue a mesma disciplina de pin do gitleaks, o que o workflow desmente (vem do apt da imagem). Alegação corrigida e o risco declarado: falha fechada, nunca falso verde (blind) [plan.md]
+
+### Decision-needed (bloqueia o fechamento do gate)
+
+- [ ] [Review][Decision] O bootstrap do cstk baixa `releases/latest/download/install.sh` e executa, sem versão fixa nem checksum, com os privilégios do dev. Levantado nas quatro rodadas; dispensado três vezes por mim como "desenho da spec" (`versoes.env`: piso ≠ alvo, a máquina fica na última release) e risco aceito em dec-018. O Blind Hunter da rodada 4 classifica como **alto**, e um alto não dispensado impede o gate de fechar. Precisa de decisão do owner: pinar, aceitar formalmente, ou mudar o desenho.

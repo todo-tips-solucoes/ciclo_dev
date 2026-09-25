@@ -34,7 +34,12 @@ CSTK_INSTALL_URL="https://github.com/JotJunior/cstk/releases/latest/download/ins
 CTX_MODE_REPO="mksglu/context-mode"
 PONYTAIL_REPO="DietrichGebert/ponytail"
 
-REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)" || exit 1
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)" || {
+  # 2, não 1: é recusa antes de qualquer etapa, como HOME e root — o código 1
+  # promete um relatório que aqui não existe (review rodada 4).
+  echo "instalar.sh: não consegui resolver a raiz do script." >&2
+  exit 2
+}
 
 REPORT_LINHAS=()
 REPORT_STATUS=()
@@ -260,11 +265,24 @@ etapa4_cstk_piso() {
 # `update:` (presente); só os primeiros interessam. Cobre tanto skill apagada
 # do disco quanto skill nova de uma release mais recente. Falha de parse
 # devolve lista vazia — degrada para "só update", nunca para escrita cega.
+# skills_faltantes <arquivo-de-saída> — grava um nome por linha e devolve o rc
+# do próprio `cstk install --dry-run`. Separar o rc do parse importa: com
+# `| sed ... || true`, um dry-run que falha (sem rede, subcomando renomeado)
+# ficava indistinguível de "nada falta", e a etapa terminava [ok] numa máquina
+# com skills faltando (review rodada 4).
+#   2>&1: o cstk imprime o plano em STDERR (medido: 33 linhas em stderr, 0 em
+#   stdout). </dev/null: o dry-run não escreve nada, mas o stdin herdado é o
+#   terminal e o contrato do instalador é "sem interação".
+#   Filtro: só nome plausível de artefato. Token começando com hífen viraria
+#   FLAG de `cstk install` — e uma flag errada aqui é exatamente a escrita
+#   cega que esta etapa existe para evitar.
 skills_faltantes() {
-  # 2>&1 e não 2>/dev/null: o cstk imprime o plano do --dry-run em STDERR
-  # (medido: 33 linhas em stderr, 0 em stdout). Descartá-lo devolvia lista
-  # vazia sempre e o cherry-pick nunca rodava.
-  cstk install --dry-run 2>&1 | sed -n 's/.*\[dry-run\] install: *//p' || true
+  local saida rc=0
+  saida="$(cstk install --dry-run --yes </dev/null 2>&1)" || rc=$?
+  printf '%s\n' "$saida" \
+    | sed -n 's/.*\[dry-run\] install: *//p' \
+    | grep -E '^[A-Za-z0-9][A-Za-z0-9._@-]*$' > "$1" || true
+  return "$rc"
 }
 
 etapa5_catalogo() {
@@ -291,9 +309,21 @@ etapa5_catalogo() {
     log_etapa_fim 5 "$([ "$status" = ok ] && echo "concluída" || echo "falhou")"
     return
   fi
-  while IFS= read -r n; do [ -n "$n" ] && faltantes+=("$n"); done < <(skills_faltantes)
+  local plano detalhe=""
+  plano="$(mktemp "$HOME/.local/.instalar-plano.XXXXXX")" || {
+    registrar_item "Catálogo de skills do toolkit — não consegui criar arquivo temporário" falhou true
+    log_etapa_fim 5 "falhou"
+    return
+  }
   status=ok
-  local detalhe=""
+  if ! skills_faltantes "$plano"; then
+    rm -f "$plano"
+    registrar_item "Catálogo de skills do toolkit — 'cstk install --dry-run' falhou; não dá para saber o que falta" falhou true
+    log_etapa_fim 5 "falhou"
+    return
+  fi
+  while IFS= read -r n; do [ -n "$n" ] && faltantes+=("$n"); done < "$plano"
+  rm -f "$plano"
   if [ "${#faltantes[@]}" -gt 0 ]; then
     if cstk install --yes "${faltantes[@]}"; then
       detalhe=" — ${#faltantes[@]} item(ns) ausente(s) reinstalado(s): ${faltantes[*]}"
@@ -334,20 +364,24 @@ etapa6_skills_cockpit() {
   # Guarda: symlink pendurado ou arquivo no lugar de ~/.claude/skills fazia o
   # mkdir falhar e o script morrer sem relatório (review rodada 2).
   if ! mkdir -p "$HOME/.claude/skills" 2>/dev/null || [ ! -d "$HOME/.claude/skills" ]; then
-    registrar_item "Skills do cockpit — ~/.claude/skills não é um diretório gravável" falhou false
+    registrar_item "Skills do cockpit — ~/.claude/skills não é um diretório gravável" falhou true
     log_etapa_fim 6 "falhou"
     return
   fi
-  local instaladas=0 divergentes="" falhas="" skill_dir nome destino novo velho status
+  local instaladas=0 divergentes="" falhas="" skill_dir nome destino novo velho resto status
   for skill_dir in "$origem"/*/; do
     [ -d "$skill_dir" ] || continue
     nome="$(basename "$skill_dir")"
     destino="$HOME/.claude/skills/$nome"
-    # Resíduo de execução interrompida (outro PID) não pode virar uma skill
-    # visível ao Claude Code. Fora do ramo divergente para que um resíduo já
-    # removível saia na execução seguinte. Best-effort: uma remoção que falha
-    # não pode matar o script (set -e) — quem criou o resíduo já avisou.
-    rm -rf -- "$destino".novo.* "$destino".antigo.* 2>/dev/null || true
+    # `.novo.*` é cópia parcial sem valor: pode sair. `.antigo.*` pode ser a
+    # ÚNICA cópia da edição local do dev, se uma execução anterior falhou no
+    # meio da troca — nunca apagar automaticamente, só avisar (review rodada
+    # 4). Best-effort: remoção que falha não pode matar o script (set -e).
+    rm -rf -- "$destino".novo.* 2>/dev/null || true
+    for resto in "$destino".antigo.*; do
+      [ -e "$resto" ] || continue
+      echo "Aviso: $resto sobrou de uma troca interrompida e pode conter sua edição local — confira e remova à mão." >&2
+    done
     if [ ! -e "$destino" ] && [ ! -L "$destino" ]; then
       if cp -r "$skill_dir" "$destino"; then instaladas=$((instaladas + 1)); else falhas="$falhas $nome"; fi
     elif [ -d "$destino" ] && diff -rq "$skill_dir" "$destino" >/dev/null 2>&1; then
@@ -368,7 +402,10 @@ etapa6_skills_cockpit() {
       # deixava o dev sem a versão local E sem a nova (review rodada 3).
       if cp -r "$skill_dir" "$novo" \
          && mv "$destino" "$velho" \
-         && { mv "$novo" "$destino" || { mv "$velho" "$destino"; false; }; }; then
+         && { mv "$novo" "$destino" \
+              || { mv "$velho" "$destino" \
+                   || echo "ERRO: a versão local de $nome ficou em $velho — a troca falhou nos dois sentidos; mova-a de volta à mão." >&2
+                   false; }; }; then
         # A troca já aconteceu: a skill está correta. Remover a cópia antiga é
         # limpeza — se falhar (diretório sem permissão de escrita), avisa e
         # segue; matar o script aqui deixaria o dev sem relatório algum.
@@ -384,7 +421,10 @@ etapa6_skills_cockpit() {
   done
   status=ok
   [ -z "$falhas" ] || status=falhou
-  registrar_item "Skills do cockpit ($instaladas instalada(s); substituídas com edição local avisada:${divergentes:- nenhuma}${falhas:+; falhou:$falhas})" "$status" false
+  # Bloqueante quando FALHA de verdade (FR-007 é um MUST); `pulada`, com o
+  # diretório skills/ ainda inexistente, segue não-bloqueante (review rodada 4).
+  registrar_item "Skills do cockpit ($instaladas instalada(s); substituídas com edição local avisada:${divergentes:- nenhuma}${falhas:+; falhou:$falhas})" "$status" \
+    "$([ "$status" = ok ] && echo false || echo true)"
   log_etapa_fim 6 "$([ "$status" = ok ] && echo "concluída" || echo "falhou")"
 }
 
