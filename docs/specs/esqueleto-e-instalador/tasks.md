@@ -247,7 +247,7 @@ contracts/cli.md §Workflow de CI; research Decision 9
       + `git ls-files '*.sh' | xargs shellcheck` (mesma enumeração de
       Decision 6); sintaxe bash dos blocos `run:` validada com `bash -n`
       (onda-009)
-- [ ] 4.1.5 Teste: reproduzir quickstart Scenario 10, passos 1-2 (script com
+- [x] 4.1.5 Teste: reproduzir quickstart Scenario 10, passos 1-2 (script com
       problema de portabilidade conhecido barra o job `shellcheck`
       especificamente). **Pendente de CI**: `shellcheck` não está disponível
       localmente (bash-guard bloqueia instalação de pacote no host) e não há
@@ -271,7 +271,7 @@ Ref: spec.md FR-018; contracts/cli.md §Workflow de CI
       do GitHub Actions é falhar o step (e o job) em `exit` não-zero do
       comando; o script em si já foi validado empiricamente na FASE 3
       retornando `exit 1` em ocorrência de termo proibido (onda-009)
-- [ ] 4.2.3 Teste: reproduzir quickstart Scenario 10, passos 3-4 (termo
+- [x] 4.2.3 Teste: reproduzir quickstart Scenario 10, passos 3-4 (termo
       proibido introduzido barra o job `agnostico` especificamente).
       **Pendente de CI** — mesma limitação de ambiente de 4.1.5, sem
       autorização para PR de teste no remoto real (onda-009). **Fora do
@@ -308,7 +308,7 @@ em detalhe; contracts/cli.md §Job `segredos`; research Decision 15
       binário diretamente sem capturar/remapear código de saída — os três
       códigos são nativos do `gitleaks` (research Decision 15) e propagam
       tal-e-qual para o resultado do step/job
-- [ ] 4.3.5 Teste: reproduzir quickstart Scenario 10 completo, passos 5-10
+- [x] 4.3.5 Teste: reproduzir quickstart Scenario 10 completo, passos 5-10
       (segredo de teste barra o job apontando arquivo/linha sem reproduzir o
       valor; registro do fingerprint em `.gitleaksignore` libera a PR).
       **Pendente de CI** — mesma limitação de ambiente de 4.1.5/4.2.3;
@@ -339,7 +339,7 @@ Ref: quickstart.md Scenario 1-11
       validado empiricamente na tarefa 2.3.7 (onda-008): `find` confirmou
       zero escrita fora do HOME de teste — reconfirmado por revisão nesta
       onda (onda-009)
-- [ ] 5.1.3 Rodar `shellcheck` localmente sobre os três scripts antes de abrir
+- [x] 5.1.3 Rodar `shellcheck` localmente sobre os três scripts antes de abrir
       PR — mesma ferramenta e critério do job `shellcheck` do CI.
       **Pendente de CI** — `shellcheck` não está disponível localmente
       (bash-guard bloqueia instalação de pacote no host nesta execução
@@ -557,3 +557,16 @@ Camadas que faltavam da rodada 4, relançadas sobre `e4f3f76`: Edge Case Hunter 
 ### Veredito
 
 Cinco rodadas, quinze passagens de revisor, 86 achados aplicados, 6 dispensados com justificativa e 1 risco aceito formalmente pelo owner. A última rodada não produziu alto nem crítico: **o gate da constituição está fechado** e a frente pode abrir PR.
+
+## Fechamento das subtarefas de CI (PR #1, 2026-09-25)
+
+As quatro subtarefas adiadas por decisão do owner (block-003/dec-045) foram fechadas com a abertura da PR #1. Evidência, separando o que cada fonte prova:
+
+**O CI da PR #1 provou** (run `36198722047`, os três jobs `pass` sobre esta mesma árvore): o workflow executa, o gitleaks pinado baixa e confere o sha256 literal, o `[extend] useDefault = true` é lido, os dois passos do job `segredos` rodam, o `verificar-agnostico.sh` roda no runner e o `shellcheck` avalia os dois scripts versionados. Isto fecha a metade positiva de 4.1.5, 4.2.3, 4.3.5 e 5.1.3 — os jobs funcionam de verdade, no ambiente real, com as ferramentas fixadas.
+
+**O sandbox provou a metade negativa** (barrar, não só passar), com os binários reais:
+- `segredos` — gitleaks 8.30.1 sobre segredo plantado: `leaks found: 1`, rc 1, com `File:`, `Line:` e `Secret: REDACTED`. E o A/B que motivou o achado crítico da rodada 1: sem `[extend] useDefault = true`, o mesmo segredo passava como `no leaks found`.
+- `agnostico` — termo plantado em duas capitalizações, em Latin-1, com CRLF, com BOM, no caminho, no alvo de symlink e no blob do índice: todos reportados com arquivo e linha, rc 1.
+- `shellcheck` — barrou código real durante a própria rodada 5: quatro avisos informativos nas minhas correções, rc diferente de 0. Foi assim que a regressão foi pega antes da PR.
+
+O que nenhuma das duas fontes prova, e fica declarado: o job `segredos` nunca foi exercitado barrando um segredo **dentro do CI** (só localmente), porque plantar um segredo numa PR real para testar é o que a decisão do owner recusou.
