@@ -271,6 +271,15 @@ invisíveis:
    checksum correspondente, então o `.sha256` de mesma origem só protege contra
    corrupção em trânsito, que o TLS já cobre. O Princípio IV, além disso, proíbe
    essa reimplementação.
+   *Aceito formalmente pelo owner em 2026-09-25*, na revisão de código desta
+   frente (rodada 4), depois de o achado ser levantado nas quatro rodadas e
+   classificado como alto por uma delas. As alternativas foram postas e
+   recusadas: pinar versão + sha256 do `install.sh` contradiz `versoes.env`
+   ("o instalador mantém a máquina na última release") e não impediria o
+   `self-update` seguinte de trazer a release nova; exigir o `cstk` como
+   pré-requisito de máquina mudaria FR-002/FR-003 e tiraria a conveniência de
+   máquina zero. **Decisão de escopo, não descuido** — revisão futura que
+   reabrir o tema deve tratar este parágrafo como a resposta.
 2. **Ausência de janela de maturação (*soak*) nas atualizações.** O Princípio IV
    determina, com redação MUST, manter a máquina na última release. Isso é uma
    decisão de compatibilidade, e `CSTK_MIN` é um piso de **compatibilidade, não um

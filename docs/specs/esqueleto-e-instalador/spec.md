@@ -148,6 +148,15 @@ que a checagem automática da mudança falha nos três casos, apontando qual che
 
 ---
 
+### Riscos aceitos
+
+- **Bootstrap do `cstk` por canal móvel, sem pin nem checksum** — o comando de
+  preparo baixa e executa o instalador oficial da última release. Risco de
+  cadeia de suprimentos reconhecido, analisado em
+  [plan.md](plan.md) §Risco residual aceito item 1 e **aceito formalmente pelo
+  owner em 2026-09-25**. É consequência direta de "a máquina fica na última
+  release" (`versoes.env`), não uma omissão.
+
 ### Edge Cases
 
 - O que acontece quando mais de um pré-requisito de máquina está ausente ao mesmo tempo?
