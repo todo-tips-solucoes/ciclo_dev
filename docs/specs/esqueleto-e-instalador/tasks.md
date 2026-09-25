@@ -440,3 +440,36 @@ Escopo: diff `origin/main..HEAD`, grupo código (`instalar.sh`, `scripts/`, `.gi
 - Instalador do cstk como alvo móvel `latest` sem pin (blind): é o desenho pedido pela spec (piso ≠ alvo, máquina sempre na última release) e o risco residual já está aceito em dec-018.
 - `.gitignore` ganha `.mcp.json` (auditor, não solicitado): commit de chore anterior à frente, deliberado; declarado no corpo da PR como caminho tocado.
 - Submodule não varrido por `verificar-agnostico.sh` (edge): o repositório não usa submodules; exclusão anotada aqui, sem ação.
+
+## Review Findings — bmad-code-review rodada 2 (2026-09-25, sobre 0e367ee)
+
+Mesmo escopo da rodada 1. Camadas: Blind Hunter (7), Edge Case Hunter (13, reprodução em sandbox com cstk 10.8.0 real em HOME temporário, gitleaks 8.30.1, shellcheck 0.10.0), Acceptance Auditor (3). Após dedupe: 20 achados, 3 descartados. Severidade: 0 crítico, 1 alto, 7 médios, 12 baixos. **Gate não fechado (1 alto) — rodada 3 obrigatória após aplicar.** Todos os 17 itens aplicados e validados em sandbox (ver commit).
+
+### Decision-needed
+
+- [x] [Review][Decision] `gitleaks dir .` não vê segredo que entrou e saiu dentro da mesma PR — o modo `dir` varre só a árvore do merge; commit 1 adiciona `.env` com token, commit 2 remove, job verde, token entra no histórico de `main`. Complementar com varredura de histórico do range da PR (`gitleaks git` + `fetch-depth: 0`, evento pull_request) ou registrar a limitação na spec/contrato como risco aceito. (blind, médio) [.github/workflows/ci.yml:110] → decidido pelo owner: varrer também o histórico da PR com `gitleaks git --log-opts` no evento pull_request (aplicado)
+
+### Patch
+
+- [x] [Review][Patch] ALTO: etapa 5 relata `[ok]` com catálogo vazio — manifest presente e diretórios de skill ausentes (`rm -rf ~/.claude/skills/*` preserva o dotfile; backup parcial) → `cstk update --yes` avisa "skill no manifest mas dir ausente" 21x e sai 0. Regressão da correção r1 (manifest como sinal). Decidir install vs update por manifest íntegro (toda skill listada tem diretório) (edge) [instalar.sh etapa5_catalogo]
+- [x] [Review][Patch] MÉDIO: `rm -rf "$destino" && cp -r` não é atômico — se a cópia falhar no meio (disco cheio, EPERM), a edição local já foi destruída e nada a substitui; copiar para irmão temporário e só então trocar (blind) [instalar.sh etapa6]
+- [x] [Review][Patch] MÉDIO: `|| true` no filtro da lista transforma lista ilegível (permissão, I/O) em "OK — nenhuma ocorrência", exit 0, contra o cabeçalho que promete 2; testar `-r` e não engolir o rc do `sed` (blind) [scripts/verificar-agnostico.sh:46-47]
+- [x] [Review][Patch] MÉDIO: `sed 's/\r$//'` é extensão GNU — no BSD sed (macOS, alvo declarado no plan) apaga um `r` literal no fim de cada termo (`Acmer`→`Acme`, termo `r` some); trocar por `tr -d '\r'` nos dois scripts (blind+edge) [scripts/verificar-agnostico.sh:46; instalar.sh ler_cstk_min]
+- [x] [Review][Patch] MÉDIO: varredura de caminho vem depois de `[ -f ]` — gitlink, symlink para diretório, symlink pendurado e arquivo apagado do worktree mas ainda no índice pulam a checagem de nome; symlink para arquivo é seguido e varre conteúdo não versionado em vez do texto do alvo (edge) [scripts/verificar-agnostico.sh:58-59]
+- [x] [Review][Patch] MÉDIO: BOM UTF-8 no início da lista (editor Windows) gruda no primeiro termo, que nunca casa; irmão do CRLF corrigido na r1 (edge) [scripts/verificar-agnostico.sh:46]
+- [x] [Review][Patch] MÉDIO: contrato e research não registram as invocações reais — `--yes`, `-s user`, campos `.id/.scope/.name` do `--json`, `CSTK_INSTALL_TELEMETRY`, `.cstk-manifest` — e o critério "presente = instalado no escopo user"; Princípio V exige fonte no registro (auditor) [docs/specs/esqueleto-e-instalador/contracts/cli.md §Comandos externos; research.md]
+- [x] [Review][Patch] BAIXO: plan.md, data-model.md e research.md ainda descrevem o desenho pré-r1 — `--redact` sem `-v`, fingerprint de 4 campos, checksum lido da release, verificar-agnostico sem varredura de caminho (auditor+edge) [plan.md:188,202,247; data-model.md:110; research.md:432,468,470]
+- [x] [Review][Patch] BAIXO: `.gitleaksignore` não pede o motivo da exceção que a Key Entity da spec exige; uma linha `# motivo:` acima de cada fingerprint fecha (auditor) [.gitleaksignore]
+- [x] [Review][Patch] BAIXO: `git ls-files` falhando (índice corrompido, rc 128) ou vazio (cópia sem `.git` dentro de repo-pai) vira "OK" rc 0 — rc do processo substituído é invisível; materializar a lista com `|| exit 2` e exigir que o próprio script conste dela (edge) [scripts/verificar-agnostico.sh:61]
+- [x] [Review][Patch] BAIXO: `grep -i` só dobra caixa ASCII fora de locale UTF-8 — `Promoção` vs `PROMOÇÃO` não casa com `LANG=C`; fixar `LC_ALL=C.UTF-8` quando disponível (edge) [scripts/verificar-agnostico.sh]
+- [x] [Review][Patch] BAIXO: etapa 6 `mkdir -p ~/.claude/skills` sem guarda sob `set -e` — symlink pendurado ou arquivo no lugar mata o script sem relatório (blind+edge) [instalar.sh etapa6]
+- [x] [Review][Patch] BAIXO: etapa 6 destino que existe mas não é diretório (arquivo, symlink pendurado) é tratado como ausente e `cp` falha para sempre (edge) [instalar.sh etapa6]
+- [x] [Review][Patch] BAIXO: dica "adicione ~/.local/bin ao PATH" só sai no ramo de bootstrap (na 2ª execução o prepend esconde o problema) e erra com barra final no PATH (edge) [instalar.sh etapa2]
+- [x] [Review][Patch] BAIXO: `ler_cstk_min` pega a primeira `CSTK_MIN` (`head -1`); `source` pegaria a última — usar `tail -1` (edge) [instalar.sh ler_cstk_min]
+- [x] [Review][Patch] BAIXO: binário com termo despeja o blob inteiro no log da PR (linha de 600 KB); truncar a coluna de texto ao imprimir (edge) [scripts/verificar-agnostico.sh:70]
+
+### Dismissed (3)
+
+- Instalador do cstk como alvo móvel `latest` sem pin (blind): já descartado na rodada 1 — desenho da spec (piso ≠ alvo), risco aceito em dec-018.
+- `claude plugin update "$plugin"` sem `@marketplace` (blind): medido no smoke test real desta máquina (`claude plugin update context-mode -s user` → "already at the latest version"); o contrato registra `update <plugin>` pelo `--help`.
+- Nome de arquivo com newline conta duas ocorrências (edge): sem falso negativo (rc 1 mantido); só a contagem fica cosmética num caso patológico.

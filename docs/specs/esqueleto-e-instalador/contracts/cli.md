@@ -59,14 +59,16 @@ Cada um com a fonte que o confirma — nenhum foi reconstruído de memória.
 
 | Situação | Comando | Fonte |
 |----------|---------|-------|
-| `cstk` ausente | o instalador oficial `https://github.com/JotJunior/cstk/releases/latest/download/install.sh`, **baixado para arquivo temporário e então executado** — não canalizado direto para o shell (ver §Superfície de Segurança do plan.md). O one-liner publicado no README é `curl -fsSL <url> \| sh`; usar a mesma URL sem o pipe mantém o canal oficial e elimina a execução parcial de download truncado. | FONTE OFICIAL — README de `JotJunior/cstk` (research Decision 1) |
-| `cstk` presente | `cstk self-update` | FONTE OFICIAL — README; *"updates the cstk binary itself + cli/lib"* |
+| `cstk` ausente | o instalador oficial `https://github.com/JotJunior/cstk/releases/latest/download/install.sh`, **baixado para arquivo temporário (em `~/.local`) e então executado** com `CSTK_INSTALL_TELEMETRY=no sh <arquivo>` — não canalizado direto para o shell (ver §Superfície de Segurança do plan.md). O one-liner publicado no README é `curl -fsSL <url> \| sh`; usar a mesma URL sem o pipe mantém o canal oficial e elimina a execução parcial de download truncado. A variável desliga o prompt de telemetria que, aceito, gravaria no rc do shell (fora de `~/.claude`/`~/.local`). | FONTE OFICIAL — README de `JotJunior/cstk` (research Decision 1); `install.sh` da release lido: função `telemetry_optin` lê `CSTK_INSTALL_TELEMETRY` (yes/no) e, sem TTY, assume `no` (review rodadas 1-2) |
+| `cstk` presente | `cstk self-update --yes` | FONTE OFICIAL — README; *"updates the cstk binary itself + cli/lib"*. `--yes` MEDIDO em `cstk --help`: flag global, *"Pula confirmacoes interativas"* |
 | Conferir versão | `cstk --version` | MEDIDO — devolve `cstk v10.8.0` |
-| Catálogo, 1ª vez | `cstk install` | FONTE OFICIAL — README; instala o perfil `sdd` em `~/.claude/skills/` |
-| Catálogo, demais | `cstk update` | FONTE OFICIAL — README; *"applies new releases preserving local edits"* |
+| Catálogo, 1ª vez | `cstk install --yes` — critério: manifest `~/.claude/skills/.cstk-manifest` **ausente ou com skill listada sem diretório** | FONTE OFICIAL — README; instala o perfil `sdd` em `~/.claude/skills/`. MEDIDO (10.8.0): formato do manifest (`<skill>\t<versao>\t<sha256>\t<data>` após cabeçalho `#`); `update --yes` sobre manifest órfão avisa *"skill no manifest mas dir ausente"* e sai **0** — por isso o critério exige manifest íntegro; `install --yes` sobre catálogo parcial preserva edição local e recria o manifest (review rodadas 1-2) |
+| Catálogo, demais | `cstk update --yes` | FONTE OFICIAL — README; *"applies new releases preserving local edits"* |
+| Detectar marketplace | `claude plugin marketplace list --json`, campo `.name` | MEDIDO — saída real do `--json` nesta máquina |
 | Registrar marketplace | `claude plugin marketplace add <source>` | MEDIDO — `claude plugin marketplace add --help` |
-| Instalar plugin | `claude plugin install <plugin>@<marketplace>` | MEDIDO + FONTE OFICIAL (research Decision 10) |
-| Atualizar plugin | `claude plugin update <plugin>` | MEDIDO — `claude plugin update --help` |
+| Detectar plugin | `claude plugin list --json`, campos `.id` e `.scope`; **"presente" = instalado no escopo `user`** (plugin só em `project`/`local` conta como ausente e é instalado em `user`) | MEDIDO — saída real do `--json` nesta máquina (review rodada 2) |
+| Instalar plugin | `claude plugin install <plugin>@<marketplace> -s user` | MEDIDO (`-s, --scope <scope>` em `install --help`) + FONTE OFICIAL (research Decision 10) |
+| Atualizar plugin | `claude plugin update <plugin> -s user` | MEDIDO — `claude plugin update --help`; executado de verdade no smoke test desta máquina (*"already at the latest version"*) |
 
 **Ordem não-negociável**: `cstk self-update` **antes** da conferência do piso
 (Princípio IV, research Decision 2).

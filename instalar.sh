@@ -25,7 +25,7 @@ fi
 # (o install.sh oficial só avisa). Sem isto, numa máquina nova as etapas 3-5
 # falhariam em cascata logo depois de a etapa 2 instalar (review rodada 1).
 case ":$PATH:" in
-  *":$HOME/.local/bin:"*) LOCAL_BIN_JA_NO_PATH=true ;;
+  *":$HOME/.local/bin:"*|*":$HOME/.local/bin/:"*) LOCAL_BIN_JA_NO_PATH=true ;;
   *) LOCAL_BIN_JA_NO_PATH=false ;;
 esac
 export PATH="$HOME/.local/bin:$PATH"
@@ -52,6 +52,18 @@ log_etapa_inicio() {
 
 log_etapa_fim() {
   printf 'Etapa %s/7: %s\n' "$1" "$2"
+}
+
+# dica_path — sufixo de aviso quando o cstk em uso vem de ~/.local/bin e esse
+# diretório não estava no PATH original do shell. Vale nas duas execuções: na
+# 2ª o prepend feito acima esconderia o problema e a dica sumia (review
+# rodada 2).
+dica_path() {
+  [ "$LOCAL_BIN_JA_NO_PATH" = false ] || return 0
+  case "$(command -v cstk 2>/dev/null || true)" in
+    "$HOME/.local/bin/"*) printf ' — ~/.local/bin não está no PATH do seu shell; adicione-o para usar o cstk fora deste script' ;;
+  esac
+  return 0
 }
 
 # registrar_item <texto-completo-da-linha> <ok|falhou|pulada> <true|false-bloqueante>
@@ -156,7 +168,7 @@ etapa2_cstk_instalar_ou_atualizar() {
     # Saída nativa do cstk passa sem filtro (block-002 → dec-036) — nada de
     # >/dev/null aqui.
     if cstk self-update --yes; then status=ok; else status=falhou; fi
-    registrar_item "cstk atualizado" "$status" true
+    registrar_item "cstk atualizado$(dica_path)" "$status" true
   else
     # Temporário dentro de ~/.local (FR-011: nada fora de ~/.claude e ~/.local;
     # a etapa 1 já garantiu que ~/.local existe e é gravável).
@@ -172,11 +184,7 @@ etapa2_cstk_instalar_ou_atualizar() {
     fi
     rm -f "$tmp"
     hash -r
-    local dica=""
-    if [ "$LOCAL_BIN_JA_NO_PATH" = false ]; then
-      dica=" — ~/.local/bin não está no PATH do seu shell; adicione-o para usar o cstk fora deste script"
-    fi
-    registrar_item "cstk instalado${dica}" "$status" true
+    registrar_item "cstk instalado$(dica_path)" "$status" true
   fi
   log_etapa_fim 2 "$([ "$status" = ok ] && echo "concluída" || echo "falhou")"
 }
@@ -211,9 +219,11 @@ etapa3_cstk_responde() {
 ler_cstk_min() {
   local arq="$REPO_ROOT/versoes.env" v=""
   [ -f "$arq" ] || return 0
-  v="$(sed -e 's/\r$//' "$arq" \
+  # tr, não sed 's/\r$//': no BSD sed (macOS) o \r é um 'r' literal. tail -1:
+  # mesma semântica de `source`, a última atribuição vale (review rodada 2).
+  v="$(tr -d '\r' < "$arq" \
     | grep -E '^[[:space:]]*(export[[:space:]]+)?CSTK_MIN[[:space:]]*=' \
-    | head -1 | cut -d= -f2- || true)"
+    | tail -1 | cut -d= -f2- || true)"
   v="${v%%#*}"
   v="${v//\"/}"
   v="${v//\'/}"
@@ -243,6 +253,19 @@ etapa4_cstk_piso() {
 
 # --- etapa 5: catálogo de skills do toolkit -----------------------------
 
+# catalogo_integro — manifest presente E toda skill listada nele tem diretório.
+# Formato do manifest (medido nesta máquina, cstk 10.8.0): linhas '#' de
+# cabeçalho, depois <skill>\t<versao-toolkit>\t<sha256>\t<data>.
+catalogo_integro() {
+  local m="$HOME/.claude/skills/.cstk-manifest" nome
+  [ -f "$m" ] || return 1
+  while IFS=$'\t' read -r nome _; do
+    case "$nome" in ''|'#'*) continue ;; esac
+    [ -d "$HOME/.claude/skills/$nome" ] || return 1
+  done < "$m"
+  return 0
+}
+
 etapa5_catalogo() {
   log_etapa_inicio 5 "provisionando catálogo de skills do toolkit"
   local status
@@ -251,11 +274,14 @@ etapa5_catalogo() {
     log_etapa_fim 5 "falhou"
     return
   fi
-  # Primeira execução = catálogo ausente, detectado pelo manifest que o
-  # próprio cstk grava. ~/.claude/skills é o diretório padrão de skills do
-  # Claude Code e quase nunca está vazio — "não-vazio" mandava `update` para
-  # um catálogo que nunca fora instalado (review rodada 1).
-  if [ -f "$HOME/.claude/skills/.cstk-manifest" ]; then
+  # Primeira execução = catálogo ausente OU quebrado. ~/.claude/skills é o
+  # diretório padrão de skills do Claude Code e quase nunca está vazio, então
+  # "não-vazio" não serve (review rodada 1); e só o manifest também não serve:
+  # `rm -rf ~/.claude/skills/*` preserva o dotfile, e `cstk update --yes` sobre
+  # esse estado avisa "dir ausente" e sai 0 — relatava [ok] com catálogo vazio
+  # (review rodada 2). `install --yes` sobre catálogo parcial preserva edição
+  # local e recria o manifest (medido com 10.8.0).
+  if catalogo_integro; then
     if cstk update --yes; then status=ok; else status=falhou; fi
   else
     if cstk install --yes; then status=ok; else status=falhou; fi
@@ -276,22 +302,37 @@ etapa6_skills_cockpit() {
     log_etapa_fim 6 "pulada"
     return
   fi
-  mkdir -p "$HOME/.claude/skills"
-  local instaladas=0 divergentes="" falhas="" skill_dir nome destino status
+  # Guarda: symlink pendurado ou arquivo no lugar de ~/.claude/skills fazia o
+  # mkdir falhar e o script morrer sem relatório (review rodada 2).
+  if ! mkdir -p "$HOME/.claude/skills" 2>/dev/null || [ ! -d "$HOME/.claude/skills" ]; then
+    registrar_item "Skills do cockpit — ~/.claude/skills não é um diretório gravável" falhou false
+    log_etapa_fim 6 "falhou"
+    return
+  fi
+  local instaladas=0 divergentes="" falhas="" skill_dir nome destino novo status
   for skill_dir in "$origem"/*/; do
     [ -d "$skill_dir" ] || continue
     nome="$(basename "$skill_dir")"
     destino="$HOME/.claude/skills/$nome"
-    if [ ! -d "$destino" ]; then
+    if [ ! -e "$destino" ] && [ ! -L "$destino" ]; then
       if cp -r "$skill_dir" "$destino"; then instaladas=$((instaladas + 1)); else falhas="$falhas $nome"; fi
-    elif diff -rq "$skill_dir" "$destino" >/dev/null 2>&1; then
+    elif [ -d "$destino" ] && diff -rq "$skill_dir" "$destino" >/dev/null 2>&1; then
       : # já atualizada — nada a fazer
     else
-      # Espelho, não sobreposição: cp -r nunca remove arquivo que saiu da
-      # origem, e a divergência (avisada) voltaria em toda execução, contra a
-      # idempotência de SC-002 (review rodada 1). O aviso já anuncia a troca.
+      # Diverge, ou existe sem ser diretório (arquivo, symlink pendurado —
+      # antes caía em "ausente" e o cp falhava para sempre). Espelho, não
+      # sobreposição: cp -r nunca remove arquivo que saiu da origem (SC-002,
+      # review rodada 1). Troca atômica: copia para um irmão temporário e só
+      # então substitui — se a cópia falhar no meio, a versão local continua
+      # intacta (review rodada 2).
       echo "Aviso: ~/.claude/skills/$nome tem edição local divergente — substituindo pela versão do cockpit." >&2
-      if rm -rf "$destino" && cp -r "$skill_dir" "$destino"; then divergentes="$divergentes $nome"; else falhas="$falhas $nome"; fi
+      novo="$destino.novo.$$"
+      if rm -rf "$novo" && cp -r "$skill_dir" "$novo" && rm -rf "$destino" && mv "$novo" "$destino"; then
+        divergentes="$divergentes $nome"
+      else
+        rm -rf "$novo"
+        falhas="$falhas $nome"
+      fi
     fi
   done
   status=ok

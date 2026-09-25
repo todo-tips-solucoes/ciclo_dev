@@ -167,8 +167,12 @@ Três passos:
 2. Enumerar os arquivos versionados por `git ls-files` (Decision 6) **excluindo
    `scripts/agnostico.lista`** (Decision 7 — sem isso a varredura casa contra a
    própria lista e falha sempre).
-3. Casar por substring literal, sem distinção de maiúsculas (`grep -i -F`),
-   reportando `arquivo:linha` por ocorrência.
+3. Casar por substring literal, sem distinção de maiúsculas (`grep -i -a -F`,
+   todo arquivo tratado como texto, independente de locale), reportando
+   `arquivo:linha` por ocorrência. O caminho de cada entrada versionada
+   (inclusive gitlink e symlink, cujo alvo textual também é casado) entra na
+   varredura e sai como `arquivo:0:(caminho)`. Termos passam por remoção de
+   CR/BOM e trim antes de casar (review rodadas 1-2).
 
 Saída: `0` com zero ocorrências (FR-013); `1` listando arquivo e linha de cada
 ocorrência (FR-014). Sem efeito colateral — o script só lê (FR-016).
@@ -185,7 +189,7 @@ que o relatório diga qual garantia barrou (User Story 3, cenários 1 a 3):
 |-----|-----------|-----|
 | `shellcheck` | instala `shellcheck` explicitamente e roda sobre todo `.sh` do repositório | FR-017 |
 | `agnostico` | executa `scripts/verificar-agnostico.sh` | FR-018 |
-| `segredos` | instala o binário do `gitleaks` (release fixada, checksum conferido) e roda `gitleaks dir . --redact` | FR-019, FR-020, FR-021 |
+| `segredos` | instala o binário do `gitleaks` (release fixada, checksum conferido) e roda `gitleaks dir . --redact -v` (e, no pull_request, `gitleaks git` sobre o range base..head) | FR-019, FR-020, FR-021 |
 
 O `shellcheck` é instalado pelo job em vez de assumido pré-instalado no runner:
 afirmar o conteúdo da imagem do runner sem fonte oficial lida violaria o
@@ -199,7 +203,7 @@ conferido dentro do job, nunca a Action de terceiro (Decision 15).
   vazamento publicaria o segredo no log da PR — FR-019 exige apontar arquivo e
   linha *sem* reproduzir o valor.
 - **Exceções versionadas (FR-021)**: `.gitleaksignore` na raiz (uma linha por
-  *fingerprint* `<commit>:<file>:<ruleID>:<line>`) para achados pontuais, e
+  *fingerprint* `<file>:<ruleID>:<line>`, três campos no modo `dir`, precedido de um comentário com o motivo) para achados pontuais, e
   `.gitleaks.toml` na raiz (blocos `[[allowlists]]` com `paths`/`regexes`/
   `stopwords`) para classes de placeholder. Os dois são lidos por default quando
   estão na raiz, sem flag. Nenhuma exceção é possível fora do repositório — é o
@@ -244,7 +248,7 @@ código de PR.
 | Segredo real commitado por engano no repositório | Job `segredos` no CI (`gitleaks dir .`) barra a alteração antes do merge. É o mecanismo que faltava para o Princípio I entregar a parte "credencial" da sua promessa — a varredura de agnosticismo nunca detectou isso. | FR-019 |
 | O próprio relatório do CI vaza o segredo que acabou de detectar | `--redact` **obrigatório** na invocação: o console default do gitleaks imprime o campo `Secret:` com o valor. Sem a flag, barrar o vazamento seria publicá-lo no log da PR, legível por quem tem acesso ao repositório. | FR-019 |
 | Exceção de falso positivo vira porta dos fundos permanente | Exceção só existe em `.gitleaksignore` / `.gitleaks.toml` **versionados**, e portanto aparece no diff da PR que a introduz. Não há toggle fora do repositório, e desligar o job é mudança visível no workflow. | FR-021 |
-| Ferramenta de varredura de terceiro executando no CI | Binário fixado por versão de release e conferido contra o `checksums.txt` publicado, baixado dentro do job — **não** a Action de terceiro (que exigiria `GITLEAKS_LICENSE` para repositório de organização e não é mais MIT), **não** tag/branch móvel. Mesma disciplina do `shellcheck`. | A03, CICD-SEC-8 |
+| Ferramenta de varredura de terceiro executando no CI | Binário fixado por versão de release e conferido contra um sha256 literal fixado no workflow (copiado do `checksums.txt` da release no bump — o arquivo lido na hora vem da mesma origem mutável), baixado e extraído em `$RUNNER_TEMP` dentro do job — **não** a Action de terceiro (que exigiria `GITLEAKS_LICENSE` para repositório de organização e não é mais MIT), **não** tag/branch móvel. Mesma disciplina do `shellcheck`. | A03, CICD-SEC-8 |
 | `versoes.env` interpretado como código | Ler `CSTK_MIN` por **parse explícito** (grep/cut), não por `source`. O arquivo é versionado e confiável, mas `source` transforma um arquivo de dados em script executável sem necessidade. | A08 |
 
 ### Risco residual aceito

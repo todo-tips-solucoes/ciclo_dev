@@ -1,15 +1,17 @@
 # .gitleaksignore — exceções PONTUAIS da varredura de segredo (FR-021).
 #
-# Lido por padrão pelo `gitleaks dir . --redact -v` quando está na raiz do
-# alvo — CI do cockpit, job "segredos".
+# Lido por padrão pelo `gitleaks dir . --redact -v` (e pelo passo de histórico
+# da PR) quando está na raiz do alvo — CI do cockpit, job "segredos".
 #
-# Uma linha por fingerprint de achado já revisado e reconhecido como falso
-# positivo. No modo `dir` (o que o CI usa) o fingerprint NÃO tem commit — são
-# três campos:
+# Cada exceção ocupa duas linhas: um comentário com o MOTIVO (a Key Entity da
+# spec exige localização E motivo) e o fingerprint do achado já revisado e
+# reconhecido como falso positivo. No modo `dir` (o que o CI usa) o
+# fingerprint NÃO tem commit — são três campos:
+#   # motivo: <por que é falso positivo>, revisado na PR #<n>
 #   <arquivo>:<ruleID>:<linha>
 # Copie o valor do campo "Fingerprint:" que o próprio gitleaks imprime no log
 # do job (é para isso que o -v existe). Uma entrada no formato de quatro
-# campos, com commit (formato do modo `git`), nunca casa. Recurso marcado como
-# experimental pela documentação oficial do gitleaks.
+# campos, com commit (formato do modo `git`), nunca casa no modo `dir`.
+# Recurso marcado como experimental pela documentação oficial do gitleaks.
 #
 # Este arquivo nasce sem nenhuma exceção ativa.

@@ -3,9 +3,9 @@
 #
 # Garante o Princípio I (Agnosticismo Verificável, NON-NEGOTIABLE): nenhum
 # arquivo versionado cita termo de projeto, cliente, organização, domínio ou
-# credencial reais — nem no conteúdo, nem no caminho. Lê
-# scripts/agnostico.lista (data-model.md §Lista de termos proibidos) e varre
-# todo o repositório contra ela.
+# credencial reais — nem no conteúdo, nem no caminho, nem no alvo de um
+# symlink. Lê scripts/agnostico.lista (data-model.md §Lista de termos
+# proibidos) e varre todo o repositório contra ela.
 #
 # Uso: ./scripts/verificar-agnostico.sh   (sem parâmetros — nenhum modo
 # parcial: a garantia é sobre "todo arquivo do repositório")
@@ -15,12 +15,22 @@
 # Códigos de saída (contracts/cli.md):
 #   0  zero ocorrências (inclui lista vazia ou só com comentários)
 #   1  uma ou mais ocorrências, listadas como arquivo:linha:texto; ocorrência
-#      no caminho do arquivo sai como arquivo:0:(caminho)
-#   2  erro de uso — agnostico.lista ausente, execução fora de um repositório
-#      git (a enumeração depende de git ls-files), ou arquivo ilegível
+#      no caminho sai como arquivo:0:(caminho) e no alvo de um symlink como
+#      arquivo:0:(alvo do symlink)
+#   2  erro de uso — agnostico.lista ausente ou ilegível, execução fora de um
+#      repositório git, git ls-files falhando ou sem listar este script, ou
+#      arquivo versionado ilegível
 set -euo pipefail
 
 LISTA_REL="scripts/agnostico.lista"
+SELF_REL="scripts/verificar-agnostico.sh"
+
+# Caixa fora do ASCII (Promoção vs PROMOÇÃO) só dobra em locale UTF-8; o runner
+# do GitHub já é C.UTF-8, uma máquina local pode estar em C/POSIX e divergir em
+# silêncio (review rodada 2). Só exporta se o locale existir.
+if locale -a 2>/dev/null | grep -qiE '^C\.utf-?8$'; then
+  export LC_ALL=C.UTF-8
+fi
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)" || {
   echo "Agnosticismo: erro de uso — não foi possível resolver a raiz do script." >&2
@@ -37,18 +47,33 @@ if [ ! -f "$LISTA_REL" ]; then
   echo "Agnosticismo: erro de uso — $LISTA_REL ausente." >&2
   exit 2
 fi
+if [ ! -r "$LISTA_REL" ]; then
+  echo "Agnosticismo: erro de uso — $LISTA_REL ilegível." >&2
+  exit 2
+fi
 
 TERMOS_TMP="$(mktemp)"
 ACHADOS_TMP="$(mktemp)"
-trap 'rm -f "$TERMOS_TMP" "$ACHADOS_TMP"' EXIT
+ARQS_TMP="$(mktemp)"
+trap 'rm -f "$TERMOS_TMP" "$ACHADOS_TMP" "$ARQS_TMP"' EXIT
 
-# Termos: tira CR (lista salva com CRLF) e espaço nas pontas ANTES de filtrar
-# — sem isso "<termo>\r" ou "<termo> " nunca casariam (review rodada 1). Depois,
-# '#' comenta e linha em branco é ignorada (research Decision 8). O que sobra
-# são os termos, um por linha, casados como substring literal (grep -F,
-# alimentado por -f para todos de uma vez).
-sed -e 's/\r$//' -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' "$LISTA_REL" \
+# Termos. Normalização ANTES de filtrar, senão "<termo>\r", "<termo> " ou um
+# BOM grudado no primeiro termo nunca casariam (review rodadas 1-2):
+#   - tr -d '\r'  : CRLF (tr, não sed 's/\r$//' — no BSD sed o \r é 'r' literal)
+#   - BOM UTF-8   : só na 1ª linha (editor Windows "UTF-8 com BOM")
+#   - trim        : espaço nas pontas
+# Depois, '#' comenta e linha em branco é ignorada (research Decision 8). O que
+# sobra são os termos, um por linha, casados como substring literal (grep -F,
+# alimentado por -f para todos de uma vez). A leitura da lista fica fora do
+# `|| true` para que um erro de I/O seja exit 2, não "OK".
+BOM="$(printf '\357\273\277')"
+tr -d '\r' < "$LISTA_REL" > "$TERMOS_TMP.raw" || {
+  echo "Agnosticismo: erro de uso — falha ao ler $LISTA_REL." >&2
+  exit 2
+}
+sed -e "1s/^$BOM//" -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' "$TERMOS_TMP.raw" \
   | grep -vE '^(#|$)' > "$TERMOS_TMP" || true
+rm -f "$TERMOS_TMP.raw"
 
 if [ ! -s "$TERMOS_TMP" ]; then
   echo "Agnosticismo: OK — nenhuma ocorrência de termo proibido."
@@ -56,21 +81,42 @@ if [ ! -s "$TERMOS_TMP" ]; then
 fi
 
 # Enumerar arquivos versionados via git ls-files (research Decision 6),
-# excluindo a própria lista da varredura (research Decision 7 — senão ela
-# casaria contra si mesma e a verificação falharia sempre).
-#
-# Conteúdo: grep -a trata todo arquivo como texto, independente do locale —
-# sem isso um .md em Latin-1 era classificado como binário em C.UTF-8 e a
-# ocorrência sumia em silêncio. -H prefixa "arquivo:linha:" sem interpolar o
-# nome num programa sed (nome com '|', '&', '\' ou newline quebrava o sed e
-# o achado era descartado). rc 1 = sem ocorrência; qualquer outro rc é erro
-# real e sai com 2 em vez de ser engolido (review rodada 1).
+# materializado para que uma falha (índice corrompido, rc 128) não vire "OK"
+# — o rc de um processo substituído é invisível (review rodada 2). Exigir que
+# este script conste da lista pega a cópia sem .git dentro de outro
+# repositório, em que ls-files responde vazio.
+git ls-files -z > "$ARQS_TMP" || {
+  echo "Agnosticismo: erro de uso — git ls-files falhou." >&2
+  exit 2
+}
+if ! tr '\0' '\n' < "$ARQS_TMP" | grep -qxF "$SELF_REL"; then
+  echo "Agnosticismo: erro de uso — $SELF_REL não consta de git ls-files (cópia sem .git dentro de outro repositório?)." >&2
+  exit 2
+fi
+
+# Para cada entrada versionada (a própria lista excluída — research Decision
+# 7, senão casaria contra si mesma e falharia sempre):
+#   1. o CAMINHO é casado antes de qualquer filtro: gitlink, symlink e arquivo
+#      apagado do worktree mas ainda no índice também vão ao remoto;
+#   2. symlink: o git versiona o TEXTO do alvo, não o conteúdo apontado —
+#      casa o readlink e não segue o link (senão varreria arquivo fora do
+#      repositório);
+#   3. conteúdo: grep -a trata todo arquivo como texto, independente do
+#      locale (sem -a, um .md em Latin-1 era "binário" e a ocorrência sumia);
+#      -H prefixa "arquivo:linha:" sem interpolar o nome num programa sed.
+#      rc 1 = sem ocorrência; qualquer outro rc é erro real e sai com 2.
 while IFS= read -r -d '' arquivo; do
   [ "$arquivo" = "$LISTA_REL" ] && continue
-  [ -f "$arquivo" ] || continue
   if printf '%s\n' "$arquivo" | grep -qiF -f "$TERMOS_TMP"; then
     printf '%s:0:(caminho)\n' "$arquivo" >> "$ACHADOS_TMP"
   fi
+  if [ -L "$arquivo" ]; then
+    if readlink "$arquivo" | grep -qiF -f "$TERMOS_TMP"; then
+      printf '%s:0:(alvo do symlink)\n' "$arquivo" >> "$ACHADOS_TMP"
+    fi
+    continue
+  fi
+  [ -f "$arquivo" ] || continue
   grep -inaHF -f "$TERMOS_TMP" -- "$arquivo" >> "$ACHADOS_TMP" || {
     rc=$?
     if [ "$rc" -ne 1 ]; then
@@ -78,7 +124,7 @@ while IFS= read -r -d '' arquivo; do
       exit 2
     fi
   }
-done < <(git ls-files -z)
+done < "$ARQS_TMP"
 
 if [ ! -s "$ACHADOS_TMP" ]; then
   echo "Agnosticismo: OK — nenhuma ocorrência de termo proibido."
@@ -87,5 +133,7 @@ fi
 
 N="$(wc -l < "$ACHADOS_TMP" | tr -d '[:space:]')"
 echo "Agnosticismo: FALHOU — ${N} ocorrência(s) de termo proibido:"
-sed 's/^/  /' "$ACHADOS_TMP"
+# Coluna de texto truncada: um binário com o termo despejaria o blob inteiro
+# no log da PR (review rodada 2). O contrato pede a colisão, não o conteúdo.
+cut -c1-200 "$ACHADOS_TMP" | sed 's/^/  /'
 exit 1

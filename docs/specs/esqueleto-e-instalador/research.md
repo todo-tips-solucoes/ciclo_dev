@@ -429,7 +429,7 @@ custa uma linha e transforma perda silenciosa de trabalho em mensagem.
 
 **Decision**: FR-019/FR-020/FR-021 são atendidos por `gitleaks` chamado como
 **binário** dentro do job de CI (release fixada por versão, baixada e conferida
-contra o `checksums.txt` publicado ao lado), com `--redact` e exceções em
+contra um sha256 literal fixado no workflow, copiado do `checksums.txt` no bump), com `--redact -v` e exceções em
 `.gitleaksignore`/`.gitleaks.toml` versionados. **Não** se usa a
 `gitleaks/gitleaks-action`, nem o secret scanning nativo do GitHub, nem
 `trufflehog`.
@@ -465,9 +465,9 @@ contra o `checksums.txt` publicado ao lado), com `--redact` e exceções em
 | Subcomando | `gitleaks dir .` | `gitleaks detect` **não existe mais**; os subcomandos são `dir`, `git`, `stdin`, `version` |
 | Redação do valor | `--redact` (default 100%) | **obrigatório**: o console default imprime o campo `Secret:` com o valor achado. FR-019 exige apontar arquivo e linha sem reproduzir o valor |
 | Códigos de saída | `0` sem achado · `1` achado ou erro · `126` flag desconhecida | o `1` é o que barra a PR |
-| Exceções | `.gitleaksignore` na raiz, uma linha por *fingerprint* `<commit>:<file>:<ruleID>:<line>` | pego por default (`-i/--gitleaks-ignore-path`, default `.`); o README marca o recurso como *"experimental and is subject to change"* |
+| Exceções | `.gitleaksignore` na raiz, uma linha por *fingerprint* `<file>:<ruleID>:<line>` (três campos no modo `dir` — medido com 8.30.1; o formato com commit é do modo `git`) | pego por default (`-i/--gitleaks-ignore-path`, default `.`); o README marca o recurso como *"experimental and is subject to change"* |
 | Exceções por padrão | `.gitleaks.toml` na raiz, blocos `[[allowlists]]` / `[[rules.allowlists]]` (`paths`, `regexes`, `stopwords`) | pego por default quando está na raiz do alvo, sem flag (`-c` é opcional) |
-| Instalação no job | tarball da release fixada: `gitleaks_<versao>_linux_x64.tar.gz` + `gitleaks_<versao>_checksums.txt` | atenção ao padrão: é `linux_x64`, **não** `linux_amd64` |
+| Instalação no job | tarball da release fixada: `gitleaks_<versao>_linux_x64.tar.gz`, conferido contra sha256 literal fixado no workflow (copiado do `gitleaks_<versao>_checksums.txt` no bump) | atenção ao padrão: é `linux_x64`, **não** `linux_amd64` |
 
 **Por que `dir` e não `git`**: `dir` varre os arquivos como estão na árvore, que é
 exatamente o recorte de FR-019 ("arquivo versionado") e o mesmo recorte que
@@ -545,3 +545,20 @@ Duas lacunas factuais permanecem declaradas, não supridas por suposição:
 
 Nenhuma afirmação sobre nenhum dos dois pontos é feita em qualquer artefato
 desta frente.
+
+## Adendo — revisão de código, rodadas 1 e 2 (2026-09-25)
+
+Fatos de ferramenta externa que as correções da revisão passaram a depender,
+com a fonte de cada um (Princípio V). Detalhe por achado em
+`tasks.md` §Review Findings.
+
+| Fato | Fonte |
+|------|-------|
+| Um `.gitleaks.toml` na raiz do alvo **substitui** a config embutida; só `[extend] useDefault = true` herda as regras | README oficial do gitleaks (*"define your own configuration, default rules do not apply"*; bloco `[extend]`); reproduzido com 8.30.1: sem o bloco, segredo plantado → `no leaks found` |
+| `gitleaks dir` sem `-v` imprime só `leaks found: N`; com `-v --redact`, `File:`/`Line:`/`Fingerprint:` e `Secret: REDACTED` | medido com 8.30.1 |
+| Fingerprint no modo `dir` tem três campos `<file>:<ruleID>:<line>` | medido com 8.30.1 (`Fingerprint: cfg.py:github-pat:1`) |
+| Varredura de histórico por range: `gitleaks git -v --log-opts="A..B"` | README oficial, seção do subcomando `git` |
+| `install.sh` oficial do cstk: instala em `~/.local/bin`, só **avisa** sobre PATH, lê `CSTK_INSTALL_TELEMETRY` (yes/no) e sem TTY assume `no` | `install.sh` da release lido via context-mode |
+| `cstk --yes` é flag global (*"Pula confirmacoes interativas"*); manifest `~/.claude/skills/.cstk-manifest` no formato `<skill>\t<versao>\t<sha256>\t<data>`; `cstk update --yes` sobre manifest órfão sai 0 com aviso | medido com cstk 10.8.0 nesta máquina |
+| `claude plugin install|update` aceitam `-s, --scope`; `plugin list --json` expõe `.id`/`.scope`; `marketplace list --json` expõe `.name` | medido com `--help` e `--json` nesta máquina |
+| `sed 's/\r$//'` é extensão GNU (BSD sed lê `\r` como `r`); `tr -d '\r'` é POSIX | regra do próprio plan (nenhuma extensão GNU assumida); não reproduzido neste host |
