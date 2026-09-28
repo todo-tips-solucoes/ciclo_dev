@@ -1,3 +1,23 @@
+<!--
+Sync Impact Report
+- Version: 1.0.0 → 1.1.0 [MINOR: regras reescritas nos Princípios I e IV; nenhum princípio removido]
+- Emenda 1.1.0 (sign-off do owner em 2026-09-28, na sessão; registrado no corpo da PR #1):
+  * Princípio I — os termos proibidos passam a viver FORA do repositório (variável de Actions
+    no CI + arquivo local ignorado pelo git). Motivo: a regra 1.0.0 exigia a lista "versionada em
+    scripts/agnostico.lista", o que obrigava a citar no repositório público os nomes que o próprio
+    princípio proíbe — e a implementação resolveu com uma lista vazia, isto é, um check que passava
+    por vacuidade.
+  * Princípio IV — o cockpit NUNCA instala nem atualiza código de terceiro por conta própria:
+    verifica e imprime o comando oficial; quem executa é a pessoa. Motivo: o owner RECUSOU o risco
+    de cadeia de suprimentos do bootstrap sem assinatura (releases/latest, checksum de mesma
+    origem); a política vale igualmente para `cstk self-update`, `cstk install/update` e
+    `claude plugin install/update`, que são a mesma classe de risco.
+  * Governance — explicita que a emenda é redigida diretamente e entra na PR da frente que a
+    motivou (o /feature-00c lê a constituição como pré-requisito, não a produz).
+- Artefatos a alinhar na mesma PR: instalar.sh, scripts/verificar-agnostico.sh, .github/workflows/
+  ci.yml, versoes.env (comentário), docs/specs/esqueleto-e-instalador/{spec,plan,research,tasks}.md.
+-->
+
 # cockpit-dev Constitution
 
 > Governança **deste repositório** — como o cockpit é desenvolvido. Não confundir com o template
@@ -13,8 +33,14 @@ varia é o ciclo. A garantia não é promessa: é teste que roda no CI.
 
 **MUST:**
 
-- Todo arquivo do repositório MUST passar por `scripts/verificar-agnostico.sh` no CI, com a lista
-  proibida versionada em `scripts/agnostico.lista` e resultado igual a zero ocorrências.
+- Todo arquivo do repositório MUST passar por `scripts/verificar-agnostico.sh` no CI, com
+  resultado igual a zero ocorrências.
+- Os termos proibidos MUST viver **fora** do repositório — no CI, em variável de Actions do
+  repositório ou da organização (`AGNOSTICO_TERMOS`); na máquina, em arquivo local ignorado pelo
+  git — porque citá-los aqui seria a própria referência que este princípio proíbe.
+  `scripts/agnostico.lista`, versionada, MUST conter apenas termos que não identificam ninguém
+  (pode ficar vazia); o verificador MUST unir as duas fontes e MUST falhar quando as duas estão
+  vazias no CI, para que a garantia nunca volte a ser vazia por construção.
 - Exemplos e placeholders MUST usar nomes fictícios genéricos (`minha-org/meu-projeto`,
   `staging`, `main`), nunca nomes de projetos reais — inclusive dos projetos onde o ciclo nasceu.
 - Um valor que muda de projeto para projeto MUST ser chave em `cockpit.config`, nunca literal em
@@ -73,20 +99,30 @@ não commita. A rastreabilidade exige autor identificado, não autor único.
 - Entrar na tabela, sair dela ou mudar a própria identidade MUST ser emenda desta constituição.
 - O agente MUST NOT alterar a identidade configurada por conta própria.
 
-### IV. Ferramentas Externas São Dependências, Não Cópias
+### IV. Ferramentas Externas São Dependências, Não Cópias — e Ninguém as Instala Pelo Usuário
 
 O cockpit compõe `cstk`, `context-mode` e `ponytail`; não os reimplementa nem os embute. A única
-cópia é a skill `bmad-code-review`, sob licença MIT, com o aviso preservado.
+cópia é a skill `bmad-code-review`, sob licença MIT, com o aviso preservado. E o cockpit **nunca
+instala nem atualiza código de terceiro por conta própria**: ele verifica o estado da máquina e
+imprime, exato, o comando oficial — quem executa é a pessoa. O risco de cadeia de suprimentos de
+um canal sem assinatura é de quem decide executar, não de um script que decide por ela.
 
 **MUST:**
 
-- `cstk`, `context-mode` e `ponytail` MUST ser instalados pelos canais oficiais de cada um.
+- `cstk`, `context-mode` e `ponytail` MUST ser instalados pelos canais oficiais de cada um, **pela
+  pessoa**.
+- Nenhum script do cockpit MUST executar bootstrap de terceiro, `cstk self-update`,
+  `cstk install`, `cstk update`, `claude plugin install`, `claude plugin update` ou equivalente.
+  O instalador MUST verificar (`cstk --version` contra `CSTK_MIN`, release mais nova disponível,
+  plugins presentes e habilitados) e MUST imprimir o comando oficial correspondente, parando com
+  exit diferente de zero quando um pré-requisito falta.
 - O piso de versão do `cstk` MUST existir em um único lugar, a chave `CSTK_MIN` de `versoes.env`;
   nenhum outro arquivo MUST escrever o número — scripts e documentos referem-se à chave. O piso
   sobe por PR de trilha completa quando o cockpit passa a depender de recurso de versão mais nova.
-- O instalador MUST manter a máquina na última release do `cstk` (`cstk self-update`, idempotente)
-  e, só depois, MUST falhar se `cstk --version` for menor que `CSTK_MIN`: o piso é o mínimo
-  testado, não o alvo. O mesmo vale para os plugins via `claude plugin update`.
+- O piso é o mínimo testado, não o alvo: abaixo dele o instalador MUST falhar; acima dele, com
+  release mais nova disponível, MUST avisar e imprimir `cstk self-update` — nunca executá-lo.
+- Executar ferramenta **já instalada** pela pessoa (`cstk hooks install`, `cstk mcp install`,
+  `cstk setup`) não é instalar terceiro e é permitido ao configurador.
 - Os guard hooks do runtime MUST ser provisionados por `cstk hooks install --project-path`, nunca
   copiados pelo cockpit.
 - Toda cópia de código de terceiro MUST constar de `THIRD-PARTY-NOTICES.md` com a licença verbatim.
@@ -146,5 +182,8 @@ As trilhas docs e trivial estão na tabela do Princípio II.
 Esta constituição vence qualquer outro documento deste repositório. Emenda é PR com sign-off
 explícito do owner registrado no corpo da PR; a versão segue SemVer (MAJOR: princípio removido ou
 redefinido; MINOR: princípio ou regra adicionada; PATCH: redação). Ratificação inicial pelo owner.
+A emenda é redigida diretamente e entra na PR da frente que a motivou, **antes** de qualquer
+`/feature-00c` dessa frente rodar `plan` — o orquestrador lê a constituição como pré-requisito e
+valida o plano contra ela; ele não a produz.
 
-**Version**: 1.0.0 | **Ratified**: 2026-09-25 (owner, sign-off explícito na sessão) | **Last Amended**: 2026-09-25
+**Version**: 1.1.0 | **Ratified**: 2026-09-25 (owner, sign-off explícito na sessão) | **Last Amended**: 2026-09-28 (emenda 1.1.0, sign-off do owner na sessão)

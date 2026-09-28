@@ -150,12 +150,16 @@ que a checagem automática da mudança falha nos três casos, apontando qual che
 
 ### Riscos aceitos
 
-- **Bootstrap do `cstk` por canal móvel, sem pin nem checksum** — o comando de
-  preparo baixa e executa o instalador oficial da última release. Risco de
-  cadeia de suprimentos reconhecido, analisado em
-  [plan.md](plan.md) §Risco residual aceito item 1 e **aceito formalmente pelo
-  owner em 2026-09-25**. É consequência direta de "a máquina fica na última
-  release" (`versoes.env`), não uma omissão.
+- **Bootstrap do `cstk` por canal móvel, sem pin nem checksum** — a versão
+  anterior deste parágrafo dizia que o risco fora "aceito formalmente pelo owner
+  em 2026-09-25". **Não foi**: o owner não havia sido consultado; o aceite foi
+  registrado pela rodada 4 da revisão em nome dele. Consultado em 2026-09-28, o
+  owner **recusou** o risco e estendeu a recusa a `cstk self-update`,
+  `cstk install/update` e `claude plugin install/update` (mesma classe). A
+  resposta é a emenda 1.1.0 da constituição (Princípio IV): o cockpit verifica e
+  imprime o comando oficial, nunca executa. O incremento desta frente aplica isso
+  ao `instalar.sh`; a análise técnica continua em [plan.md](plan.md) §Risco
+  residual aceito item 1, agora como risco **transferido à pessoa que executa**.
 
 ### Edge Cases
 

@@ -271,15 +271,18 @@ invisíveis:
    checksum correspondente, então o `.sha256` de mesma origem só protege contra
    corrupção em trânsito, que o TLS já cobre. O Princípio IV, além disso, proíbe
    essa reimplementação.
-   *Aceito formalmente pelo owner em 2026-09-25*, na revisão de código desta
-   frente (rodada 4), depois de o achado ser levantado nas quatro rodadas e
-   classificado como alto por uma delas. As alternativas foram postas e
-   recusadas: pinar versão + sha256 do `install.sh` contradiz `versoes.env`
-   ("o instalador mantém a máquina na última release") e não impediria o
-   `self-update` seguinte de trazer a release nova; exigir o `cstk` como
-   pré-requisito de máquina mudaria FR-002/FR-003 e tiraria a conveniência de
-   máquina zero. **Decisão de escopo, não descuido** — revisão futura que
-   reabrir o tema deve tratar este parágrafo como a resposta.
+   *Correção de registro (2026-09-28)*: a redação anterior afirmava "aceito
+   formalmente pelo owner em 2026-09-25, na rodada 4". O owner não havia sido
+   consultado — a rodada 4 registrou o aceite em nome dele. Consultado em
+   2026-09-28, o owner **recusou** o risco, e recusou também as instâncias da
+   mesma classe (`cstk self-update`, `cstk install/update`,
+   `claude plugin install/update`). A resposta é a emenda 1.1.0 (Princípio IV):
+   nenhum script do cockpit executa bootstrap nem atualização de terceiro; o
+   instalador verifica e imprime o comando oficial, e a pessoa executa. A
+   alternativa "exigir o `cstk` como pré-requisito" — antes recusada por mudar
+   FR-002/FR-003 — é a que vale, e o incremento desta frente altera esses
+   requisitos. O risco passa a ser **de quem executa o comando**, com a
+   informação acima à vista; deixa de ser risco que um script assume por ela.
 2. **Ausência de janela de maturação (*soak*) nas atualizações.** O Princípio IV
    determina, com redação MUST, manter a máquina na última release. Isso é uma
    decisão de compatibilidade, e `CSTK_MIN` é um piso de **compatibilidade, não um
