@@ -3,29 +3,32 @@
 Cenários que validam a implementação end-to-end. Cada um mapeia para um cenário de
 aceitação da [spec.md](./spec.md) e pode ser executado sem o resto do MVP.
 
-> **Isolamento**: os cenários de `instalar.sh` escrevem em `~/.claude/` e
-> `~/.local/`. Para não mexer na máquina real, execute-os com `HOME` apontando
+> **Isolamento**: desde a emenda 1.1.0 o `instalar.sh` só **escreve** em
+> `~/.claude/skills/` (skills do próprio cockpit) — o resto é verificação somente
+> leitura, e toda lacuna vira comando impresso (`Execute: ...`). Para não mexer na máquina real, execute-os com `HOME` apontando
 > para um diretório temporário (`HOME=$(mktemp -d) ./instalar.sh`). Isso também
 > **testa o confinamento** exigido por FR-011: se algo escrever fora desse `HOME`,
 > o script violou o Princípio VII.
 
 ---
 
-## Scenario 1: Máquina nova fica pronta com um comando (happy path)
+## Scenario 1: Máquina sem `cstk` — para e imprime o comando oficial
 
-Cobre User Story 1 cenários 2 e 7; SC-001.
+Cobre User Story 1 cenários 2 e 7; FR-002; FR-009; Princípio IV (emenda 1.1.0).
 
 1. Numa máquina com `git`, `gh`, `node`, `jq` e `curl` presentes e conformes, mas
-   **sem** `cstk` instalado.
+   **sem** `cstk` no `PATH` (ex.: `HOME` temporário e `PATH` sem `~/.local/bin`).
 2. Executar `./instalar.sh`.
 3. **Expected**:
-   - o `cstk` é instalado pela URL oficial do one-liner — baixada para um
-     arquivo temporário em `~/.local/` e então executada, nunca canalizada
-     direto para o shell — ficando em `~/.local/bin/`;
-   - `cstk --version` responde e a versão é conferida contra `CSTK_MIN`;
-   - o relatório final lista **cada** item (pré-requisitos, cstk, catálogo,
-     skills, plugins) com seu status individual;
-   - código de saída `0`.
+   - o script **não** baixa nem executa nada: nenhum arquivo novo em `~/.local/`,
+     nenhum processo `curl` de download disparado pelo script;
+   - o item `cstk presente` sai `[falhou]` com as linhas `Execute:` da URL oficial
+     em dois passos (baixar para arquivo, inspecionar, executar — contracts/cli.md);
+   - o relatório lista só `Pré-requisitos de máquina` e `cstk presente` — as
+     etapas seguintes **não aparecem** (sequencial por gates, clarify r02);
+   - código de saída `1`.
+4. Executar os comandos impressos, rodar `./instalar.sh` de novo.
+5. **Expected**: a etapa 2 passa e o pipeline avança para as seguintes.
 
 ---
 
@@ -45,31 +48,39 @@ Cobre User Story 1 cenário 1; Edge Case "mais de um pré-requisito ausente"; SC
 
 ---
 
-## Scenario 3: Atualiza antes de conferir o piso
+## Scenario 3: Release mais nova acima do piso — avisa, não atualiza
 
-Cobre User Story 1 cenário 3; Princípio IV (ordem `self-update` → piso).
+Cobre User Story 1 cenário 3; FR-003; Princípio IV (emenda 1.1.0).
 
-1. Numa máquina com `cstk` instalado numa versão **anterior** à última release.
-2. Executar `./instalar.sh`.
-3. **Expected**:
-   - `cstk self-update` roda **antes** de qualquer comparação com `CSTK_MIN`;
-   - a versão conferida na etapa seguinte é a **já atualizada**;
-   - se a versão atualizada satisfaz o piso, o comando segue normalmente e termina
-     com `0` — uma máquina desatualizada se cura sozinha, não falha.
+1. Numa máquina com `cstk` instalado numa versão que atende `CSTK_MIN`, mas
+   **anterior** à última release (`cstk self-update --check` sai `10`).
+2. Registrar `cstk --version`.
+3. Executar `./instalar.sh`.
+4. **Expected**:
+   - o item de versão sai `[aviso]` com a release disponível e
+     `Execute: cstk self-update`;
+   - `cstk --version` depois da execução é **igual** ao do passo 2 — nada foi
+     atualizado pelo script;
+   - as etapas seguintes rodam normalmente; código de saída `0` se nada
+     bloqueante falhar.
+5. Repetir sem rede (o `--check` sai `1`).
+6. **Expected**: `[aviso]` "não foi possível verificar release" — nunca `[ok]`,
+   nunca bloqueio.
 
 ---
 
-## Scenario 4: Versão abaixo do piso mesmo após atualizar (error case)
+## Scenario 4: Versão abaixo do piso (error case)
 
-Cobre User Story 1 cenário 4.
+Cobre User Story 1 cenário 4; FR-004.
 
-1. Editar `versoes.env` elevando `CSTK_MIN` para uma versão acima da última
-   release disponível (ex.: `CSTK_MIN=99.0.0`).
+1. Editar `versoes.env` elevando `CSTK_MIN` para uma versão acima da instalada
+   (ex.: `CSTK_MIN=99.0.0`).
 2. Executar `./instalar.sh`.
 3. **Expected**:
-   - a atualização roda normalmente;
+   - nenhum `self-update` é executado;
    - a conferência do piso falha com mensagem clara informando **a versão
-     instalada e o piso exigido**;
+     instalada, o piso exigido** e `Execute: cstk self-update`;
+   - o relatório para nessa etapa (catálogo, skills e plugins não aparecem);
    - código de saída `1`.
 4. Reverter `versoes.env`.
 
@@ -95,30 +106,36 @@ Cobre User Story 1 cenário 5; FR-005; Princípio IV (cláusula final).
 Cobre User Story 1 cenário 6; FR-010; SC-002; Princípio VII.
 
 1. Executar `./instalar.sh` numa máquina e guardar o relatório.
-2. Executar `./instalar.sh` **de novo**, sem mudar nada entre as duas.
+2. Executar `./instalar.sh` **de novo**, sem mudar nada entre as duas (e sem
+   executar nenhum comando impresso).
 3. **Expected**:
-   - o relatório da segunda execução reporta sucesso igual ao da primeira;
-   - nada é duplicado (nenhum registro de marketplace ou plugin repetido);
-   - código de saída `0` nas duas.
-4. Agora editar localmente uma skill já instalada em `~/.claude/skills/` e executar
-   uma terceira vez.
+   - o relatório e os comandos impressos da segunda execução são iguais aos da
+     primeira;
+   - nada é duplicado (nenhum registro de marketplace ou plugin — o script não
+     registra nenhum);
+   - mesmo código de saída nas duas.
+4. Agora editar localmente uma skill **do cockpit** já copiada em
+   `~/.claude/skills/` e executar uma terceira vez.
 5. **Expected**: a divergência local é **avisada** explicitamente no relatório —
    nunca sobrescrita em silêncio (research Decision 14).
 
 ---
 
-## Scenario 7: Plugin recomendado falha, comando ainda tem sucesso
+## Scenario 7: Plugin recomendado ausente, comando ainda tem sucesso
 
 Cobre FR-008; Edge Case "falha do plugin recomendado"; decisão do `/clarify`.
 
-1. Tornar o marketplace do `ponytail` inalcançável (ex.: executar sem rede, ou
-   apontar a origem para um repositório inexistente).
-2. Executar `./instalar.sh` com o `context-mode` alcançável normalmente.
+1. Numa máquina com `context-mode` instalado e habilitado no escopo `user`, e
+   `ponytail` **ausente** (ou desabilitado).
+2. Executar `./instalar.sh`.
 3. **Expected**:
-   - o item `ponytail` aparece como `[falhou]` no relatório;
+   - o item `ponytail` aparece como `[falhou]` não bloqueante, com
+     `Execute: claude plugin install ...` (ausente) ou
+     `Execute: claude plugin enable ...` (desabilitado);
+   - nenhum `claude plugin install/update/enable` é executado pelo script;
    - **o comando termina com sucesso**, código de saída `0`;
-   - o mesmo teste com o `context-mode` inalcançável deve, ao contrário, falhar o
-     comando inteiro com código `1`.
+   - o mesmo teste com o `context-mode` ausente/desabilitado deve, ao contrário,
+     falhar o comando inteiro com código `1`.
 
 ---
 
@@ -142,7 +159,8 @@ Cobre User Story 2 cenário 1; FR-013; a armadilha da auto-exclusão.
 Cobre User Story 2 cenários 2 e 3; FR-014; FR-015; SC-003.
 
 1. Acrescentar um termo de teste a `scripts/agnostico.lista` (ex.:
-   `termo-de-teste-agnostico`).
+   `termo-de-teste-agnostico` — termo que não identifica ninguém, o único tipo
+   que a lista versionada aceita desde a emenda 1.1.0).
 2. Inserir esse mesmo termo numa linha conhecida de um arquivo qualquer
    versionado.
 3. Executar `./scripts/verificar-agnostico.sh`.
@@ -198,38 +216,67 @@ Cobre User Story 3 cenários 1 a 4; FR-017; FR-018; FR-019; SC-004; SC-006.
 
 Cobre User Story 1 cenário 8; Edge Case "sem permissão de escrita"; FR-011.
 
-1. Simular `~/.claude/` (ou `~/.local/`) sem permissão de escrita para o usuário
+1. Simular `~/.claude/skills/` sem permissão de escrita para o usuário
    (ex.: `chmod 555` no diretório dentro do `HOME` temporário do cenário 11).
 2. Executar `./instalar.sh`.
 3. **Expected**:
-   - falha **na etapa 1**, antes de qualquer instalação (`cstk`, catálogo, skills,
-     plugins);
-   - a mensagem identifica **qual** área (`~/.claude/` ou `~/.local/`) não aceitou
-     a escrita;
+   - falha **na etapa 1**, antes de qualquer outra etapa;
+   - a mensagem identifica a área que não aceitou a escrita;
    - código de saída `3` (contracts/cli.md);
-   - nenhum arquivo novo fica para trás nas áreas escritas pelas etapas
-     seguintes — a pré-checagem roda antes delas.
+   - nenhum arquivo novo fica para trás.
 4. Restaurar a permissão do diretório.
 
 ---
 
-## Scenario 13: Plugin ausente é instalado sem reinstalar o que já está correto
+## Scenario 13: Só o plugin ausente é mencionado
 
 Cobre User Story 1 cenário 9; Edge Case "plugin ausente"; FR-008.
 
-1. Numa máquina com `cstk` instalado na versão exigida e o plugin `context-mode`
-   já instalado e correto, mas com o `ponytail` ausente.
-2. Registrar o estado atual do `context-mode` (ex.: hash/timestamp do que o
-   marketplace já instalou).
+1. Numa máquina com `cstk` na versão exigida, `context-mode` instalado e
+   habilitado no escopo `user`, e `ponytail` ausente.
+2. Registrar o estado do `context-mode` (`claude plugin list --json`).
 3. Executar `./instalar.sh`.
 4. **Expected**:
-   - o `ponytail` é instalado;
-   - o `context-mode` **não** é reinstalado: recebe `claude plugin update`,
-     que é o que FR-008 pede ("instalar **ou** atualizar"). Sem release nova, o
-     estado do passo 2 fica inalterado e a saída nativa diz *already at the
-     latest version*; com release nova, ele é atualizado — e isso é sucesso,
-     não violação do cenário (review rodada 5);
-   - o relatório final mostra os dois plugins com status `[ok]`.
+   - só o `ponytail` recebe linha `Execute:`;
+   - o `context-mode` sai `[ok]` **sem** comando impresso, e o estado do passo 2
+     fica inalterado — o script não o toca;
+   - código de saída `0` (o `ponytail` é recomendado).
+
+---
+
+## Scenario 14: Catálogo de skills ausente bloqueia; defasado só avisa
+
+Cobre FR-006; Edge Cases "catálogo nunca provisionado" e "catálogo desatualizado".
+
+1. Num `HOME` temporário com `cstk` acessível no `PATH` e **sem**
+   `~/.claude/skills/.cstk-manifest`.
+2. Executar `./instalar.sh`.
+3. **Expected**: o item do catálogo sai `[falhou]` com `Execute: cstk install`;
+   o relatório para nele; código `1`; nenhum `cstk install` executado.
+4. Executar `cstk install`, simular defasagem (release nova do catálogo, ou uma
+   skill do perfil apagada do disco) e rodar de novo.
+5. **Expected**: `[aviso]` com `Execute: cstk update` (defasado) e/ou
+   `Execute: cstk install <nome>` (faltando); as etapas seguintes rodam; o
+   catálogo em disco fica **idêntico** ao de antes da execução.
+
+---
+
+## Scenario 15: Agnosticismo no CI não passa por vacuidade
+
+Cobre FR-022; Princípio I (emenda 1.1.0); research Decision 17.
+
+1. Com `scripts/agnostico.lista` sem termos e `AGNOSTICO_TERMOS` não definida,
+   executar `./scripts/verificar-agnostico.sh`.
+2. **Expected**: código `0` — fora do CI, conjunto vazio é estado legítimo.
+3. Executar `AGNOSTICO_EXIGIR_TERMOS=1 ./scripts/verificar-agnostico.sh`.
+4. **Expected**: código `2`, mensagem dizendo que nenhuma das duas fontes tem
+   termo; nenhum termo impresso.
+5. Executar com `AGNOSTICO_TERMOS='termo-de-teste-agnostico'` e
+   `AGNOSTICO_EXIGIR_TERMOS=1`, com o termo plantado num arquivo versionado.
+6. **Expected**: código `1` apontando arquivo e linha — a fonte externa é casada
+   exatamente como a lista versionada; a saída não lista os termos além do
+   trecho da linha onde o termo vazou.
+7. No CI, com a variável de Actions vazia: o job `agnostico` fica vermelho.
 
 ---
 

@@ -86,7 +86,7 @@ versão exigida — sem precisar de nenhuma outra parte desta feature.
 7. **Given** o comando de preparo terminou, **When** o dev consulta o relatório final,
    **Then** cada item verificado (ferramentas de base, ferramenta de implementação,
    skills, plugins) aparece com seu status individual de sucesso ou falha.
-8. **Given** uma máquina sem permissão de escrita em `~/.claude/` ou `~/.local/`, **When**
+8. **Given** uma máquina sem permissão de escrita em `~/.claude/skills/`, **When**
    o comando de preparo é executado, **Then** ele falha imediatamente na etapa 1 — antes de
    qualquer etapa que escreva algo — com mensagem clara indicando qual área não pôde ser
    escrita, código de saída dedicado, e sem deixar nenhum estado parcial (nada chegou a ser
@@ -182,7 +182,7 @@ que a checagem automática da mudança falha nos três casos, apontando qual che
   A mensagem de falha deve listar todos os ausentes, não parar no primeiro.
 - O que acontece quando a máquina não tem permissão de escrita na área onde o comando de
   preparo grava suas configurações? O mecanismo que garante isso é uma pré-checagem de
-  escrita (criar e remover um arquivo temporário em `~/.claude/` e em `~/.local/`) feita
+  escrita (criar e remover um arquivo temporário em `~/.claude/skills/`, a única área que o comando escreve desde a emenda 1.1.0) feita
   **dentro da etapa 1**, antes de qualquer etapa que escreva algo — por isso não há estado
   parcial a desfazer: nada foi escrito ainda quando a falha é detectada. A falha usa um
   código de saída dedicado (ver contracts/cli.md), distinto do código de pré-requisito de

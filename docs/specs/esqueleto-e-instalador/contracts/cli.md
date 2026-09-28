@@ -14,8 +14,9 @@ Contratos de interface dos dois scripts entregues por esta frente.
 ## `instalar.sh` — preparo de máquina
 
 **Invocação**: `./instalar.sh`
-**Escopo de escrita**: exclusivamente `~/.claude/` e `~/.local/` (Princípio VII,
-FR-011). Nunca recebe nem deriva caminho de projeto-alvo.
+**Escopo de escrita**: exclusivamente `~/.claude/skills/` — as skills do próprio
+cockpit (Princípio VII, FR-011). Desde a emenda 1.1.0 nada de terceiro é instalado
+nem atualizado pelo script. Nunca recebe nem deriva caminho de projeto-alvo.
 **Idempotência**: exigida (FR-010) — segunda execução consecutiva produz o mesmo
 estado final e o mesmo relatório de sucesso.
 
@@ -27,57 +28,83 @@ estado final e o mesmo relatório de sucesso.
 
 ### Saída — relatório final (FR-009)
 
-Uma linha por etapa, em pt-BR, com status individual. Forma proposta:
+Uma linha por etapa **avaliada**, em pt-BR, com status individual; lacuna vem com
+o comando oficial impresso (`Execute: ...`) para a pessoa rodar. Execução
+sequencial por gates: parada numa etapa bloqueante encerra o relatório nela.
+Forma proposta (máquina com release mais nova e `ponytail` ausente):
 
 ```
 Relatório de preparo da máquina:
   [ok]      Pré-requisitos de máquina
-  [ok]      cstk atualizado
+  [ok]      cstk presente
   [ok]      cstk responde à checagem de versão
-  [ok]      Versão do cstk >= CSTK_MIN (<instalada> >= <piso>)
+  [aviso]   Versão do cstk >= CSTK_MIN (<instalada> >= <piso>) — release mais nova disponível: <latest>
+            Execute: cstk self-update
   [ok]      Catálogo de skills do toolkit
   [pulada]  Skills do cockpit — diretório skills/ ainda não existe
-  [ok]      Plugin context-mode
+  [ok]      Plugin context-mode (<versão>)
   [falhou]  Plugin ponytail — não bloqueante
+            Execute: claude plugin install ponytail@<marketplace> -s user
+```
+
+Parada por gate (`cstk` ausente) — as etapas seguintes não aparecem:
+
+```
+Relatório de preparo da máquina:
+  [ok]      Pré-requisitos de máquina
+  [falhou]  cstk presente — cstk não encontrado no PATH
+            Execute: curl -fsSL https://github.com/JotJunior/cstk/releases/latest/download/install.sh -o "$HOME/cstk-install.sh"
+            Execute (depois de inspecionar): sh "$HOME/cstk-install.sh"
 ```
 
 ### Códigos de saída
 
 | Código | Significado |
 |--------|-------------|
-| `0` | Nenhum item **bloqueante** falhou. Itens não-bloqueantes podem ter falhado e aparecem como `[falhou]` no relatório (FR-008). |
-| `1` | Ao menos um item bloqueante falhou. O relatório identifica qual. |
-| `2` | Pré-requisitos de máquina ausentes ou abaixo do mínimo. Encerra antes das demais etapas, listando **todos** os faltantes de uma vez (Edge Case da spec). Também `HOME` indefinido, execução como root/sudo e raiz do script não resolvível: recusadas antes de qualquer etapa, com mensagem própria e sem relatório (review rodadas 1 e 4). |
-| `3` | Permissão de escrita insuficiente em `~/.claude/` e/ou `~/.local/`, detectada por uma pré-checagem (criar e remover um arquivo temporário) dentro da etapa 1, antes de qualquer etapa escrever algo. A mensagem identifica qual área falhou. Nenhum estado parcial: a checagem roda antes de qualquer escrita real (Edge Case da spec, Acceptance Scenario 8). |
+| `0` | Nenhum item **bloqueante** falhou. Itens `aviso` e `[falhou]` não-bloqueantes (plugin recomendado) podem aparecer (FR-008). |
+| `1` | Um item bloqueante falhou (`cstk` ausente, sem resposta de versão, abaixo de `CSTK_MIN`, catálogo ausente, falha na cópia de skills do cockpit, `context-mode` ausente/desabilitado). O pipeline para nele e o relatório o identifica, com o comando a executar. |
+| `2` | Pré-requisitos de máquina ausentes ou abaixo do mínimo. Encerra na etapa 1, listando **todos** os faltantes de uma vez (Edge Case da spec). Também `HOME` indefinido, execução como root/sudo e raiz do script não resolvível: recusadas antes de qualquer etapa, com mensagem própria e sem relatório (review rodadas 1 e 4). |
+| `3` | Permissão de escrita insuficiente em `~/.claude/skills/`, detectada por pré-checagem na etapa 1, antes de qualquer escrita (Edge Case da spec, Acceptance Scenario 8). |
 
 > Separar `2` de `1` e `3` de ambos é deliberado: "sua máquina não tem as ferramentas de
-> base", "sua máquina não deixa escrever onde o comando precisa" e "o preparo tentou e
-> falhou" são diagnósticos diferentes para o dev (SC-005) e exigem ações diferentes.
+> base", "sua máquina não deixa escrever onde o comando precisa" e "falta um
+> pré-requisito do ciclo — execute este comando" são diagnósticos diferentes (SC-005).
 
-### Comandos externos invocados
+### Comandos externos invocados — todos somente leitura
 
-Cada um com a fonte que o confirma — nenhum foi reconstruído de memória.
+Emenda 1.1.0 (Princípio IV): o `instalar.sh` **não executa** bootstrap,
+`cstk self-update`, `cstk install`, `cstk update`, `claude plugin install`,
+`claude plugin update`, `claude plugin enable` nem `claude plugin marketplace add`.
+Fonte de cada sinal em research Decision 16.
 
-| Situação | Comando | Fonte |
-|----------|---------|-------|
-| `cstk` ausente | o instalador oficial `https://github.com/JotJunior/cstk/releases/latest/download/install.sh`, **baixado para arquivo temporário (em `~/.local`) e então executado** com `CSTK_INSTALL_TELEMETRY=no sh <arquivo>` — não canalizado direto para o shell (ver §Superfície de Segurança do plan.md). O one-liner publicado no README é `curl -fsSL <url> \| sh`; usar a mesma URL sem o pipe mantém o canal oficial e elimina a execução parcial de download truncado. A variável desliga o prompt de telemetria que, aceito, gravaria no rc do shell (fora de `~/.claude`/`~/.local`). | FONTE OFICIAL — README de `JotJunior/cstk` (research Decision 1); `install.sh` da release lido: função `telemetry_optin` lê `CSTK_INSTALL_TELEMETRY` (yes/no) e, sem TTY, assume `no` (review rodadas 1-2) |
-| `cstk` presente | `cstk self-update --yes` | FONTE OFICIAL — README; *"updates the cstk binary itself + cli/lib"*. `--yes` MEDIDO em `cstk --help`: flag global, *"Pula confirmacoes interativas"* |
-| Conferir versão | `cstk --version` | MEDIDO — devolve `cstk v10.8.0` |
-| Catálogo, máquina sem manifest | `cstk install --yes` (cheio) — só quando `~/.claude/skills/.cstk-manifest` não existe | FONTE OFICIAL — README; instala o perfil `sdd` em `~/.claude/skills/`. Cheio **apenas aqui**: sem catálogo não há edição local a preservar |
-| Catálogo, o que falta | `cstk install --yes <skill>...` (cherry-pick; `SKILL...` no `--help`), com a lista tirada de `cstk install --dry-run --yes </dev/null` (linhas `[dry-run] install: <nome>`, impressas em **stderr**; só nome casando `^[A-Za-z0-9][A-Za-z0-9._@-]*$` é aceito, para que um token com hífen não vire flag). **Um `--dry-run` com rc≠0 derruba a etapa 5 como item bloqueante**: sem o plano não há como saber o que falta, e relatar `[ok]` seria mentira (review rodada 4) | MEDIDO: `install --yes` **sem argumentos** sobrescreve toda edição local de skills, commands e agents em silêncio (rc 0); o cherry-pick instala só a nomeada e preserva as demais. Cobre skill apagada do disco e skill nova de release mais recente (review rodada 3) |
-| Catálogo, o que já existe | `cstk update --yes`; **rc 4 é sucesso** | FONTE OFICIAL — README; *"applies new releases preserving local edits"*. `cstk update --help` §EXIT CODES: `4` = *"artefato pulado por edicao local sem --force/--keep"* — a preservação é o comportamento correto, não falha (review rodada 3) |
-| Detectar marketplace | `claude plugin marketplace list --json`, campo `.name` | MEDIDO — saída real do `--json` nesta máquina |
-| Registrar marketplace | `claude plugin marketplace add <source>` | MEDIDO — `claude plugin marketplace add --help` |
-| Detectar plugin | `claude plugin list --json`, campos `.id` e `.scope`; **"presente" = instalado no escopo `user`** (plugin só em `project`/`local` conta como ausente e é instalado em `user`) | MEDIDO — saída real do `--json` nesta máquina (review rodada 2) |
-| Instalar plugin | `claude plugin install <plugin>@<marketplace> -s user` | MEDIDO (`-s, --scope <scope>` em `install --help`) + FONTE OFICIAL (research Decision 10) |
-| Atualizar plugin | `claude plugin update <plugin> -s user` | MEDIDO — `claude plugin update --help`; executado de verdade no smoke test desta máquina (*"already at the latest version"*) |
+| Verificação | Comando executado | Fonte |
+|-------------|-------------------|-------|
+| `cstk` presente | `command -v cstk` | builtin POSIX |
+| Versão | `cstk --version` | MEDIDO — devolve `cstk v10.8.0` |
+| Release mais nova | `cstk self-update --check` — rc `0` em dia, `10` há mais nova, `1` erro; imprime `latest:X current:Y` | MEDIDO — `--help` e execução (rc `10`) |
+| Catálogo ausente | existência de `~/.claude/skills/.cstk-manifest` | MEDIDO |
+| Skill faltando | `cstk install --dry-run --yes </dev/null`, linhas `[dry-run] install: <nome>` em **stderr**; só nome casando `^[A-Za-z0-9][A-Za-z0-9._@-]*$` entra no comando impresso (um token com hífen viraria flag na mão de quem copia) | MEDIDO (review rodadas 3-4) |
+| Catálogo defasado | `cstk update --dry-run --yes </dev/null`, resumo `updated: N` e `commands:`/`agents:` com `updated=N` | MEDIDO — `--help` (*"Mostra plano sem escrever"*) e execução |
+| Marketplace registrado | `claude plugin marketplace list --json`, campo `.name` | MEDIDO |
+| Plugin presente/habilitado | `claude plugin list --json`, campos `.id`, `.scope` (`user`) e `.enabled` | MEDIDO |
 
-**Ordem não-negociável**: `cstk self-update` **antes** da conferência do piso
-(Princípio IV, research Decision 2).
+### Comandos impressos para a pessoa executar
+
+| Lacuna | Linha(s) `Execute:` |
+|--------|---------------------|
+| `cstk` ausente | dois passos com a URL do instalador oficial (research Decision 1/16): `curl -fsSL https://github.com/JotJunior/cstk/releases/latest/download/install.sh -o "$HOME/cstk-install.sh"` e, depois de inspecionar, `sh "$HOME/cstk-install.sh"`. A forma canalizada direto para o shell não é impressa (A08) |
+| Abaixo do piso ou release mais nova | `cstk self-update` |
+| Catálogo ausente | `cstk install` |
+| Skill faltando | `cstk install <nome>...` |
+| Catálogo defasado | `cstk update` |
+| Marketplace ausente | `claude plugin marketplace add <fonte>` |
+| Plugin ausente | `claude plugin install <plugin>@<marketplace> -s user` — **sem** `-y`/`--accept-command` |
+| Plugin desabilitado | `claude plugin enable <plugin> -s user` (MEDIDO: `enable --help`) |
 
 **Fora do contrato desta frente**: `cstk hooks install --project-path`. Ele
 provisiona hooks **dentro de um projeto-alvo**, o que o Princípio VII proíbe ao
-`instalar.sh` — pertence ao `configurar.sh`, de outra frente.
+`instalar.sh` — pertence ao `configurar.sh`, de outra frente (a emenda 1.1.0
+permite ao configurador executar ferramenta já instalada pela pessoa).
 
 ---
 
@@ -87,14 +114,16 @@ provisiona hooks **dentro de um projeto-alvo**, o que o Princípio VII proíbe a
 **Efeito colateral**: nenhum sobre o repositório — só leitura (FR-016). Cria e
 remove arquivos temporários próprios sob `$TMPDIR` (removidos por `trap … EXIT`).
 Idempotente por construção.
-**Entrada de dados**: `scripts/agnostico.lista` (formato em
-[data-model.md](../data-model.md)).
+**Entrada de dados**: `scripts/agnostico.lista` (versionada, pode ficar vazia)
+**unida** a `AGNOSTICO_TERMOS` (variável de ambiente, fora do repositório) — mesmo
+formato, em [data-model.md](../data-model.md) (FR-022, research Decision 17).
+`AGNOSTICO_EXIGIR_TERMOS=1` liga a guarda anti-vacuidade (exportada pelo job de CI).
 
 ### Flags
 
 | Flag | Obrigatória | Descrição |
 |------|-------------|-----------|
-| *(nenhuma)* | — | Varre o repositório inteiro contra a lista versionada. Sem modo parcial: a garantia do Princípio I é sobre "todo arquivo do repositório", e um modo parcial seria um caminho para contorná-la. |
+| *(nenhuma)* | — | Varre o repositório inteiro contra o conjunto unido de termos. Sem modo parcial: a garantia do Princípio I é sobre "todo arquivo do repositório", e um modo parcial seria um caminho para contorná-la. |
 
 ### Saída
 
@@ -119,9 +148,9 @@ Agnosticismo: FALHOU — 3 ocorrência(s) de termo proibido:
 
 | Código | Significado |
 |--------|-------------|
-| `0` | Zero ocorrências (FR-013). Inclui o caso de lista vazia ou só com comentários. |
+| `0` | Zero ocorrências (FR-013). Inclui o conjunto de termos vazio **quando `AGNOSTICO_EXIGIR_TERMOS` não é `1`** (máquina local). |
 | `1` | Uma ou mais ocorrências; todas listadas com arquivo e linha (FR-014); ocorrência no caminho sai como `arquivo:0:(caminho)`. |
-| `2` | Erro de uso — raiz do script não resolvível, `scripts/agnostico.lista` ausente ou ilegível, execução fora de um repositório git (a enumeração depende de `git ls-files`), `git ls-files` falhando ou sem listar o próprio script (cópia sem `.git` dentro de outro repositório), arquivo versionado ilegível, ou falha ao criar arquivo temporário. Erro de leitura nunca é engolido como "OK". |
+| `2` | Erro de uso — conjunto de termos vazio com `AGNOSTICO_EXIGIR_TERMOS=1` (mensagem diz que nenhuma das duas fontes tem termo, **sem** imprimir termos); raiz do script não resolvível, `scripts/agnostico.lista` ausente ou ilegível, execução fora de um repositório git (a enumeração depende de `git ls-files`), `git ls-files` falhando ou sem listar o próprio script (cópia sem `.git` dentro de outro repositório), arquivo versionado ilegível, ou falha ao criar arquivo temporário. Erro de leitura nunca é engolido como "OK". |
 
 ### Regras de varredura
 
@@ -150,7 +179,7 @@ não por tag móvel.
 | Job | Comando | Barra a mudança quando | FR |
 |-----|---------|------------------------|-----|
 | `shellcheck` | instala `shellcheck` e roda sobre todo `.sh` do repositório | há problema de portabilidade de shell | FR-017 |
-| `agnostico` | `./scripts/verificar-agnostico.sh` | há termo proibido | FR-018 |
+| `agnostico` | `./scripts/verificar-agnostico.sh` com `env:` `AGNOSTICO_TERMOS` (da variável de Actions) e `AGNOSTICO_EXIGIR_TERMOS: "1"`; nunca `echo` da variável | há termo proibido, **ou** as duas fontes de termos estão vazias | FR-018, FR-022 |
 | `segredos` | instala o binário do `gitleaks` e roda dois passos: `gitleaks dir . --redact -v` (árvore) e, no `pull_request`, `gitleaks git . --redact -v --log-opts="origin/<base>..HEAD"` (histórico da PR) | há segredo em arquivo versionado, **ou** em qualquer commit do range da PR | FR-019, FR-020, FR-021 |
 
 Jobs independentes, para que a falha identifique **qual** garantia barrou (User

@@ -27,7 +27,9 @@ comentário. O arquivo já existe e já documenta a regra no próprio cabeçalho
   recurso de versão mais nova — não porque saiu release.
 
 **Relacionamento**: `instalar.sh` (etapa 4) compara a saída de `cstk --version`
-contra este valor, **depois** do `cstk self-update`.
+contra este valor — a versão **instalada**, sem `self-update` antes (emenda 1.1.0;
+research Decision 2 revisada). Abaixo do piso: `falhou` + `cstk self-update`
+impresso.
 
 ---
 
@@ -65,9 +67,18 @@ constituição, não edição de script.
 
 ## Entity: Lista de termos proibidos
 
-Coleção versionada de termos que não podem aparecer em nenhum arquivo do
-repositório. Vive em `scripts/agnostico.lista`, **separada da lógica de varredura**
-(FR-015, Princípio I) — editável sem tocar no script.
+Conjunto de termos que não podem aparecer em nenhum arquivo do repositório,
+**separado da lógica de varredura** (FR-015, Princípio I) — editável sem tocar no
+script. Desde a emenda 1.1.0 vem de **duas fontes unidas** (FR-022, research
+Decision 17):
+
+| Fonte | Onde vive | Conteúdo |
+|-------|-----------|----------|
+| `scripts/agnostico.lista` | versionada no repositório | só termos que não identificam ninguém; **pode ficar vazia** |
+| `AGNOSTICO_TERMOS` | fora do repositório: variável de Actions (CI) ou exportada pelo dev a partir de arquivo local ignorado pelo git | os termos que identificam — nunca citados no repositório |
+
+As duas usam o mesmo formato abaixo (um termo por linha; na variável, separados
+por quebra de linha).
 
 | Campo | Tipo | Constraints | Notes |
 |-------|------|-------------|-------|
@@ -91,7 +102,11 @@ minhaempresa.com.br
 - O próprio `scripts/agnostico.lista` é **excluído da varredura** (research
   Decision 7) — sem isso ele casaria contra si mesmo e a verificação falharia
   sempre.
-- Lista vazia (ou só comentários) é estado válido: zero ocorrências, sucesso.
+- Conjunto unido vazio: sucesso **fora do CI** (estado inicial legítimo); **erro
+  (exit `2`) quando `AGNOSTICO_EXIGIR_TERMOS=1`**, que o job de CI exporta — a
+  garantia não passa por vacuidade (FR-022).
+- Os termos de `AGNOSTICO_TERMOS` nunca são impressos pelo script; só aparecem no
+  trecho da linha onde vazaram.
 - O conteúdo inicial entregue por esta frente é o cabeçalho de comentários
   explicando o formato. Termos concretos entram quando houver o que barrar —
   e, por definição, nenhum nome real pode ser citado como exemplo neste
@@ -132,14 +147,17 @@ de varredura, sem flag no workflow (research Decision 15).
 
 ## Entity: Item de relatório *(estrutura em memória, não persistida)*
 
-Acumulada por `instalar.sh` ao longo das sete etapas e impressa no final
-(FR-009, cenário 7 da User Story 1).
+Acumulada por `instalar.sh` ao longo das etapas **avaliadas** e impressa no final
+(FR-009, cenário 7 da User Story 1). Execução sequencial por gates (clarify r02):
+a primeira etapa bloqueante com `falhou` encerra o pipeline, e etapas não
+alcançadas **não geram item**.
 
 | Campo | Tipo | Constraints | Notes |
 |-------|------|-------------|-------|
 | `nome` | string | não-vazio, pt-BR | rótulo legível da etapa |
-| `status` | enum | `ok` \| `falhou` \| `pulada` | conjunto fechado |
+| `status` | enum | `ok` \| `aviso` \| `falhou` \| `pulada` | conjunto fechado; `aviso` entra na round r02 (release mais nova, catálogo defasado, verificação indisponível) |
 | `detalhe` | string | pode ser vazio | motivo, versão encontrada, ou aviso |
+| `comando` | string | vazio quando não há lacuna | comando oficial **impresso** para a pessoa executar (research Decision 16); nunca executado pelo script |
 | `bloqueante` | bool | — | se `true`, `status=falhou` derruba o comando |
 
 ### State Transitions
@@ -148,8 +166,9 @@ Cada etapa produz exatamente um item, e o status é terminal — não há revis�
 posterior:
 
 ```
-(etapa executa) → ok
-                → falhou   → se bloqueante, saída final não-zero
+(etapa verifica) → ok
+                → aviso    → segue; saída final não afetada
+                → falhou   → se bloqueante, encerra aqui com saída não-zero
                 → pulada   → pré-condição ausente de forma legítima
                              (ex.: skills/ ainda não existe — Decision 13)
 ```
@@ -159,10 +178,10 @@ posterior:
 | Item | `bloqueante` |
 |------|--------------|
 | Pré-requisitos de máquina | sim — e encerra antes das demais etapas |
-| `cstk` instalado/atualizado | sim |
+| `cstk` presente | sim |
 | `cstk --version` responde | sim |
-| Versão >= `CSTK_MIN` | sim |
-| Catálogo (`cstk install`/`update`) | sim |
+| Versão >= `CSTK_MIN` | sim (release mais nova acima do piso: `aviso`) |
+| Catálogo de skills | sim quando **ausente**; faltando/defasado/indisponível: `aviso` |
 | Skills do cockpit | sim quando falha; `pulada` não |
 | Plugin `context-mode` | **sim** (obrigatório por Princípio V) |
 | Plugin `ponytail` | **não** (recomendado) |

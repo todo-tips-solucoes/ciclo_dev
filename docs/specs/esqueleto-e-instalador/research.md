@@ -26,6 +26,12 @@ Technical Context antes do design.
 
 ## Decision 1: Canal oficial de instalação do `cstk`
 
+> **Revisada na round r02 (emenda 1.1.0, Princípio IV)**: o instalador **não baixa
+> nem executa** mais o bootstrap. O canal oficial abaixo continua sendo a fonte do
+> comando — mas ele passa a ser **impresso** para a pessoa executar (Decision 16).
+> O endurecimento "baixar para arquivo e só então executar" deixa de se aplicar ao
+> script. O texto original fica como registro.
+
 **Decision**: quando `cstk` não está presente na máquina, `instalar.sh` usa o
 **instalador oficial** publicado nas releases do repositório `JotJunior/cstk` —
 baixando-o para arquivo temporário e **só então** executando:
@@ -73,6 +79,12 @@ ser código do cockpit para manter quando o canal mudar.
 
 ## Decision 2: Ordem `self-update` → conferência do piso (nunca o inverso)
 
+> **Superada na round r02 (emenda 1.1.0)**: a redação do Princípio IV citada abaixo
+> foi substituída. O piso é conferido contra a versão **instalada**; abaixo dele o
+> instalador falha e imprime `cstk self-update`; acima dele, release mais nova é
+> aviso com o mesmo comando impresso (`cstk self-update --check`, Decision 16).
+> Nenhum `self-update` é executado. O texto original fica como registro.
+
 **Decision**: quando o `cstk` já existe, `instalar.sh` executa `cstk self-update`
 **antes** de qualquer comparação com `CSTK_MIN`. A conferência do piso é a última
 palavra sobre a versão, e só falha se, **depois** da atualização, a versão
@@ -98,6 +110,10 @@ como *"updates the cstk binary itself + cli/lib"* — FONTE OFICIAL,
 ---
 
 ## Decision 3: `cstk self-update` e `cstk install/update` cobrem coisas diferentes
+
+> **Revisada na round r02 (emenda 1.1.0)**: a distinção continua válida, mas agora
+> decide **qual comando imprimir** para cada lacuna (binário/runtime →
+> `cstk self-update`; catálogo → `cstk install`/`cstk update`), não qual executar.
 
 **Decision**: `instalar.sh` executa **os dois**, em papéis distintos e não
 intercambiáveis:
@@ -351,6 +367,11 @@ briefing classifica como recomendado.
 
 ## Decision 12: Relatório por item com falha diferida
 
+> **Revisada na round r02 (clarify, Session 2026-09-28)**: falha **bloqueante** não é
+> mais diferida — o pipeline para na primeira, e o relatório lista só as etapas
+> avaliadas. Continua diferido apenas o que não bloqueia (`aviso`, plugin
+> recomendado). A armadilha de `set -e` abaixo segue valendo para esses casos.
+
 **Decision**: `instalar.sh` acumula o status de cada item numa lista e imprime um
 relatório final com uma linha por item, ao fim da execução — em vez de abortar no
 primeiro erro. A saída do processo é não-zero se algum item **bloqueante** falhou.
@@ -524,6 +545,104 @@ nunca usa. O workflow é o único consumidor; o pino mora no único consumidor.
   Actions é `@main`, branch móvel, incompatível com o controle de fixação por SHA
   já adotado. É a candidata mais forte de substituição se o teto de manutenção do
   gitleaks pesar — está mais ativa (release de 2026-09-24) e não exige chave.
+
+---
+
+## Decision 16: Verificação somente leitura — como o instalador detecta cada lacuna sem instalar nada
+
+**Contexto**: emenda 1.1.0 (Princípio IV) — o instalador MUST verificar e imprimir
+o comando oficial, nunca executar bootstrap, `cstk self-update`, `cstk install`,
+`cstk update`, `claude plugin install` ou `claude plugin update`. Cada checagem
+abaixo precisa, portanto, de um sinal **somente leitura**. Sondas MEDIDAS nesta
+máquina em 2026-09-28 (`cstk v10.8.0`).
+
+**Decision**:
+
+| Lacuna | Sinal somente leitura | Fonte |
+|--------|-----------------------|-------|
+| `cstk` ausente | `command -v cstk` | builtin POSIX |
+| Versão abaixo do piso | `cstk --version` comparado a `CSTK_MIN` (Decision 4) | MEDIDO — devolve `cstk v10.8.0` |
+| Release mais nova disponível | `cstk self-update --check` | MEDIDO — `cstk self-update --help`: *"--check  Apenas verifica; imprime "latest:X current:Y"; exit 0/10/1."*; executado: saída `latest:v10.10.0 current:v10.8.0`, rc `10` |
+| Catálogo ausente | `~/.claude/skills/.cstk-manifest` inexistente, ou `cstk install --dry-run` sem nenhuma skill já presente | manifest MEDIDO (research Adendo); `install --dry-run` já medido nas rodadas de review (linhas `[dry-run] install: <nome>` / `update: <nome>` em stderr) |
+| Skill faltando (inclui skill nova de release mais recente) | linhas `[dry-run] install: <nome>` de `cstk install --dry-run --yes </dev/null` | idem |
+| Catálogo defasado | `cstk update --dry-run --yes </dev/null`: resumo `updated: N` e, para commands/agents, `updated=N` | MEDIDO — `cstk update --help`: *"--dry-run  Mostra plano sem escrever."*; executado: resumo `==> (dry-run) cstk update summary` / `updated: 0` / `already up-to-date: 21` / `commands: installed=0 updated=0 uptodate=7 ...`, rc `0` |
+| Plugin ausente / desabilitado | `claude plugin list --json`: entrada com `.id` do plugin, `.scope == "user"` e `.enabled` | MEDIDO — chaves do objeto: `enabled, id, installPath, installedAt, lastUpdated, mcpServers, projectPath, scope, version` |
+| Plugin desatualizado | **não há sinal somente leitura medido** — ver abaixo | MEDIDO: `claude plugin list --available --json` devolveu `{"available": [], "installed": [...]}` nesta máquina |
+
+**Comando impresso para cada lacuna** (o texto que a pessoa copia):
+
+| Lacuna | Comando impresso |
+|--------|------------------|
+| `cstk` ausente | a URL do instalador oficial (Decision 1) em **dois passos** — `curl -fsSL https://github.com/JotJunior/cstk/releases/latest/download/install.sh -o "$HOME/cstk-install.sh"` e, depois de a pessoa inspecionar, `sh "$HOME/cstk-install.sh"`. Mesma URL e mesmo canal do one-liner do README; a forma canalizada direto para o shell **não** é impressa, pelo mesmo motivo de A08 que já a vetava ao script (download truncado executa parcialmente) |
+| Abaixo do piso / release mais nova | `cstk self-update` |
+| Catálogo ausente | `cstk install` |
+| Skill faltando | `cstk install <nome>...` |
+| Catálogo defasado | `cstk update` |
+| Plugin ausente | `claude plugin marketplace add <fonte>` (só se o marketplace faltar em `marketplace list --json`) + `claude plugin install <plugin>@<marketplace> -s user` |
+| Plugin desabilitado | `claude plugin enable <plugin> -s user` — MEDIDO: `claude plugin enable --help` (*"Enable a disabled plugin"*, `-s, --scope <scope>`) |
+
+**Plugin desatualizado — lacuna declarada (Princípio V)**: FR-008 pede imprimir o
+comando de atualização para plugin desatualizado, mas nenhuma interface somente
+leitura medida diz se há versão mais nova: `plugin list --json` traz só a versão
+instalada, e `--available` veio vazio. Reconstruir a comparação (ler o manifest do
+marketplace à mão) seria reimplementar o que a CLI faz — Princípio IV. Decisão: o
+instalador **não afirma** que um plugin está em dia nem desatualizado; para plugin
+presente e habilitado, o item sai `ok` com a versão instalada e **nenhum** comando
+impresso (Acceptance Scenario 9: o plugin já correto não é mencionado). Quem quiser
+atualizar usa `claude plugin update <plugin> -s user` por conta própria. Se a CLI passar a expor o sinal, a checagem entra sem mudar
+o contrato.
+
+**Verificação que falha ≠ lacuna**: `self-update --check` com rc `1` ou um
+`--dry-run` com rc ≠ 0 (sem rede, subcomando renomeado) vira `aviso` "não foi
+possível verificar", nunca `ok` (seria afirmar o que não se sabe) e nunca `falhou`
+bloqueante — o bloqueio fica reservado ao que a spec define como pré-requisito duro
+(ausência de `cstk`, piso, catálogo ausente, plugin obrigatório).
+
+**Alternatives considered**:
+
+- *Executar com confirmação interativa (`read -p`)*. Rejeitado: a emenda proíbe o
+  script de executar; confirmação não muda quem executa.
+- *Comparar versão via API do GitHub com `curl`*. Rejeitado: o `cstk` já expõe
+  `--check`; reimplementar contraria o Princípio IV.
+
+---
+
+## Decision 17: Duas fontes de termos proibidos e guarda anti-vacuidade no CI
+
+**Decision**: `scripts/verificar-agnostico.sh` une `scripts/agnostico.lista` e a
+variável de ambiente `AGNOSTICO_TERMOS` (mesmo formato: um termo por linha, `#`
+comenta). Com o conjunto unido vazio, o script falha (exit `2`) **quando
+`AGNOSTICO_EXIGIR_TERMOS=1`**, e passa (exit `0`) caso contrário. O job `agnostico`
+do CI exporta as duas variáveis: `AGNOSTICO_TERMOS` a partir da variável de
+Actions do repositório/organização e `AGNOSTICO_EXIGIR_TERMOS=1` literal.
+
+**Rationale**: a emenda 1.1.0 tira os termos do repositório (citá-los seria a
+referência que o Princípio I proíbe) e exige que o verificador *"falhe quando as
+duas estão vazias no CI"*. Tornar "estar no CI" um sinal **explícito do workflow**
+em vez de inferi-lo de variável padrão do runner tem duas vantagens: não depende de
+afirmar o comportamento do runner (Princípio V), e é testável localmente
+(`AGNOSTICO_EXIGIR_TERMOS=1 ./scripts/verificar-agnostico.sh` reproduz o CI).
+Remover a guarda exige editar o workflow — mudança visível no diff da PR.
+
+**Formato multilinha**: variável de Actions aceita valor com quebras de linha; a
+sintaxe exata de mapeamento no workflow (contexto `vars`) **não foi relida nesta
+round** — NÃO VERIFICADO, a conferir na documentação oficial do GitHub Actions ao
+implementar (Princípio V). O desenho não depende dela além do nome da variável.
+
+**Não-vazamento**: o script nunca imprime os termos; o workflow nunca faz `echo`
+da variável. Um termo só aparece no log dentro do trecho da linha onde ele
+vazou — que é o achado a corrigir.
+
+**Alternatives considered**:
+
+- *Inferir CI por variável padrão do runner*. Rejeitado: afirmação sobre o runner
+  sem fonte relida nesta round, e não reproduzível localmente sem simular o runner.
+- *Arquivo local fixo ignorado pelo git (ex.: `scripts/agnostico.local`) lido
+  automaticamente*. Rejeitado por ora (YAGNI): FR-022 define a variável como a
+  fonte externa; o dev exporta a partir do arquivo que preferir. Entra se o time
+  pedir.
+- *Segredo de Actions em vez de variável*. Rejeitado: o valor é mascarado no log,
+  o que esconderia também o trecho do achado; termos não são credenciais.
 
 ---
 

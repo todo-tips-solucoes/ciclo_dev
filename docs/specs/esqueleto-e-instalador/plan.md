@@ -1,6 +1,6 @@
 # Implementation Plan: Esqueleto do cockpit-dev e instalador de máquina
 
-**Feature**: `esqueleto-e-instalador` | **Date**: 2026-09-25 | **Spec**: [spec.md](./spec.md)
+**Feature**: `esqueleto-e-instalador` | **Date**: 2026-09-25 | **Updated**: 2026-09-28 (round r02 — alinhamento à emenda 1.1.0 da constituição) | **Spec**: [spec.md](./spec.md)
 
 ## Summary
 
@@ -12,13 +12,17 @@ proposta roda três garantias: portabilidade de shell, agnosticismo e ausência 
 segredo (esta última acrescentada pela resposta do owner ao block-001).
 
 Abordagem técnica: três arquivos de shell e um workflow, sem build, sem
-dependência nova. `instalar.sh` é um pipeline linear de sete etapas que **acumula
-status por item** em vez de abortar no primeiro erro, para poder entregar o
-relatório consolidado que FR-009 pede. A instalação do `cstk` sai da URL do one-liner
-oficial (Princípio IV: dependência, nunca cópia), e a ordem `self-update` →
-conferência do piso `CSTK_MIN` é literal da constituição. A varredura de
-agnosticismo enumera arquivos por `git ls-files`, o que resolve de graça a
-exclusão de `.git/` e do que o `.gitignore` já ignora.
+dependência nova. `instalar.sh` é um pipeline linear de sete etapas **sequencial
+por gates** (clarify r02): para no primeiro item bloqueante, e o relatório final
+(FR-009) lista só os itens avaliados até ali. Desde a emenda 1.1.0 o instalador
+**verifica e imprime, nunca instala nem atualiza código de terceiro** (Princípio
+IV): `cstk`, catálogo de skills e plugins são conferidos em modo somente leitura,
+e para cada lacuna o script imprime o comando oficial exato — quem executa é a
+pessoa. A única escrita que resta é a cópia das skills **do próprio cockpit** para
+`~/.claude/skills/` (FR-007). A varredura de agnosticismo enumera arquivos por
+`git ls-files` e une duas fontes de termos — `scripts/agnostico.lista`
+(versionada, pode ficar vazia) e `AGNOSTICO_TERMOS` (fora do repositório) —,
+falhando no CI quando as duas estão vazias (FR-022, Princípio I).
 
 ## Technical Context
 
@@ -29,7 +33,7 @@ exclusão de `.git/` e do que o `.gitignore` já ignora.
 **Target Platform**: Linux, WSL e macOS (briefing §5). Nenhuma extensão GNU assumida — daí a comparação de versão em bash puro (Decision 4).
 **Project Type**: CLI / scripts de automação de repositório. Single-layer.
 **Performance Goals**: N/A — execução única e interativa por máquina. Nenhuma meta numérica foi medida e nenhuma é afirmada.
-**Constraints**: `instalar.sh` escreve **apenas** em `~/.claude/` e `~/.local/`, nunca dentro de um projeto-alvo (Princípio VII e FR-011). Idempotência obrigatória nos dois scripts. `CSTK_MIN` existe num único lugar.
+**Constraints**: `instalar.sh` escreve **apenas** em `~/.claude/skills/` (skills do próprio cockpit), nunca dentro de um projeto-alvo (Princípio VII e FR-011); desde a emenda 1.1.0 não escreve mais em `~/.local/`, porque não instala o `cstk`. Nenhum script executa bootstrap, `cstk self-update`, `cstk install`, `cstk update`, `claude plugin install` nem `claude plugin update` (Princípio IV). Idempotência obrigatória nos dois scripts. `CSTK_MIN` existe num único lugar.
 **Scale/Scope**: 3 arquivos de shell + 1 workflow + 3 arquivos de dados versionados (`agnostico.lista`, `.gitleaks.toml`, `.gitleaksignore`). Um repositório varrido por execução.
 
 ## Constitution Check
@@ -38,13 +42,13 @@ exclusão de `.git/` e do que o `.gitignore` já ignora.
 
 | Princípio | Status | Notas |
 |-----------|--------|-------|
-| I. Agnosticismo Verificável | PASS | A feature **é** o mecanismo do princípio: `scripts/verificar-agnostico.sh` + `scripts/agnostico.lista` versionada e separada da lógica, rodando no CI com zero ocorrências. Exemplos usam nomes fictícios (`minha-org/meu-projeto`). A parte "credencial" da promessa, que o casamento literal não alcançava, passa a ser coberta pelo job `segredos` (FR-019, block-001 → dec-023). |
+| I. Agnosticismo Verificável | PASS | A feature **é** o mecanismo do princípio: `scripts/verificar-agnostico.sh` une `scripts/agnostico.lista` (versionada, só termos que não identificam ninguém, pode ficar vazia) e `AGNOSTICO_TERMOS` (variável de Actions no CI; exportada pelo dev a partir de arquivo local fora do git), roda no CI com zero ocorrências e **falha no CI com as duas fontes vazias** (FR-022, emenda 1.1.0 — a garantia não passa por vacuidade). Exemplos usam nomes fictícios (`minha-org/meu-projeto`). A parte "credencial" da promessa, que o casamento literal não alcançava, passa a ser coberta pelo job `segredos` (FR-019, block-001 → dec-023). |
 | II. Cockpit sob o próprio ciclo | PASS | Frente de trilha completa: toca `scripts/`, `.github/` e a raiz. Nasceu em worktree com base explícita e está sendo implementada via `/feature-00c`; o registro SDD entra na PR em `docs/specs/esqueleto-e-instalador/`. |
 | III. Identidade de Commit Declarada | PASS | Nada nesta feature altera identidade de commit. O `instalar.sh` não escreve configuração de git. |
-| IV. Ferramentas externas são dependências | PASS | `cstk` instalado pela URL oficial do one-liner (baixada para arquivo e então executada, nunca `curl \| sh`) e atualizado por `cstk self-update`; plugins pelos respectivos marketplaces. `CSTK_MIN` lido de `versoes.env` e de nenhum outro lugar. Ordem `self-update` → piso respeitada. Nenhum hook copiado. |
+| IV. Ferramentas externas são dependências — e ninguém as instala pelo usuário | PASS | Emenda 1.1.0: o instalador só **verifica** (`command -v cstk`, `cstk --version` contra `CSTK_MIN`, `cstk self-update --check`, `cstk install/update --dry-run`, `claude plugin list --json`) e **imprime** o comando oficial de cada lacuna; nenhum bootstrap, `self-update`, `install`, `update` ou `claude plugin install/update` é executado. Pré-requisito faltando → exit ≠ 0. Release mais nova acima do piso → aviso com `cstk self-update` impresso. `CSTK_MIN` lido de `versoes.env` e de nenhum outro lugar. Nenhum hook copiado. |
 | V. Fonte Oficial Antes de Afirmar | PASS | Todo fato sobre ferramenta externa em [research.md](./research.md) carrega fonte, marcada FONTE OFICIAL (lida via `context-mode`) ou MEDIDO (sonda empírica com saída citada). A única lacuna encontrada está declarada como lacuna, não preenchida por suposição (Decision 10). |
 | VI. Português do Brasil | PASS | Toda mensagem autoral dos scripts em pt-BR com acentuação. FR-012 limita o requisito às mensagens autorais; saída nativa de `git`/`gh`/`cstk`/`curl` passa como vier. |
-| VII. Scripts portáveis, idempotentes e contidos | PASS | `set -euo pipefail` nos três scripts; escrita confinada a `~/.claude/` e `~/.local/`; idempotência por comparação de conteúdo antes de copiar (Decision 14); comparação de versão sem `sort -V` (Decision 4); pré-requisitos limitados à lista fechada. |
+| VII. Scripts portáveis, idempotentes e contidos | PASS | `set -euo pipefail` nos três scripts; escrita confinada a `~/.claude/skills/`; idempotência por comparação de conteúdo antes de copiar (Decision 14); comparação de versão sem `sort -V` (Decision 4); pré-requisitos limitados à lista fechada. |
 
 **Nenhum FAIL em princípio MUST.** `Complexity Tracking` fica vazio.
 
@@ -56,7 +60,7 @@ exclusão de `.git/` e do que o `.gitignore` já ignora.
 docs/specs/esqueleto-e-instalador/
 ├── spec.md
 ├── plan.md          # Este arquivo
-├── research.md      # Phase 0 — 14 decisões com fonte
+├── research.md      # Phase 0 — 17 decisões com fonte (16 e 17 na round r02)
 ├── data-model.md    # Phase 1 — formatos de versoes.env, agnostico.lista, relatório
 ├── quickstart.md    # Phase 1 — cenários de teste executáveis
 └── contracts/
@@ -101,86 +105,105 @@ o Princípio I os nomeia literalmente.
 
 ## Arquitetura de `instalar.sh`
 
-Pipeline linear de sete etapas. Cada etapa registra um status
-(`ok` | `falhou` | `pulada`) numa lista acumulada e o relatório final (FR-009,
-cenário 7) imprime uma linha por etapa.
+Pipeline linear de sete etapas, **sequencial por gates** (clarify, Session
+2026-09-28): cada etapa registra um status (`ok` | `aviso` | `falhou` | `pulada`)
+numa lista acumulada; a **primeira** etapa bloqueante com `falhou` encerra a
+execução, e o relatório final (FR-009) imprime uma linha por etapa **avaliada até
+ali** — etapas não alcançadas não aparecem (não viram `pulada`). Item não
+bloqueante (`aviso`, ou `falhou` de item recomendado) não para o pipeline.
+
+**Verificar e imprimir, nunca instalar (emenda 1.1.0, Princípio IV)**: nenhuma
+etapa executa bootstrap de terceiro, `cstk self-update`, `cstk install`,
+`cstk update`, `claude plugin install`, `claude plugin update` ou
+`claude plugin marketplace add`. Toda lacuna encontrada vira uma linha
+`Execute: <comando oficial exato>` impressa junto do item — quem executa é a
+pessoa. Os únicos comandos de terceiro que o script roda são **somente leitura**:
+`--version`, `--check`, `--dry-run` e `list --json` (research Decision 16).
 
 **Feedback de progresso (CHK012-ux-ops, block-002 → dec-036, respondido pelo
-owner)**: além do relatório final consolidado, cada uma das sete etapas
-imprime uma linha autoral em pt-BR ao **iniciar** e outra ao **concluir**
-(ex.: `Etapa 2/7: atualizando cstk...` / `Etapa 2/7: concluída` —
-`instalar.sh` não fica em silêncio até o fim). A saída nativa das
-ferramentas externas invocadas (`curl`, `cstk`, `claude plugin ...`) passa
-sem filtro, no idioma que a própria ferramenta produzir — coerente com a
-clarificação de FR-012 (o requisito de pt-BR cobre só a mensagem autoral do
-script). Fora de escopo por ora, por decisão do owner (YAGNI): flag
+owner)**: além do relatório final consolidado, cada etapa imprime uma linha
+autoral em pt-BR ao **iniciar** e outra ao **concluir**
+(ex.: `Etapa 2/7: verificando cstk...` / `Etapa 2/7: concluída`). A saída nativa
+das ferramentas externas invocadas passa sem filtro, no idioma que a própria
+ferramenta produzir — coerente com FR-012. Fora de escopo por ora (YAGNI): flag
 `--quiet` e indicador visual tipo *spinner*.
 
-| # | Etapa | FR | Bloqueante? |
-|---|-------|-----|-------------|
-| 1 | Pré-requisitos de máquina: presença de `git`, `gh`, `node`, `jq`, `curl` + versão de `git` (>= 2.36) e `node` (>= 20) **+ pré-checagem de escrita** (criar e remover arquivo temporário em `~/.claude/` e `~/.local/`) | FR-001, FR-011 | **Sim — e encerra aqui**, listando todos os ausentes de uma vez (exit `2`) ou a área sem permissão de escrita (exit `3`) |
-| 2 | `cstk` ausente → URL oficial do one-liner, baixada para arquivo e então executada; presente → `cstk self-update` | FR-002, FR-003 | Sim |
-| 3 | `cstk --version` responde? | FR-005 | Sim |
-| 4 | Versão do `cstk` >= `CSTK_MIN` (lido de `versoes.env`) | FR-004 | Sim |
-| 5 | catálogo de skills: `cstk install` cheio só sem manifest; senão cherry-pick do que falta + `cstk update` | FR-006 | Sim |
-| 6 | Skills do cockpit de `skills/` → `~/.claude/skills/` | FR-007 | Sim quando **falha** (FR-007 é MUST); `pulada` — `skills/` ainda não existe, Decision 13 — segue não-bloqueante (review rodada 4) |
-| 7 | Plugins: `context-mode` e `ponytail` pelos marketplaces, **por plugin**: ausente → instala; presente → atualiza (mesmo padrão da etapa 2 com o `cstk`) | FR-008 | `context-mode` sim; `ponytail` **não** |
-| — | Relatório final com status por item | FR-009 | — |
+| # | Etapa | O que verifica (somente leitura) | Lacuna → o que imprime | FR | Bloqueante? |
+|---|-------|----------------------------------|------------------------|-----|-------------|
+| 1 | Pré-requisitos de máquina | presença de `git`, `gh`, `node`, `jq`, `curl` + versão de `git` (>= 2.36) e `node` (>= 20) + pré-checagem de escrita em `~/.claude/skills/` | lista **todos** os ausentes de uma vez | FR-001, FR-011 | **Sim** — exit `2` (ferramentas) ou `3` (escrita) |
+| 2 | `cstk` presente | `command -v cstk` | `cstk` ausente → imprime a URL do instalador oficial em dois passos — baixar para arquivo, inspecionar, executar (research Decisions 1 e 16; a forma canalizada direto para o shell não é impressa, A08) | FR-002 | **Sim** — exit `1` |
+| 3 | `cstk --version` responde | chamada de versão | falha → mensagem clara | FR-005 | **Sim** |
+| 4 | Versão >= `CSTK_MIN` **+ release mais nova** | compara `cstk --version` com `CSTK_MIN` (lido de `versoes.env`); depois `cstk self-update --check` (rc `0` em dia, `10` há release mais nova, `1` erro — MEDIDO) | abaixo do piso → `falhou` + `Execute: cstk self-update`; acima do piso com release mais nova → `aviso` + `Execute: cstk self-update`; `--check` com erro (ex.: sem rede) → `aviso` "não foi possível verificar release" | FR-003, FR-004 | Piso: **sim**. Release mais nova / checagem indisponível: **não** |
+| 5 | Catálogo de skills do toolkit | manifest `~/.claude/skills/.cstk-manifest` + `cstk install --dry-run` (o que falta) + `cstk update --dry-run` (o que está defasado) | ausente → `falhou` + `Execute: cstk install`; presente com skill faltando → `aviso` + `Execute: cstk install <nomes>`; presente com artefato defasado → `aviso` + `Execute: cstk update`; dry-run com erro → `aviso` "não foi possível verificar" | FR-006 | Ausente: **sim**. Faltando/defasado/indisponível: **não** |
+| 6 | Skills do cockpit | `skills/` do repositório → `~/.claude/skills/` (código do próprio cockpit — **a única escrita** do instalador) | — | FR-007 | Sim quando **falha**; `pulada` quando `skills/` ainda não existe (Decision 13) |
+| 7 | Plugins `context-mode` e `ponytail` | `claude plugin list --json`: instalado no escopo `user` e `enabled == true` (MEDIDO) | ausente → `Execute:` com `claude plugin marketplace add <fonte>` (se o marketplace faltar) e `claude plugin install <plugin>@<marketplace> -s user`; desabilitado → `Execute: claude plugin enable <plugin> -s user`; presente e habilitado → `ok`, sem comando impresso (Acceptance Scenario 9: o plugin correto não é mencionado; research Decision 16: não há sinal somente leitura de "desatualizado") | FR-008 | `context-mode` **sim**; `ponytail` **não** |
+| — | Relatório final | status por item avaliado + comandos impressos | — | FR-009 | — |
 
-**Corte em dois momentos**: a etapa 1 encerra a execução se algo faltar, porque
-tentar instalar `cstk` sem `curl` só produziria erro derivado. Das etapas 2 a 7 as
-falhas são acumuladas e reportadas juntas.
+**Ordem**: o piso (etapa 4) é conferido contra a versão **instalada** — não há mais
+`self-update` antes dele (research Decision 2, revisada). Abaixo do piso o script
+para; a pessoa atualiza e roda de novo. O piso é o mínimo testado, não o alvo:
+acima dele, release mais nova é só aviso.
 
-**Restrição de implementação (Decision 12)**: com `set -e`, uma etapa não-fatal
-precisa ter o status capturado explicitamente, senão o script aborta antes do
-relatório. Esta é a principal armadilha do arquivo.
+**Restrição de implementação (Decision 12)**: com `set -e`, uma etapa que produz
+`aviso` ou `falhou` não-bloqueante precisa ter o status capturado explicitamente,
+senão o script aborta antes do relatório. Continua sendo a principal armadilha do
+arquivo — e agora vale também para o `rc 10` do `self-update --check`, que é
+resultado esperado, não erro.
 
-**Ordem não-negociável (Decision 2)**: etapa 3 → etapa 4, nunca o inverso. O piso é
-o mínimo testado, não o alvo.
-
-**Confinamento (FR-011)**: as únicas áreas escritas são `~/.local/` (binário e
-runtime do `cstk`, via URL oficial do one-liner) e `~/.claude/` (catálogo, skills do
-cockpit, plugins). Nenhuma etapa aceita ou deriva um caminho de projeto-alvo.
+**Confinamento (FR-011)**: a única área escrita é `~/.claude/skills/` (etapa 6).
+Nenhuma etapa aceita ou deriva um caminho de projeto-alvo. `~/.local/` deixou de
+ser escrito — quem instala o `cstk` lá é a pessoa, pelo one-liner oficial.
 
 **Pré-checagem de escrita (CHK010, Acceptance Scenario 8)**: a etapa 1 cria e
-remove um arquivo temporário em `~/.claude/` e em `~/.local/` (criando os
-diretórios se ainda não existirem) antes de qualquer etapa 2-7 rodar. Se
-qualquer uma das duas áreas não aceitar a escrita, o script encerra com exit
-`3` (contracts/cli.md) identificando a área — sem estado parcial, porque
-nenhuma escrita real (`cstk`, catálogo, skills, plugins) ainda aconteceu. A
-checagem cabe dentro do mesmo confinamento do parágrafo acima: ela só toca as
-duas áreas já autorizadas por FR-011, nunca um caminho de projeto-alvo
-(validado em 1.1.3 — nenhuma mudança de confinamento necessária para
-implementar isto na FASE 2).
+remove um arquivo temporário em `~/.claude/skills/` (criando o diretório se ainda
+não existir) antes de qualquer outra etapa. Sem permissão, exit `3` identificando
+a área — sem estado parcial.
 
-**Instalação seletiva de plugin (CHK011, Acceptance Scenario 9)**: a etapa 7
-decide por plugin, não em bloco — o mesmo padrão "ausente instala, presente
-atualiza" da etapa 2 com o `cstk`. Um plugin já instalado e correto não é
-tocado quando só o outro está ausente.
+**Verificação por plugin (CHK011, Acceptance Scenario 9)**: a etapa 7 decide por
+plugin, não em bloco. Um plugin presente e habilitado sai `ok` mesmo quando o
+outro está ausente; só a lacuna do ausente gera comando impresso.
+
+**Idempotência (FR-010)**: como o instalador só lê — exceto a cópia de skills do
+cockpit, já idempotente por comparação de conteúdo (Decision 14) —, rodar duas
+vezes sem a pessoa executar nada produz o mesmo relatório e os mesmos comandos
+impressos.
 
 ## Arquitetura de `scripts/verificar-agnostico.sh`
 
 Três passos:
 
-1. Ler `scripts/agnostico.lista` — um termo por linha, `#` comenta, linhas em
-   branco ignoradas (Decision 8).
-2. Enumerar os arquivos versionados por `git ls-files` (Decision 6) **excluindo
-   `scripts/agnostico.lista`** (Decision 7 — sem isso a varredura casa contra a
-   própria lista e falha sempre).
-3. Casar por substring literal, sem distinção de maiúsculas (`grep -i -a -F`,
-   todo arquivo tratado como texto, independente de locale), reportando
-   `arquivo:linha` por ocorrência. O caminho de cada entrada versionada
-   (inclusive gitlink) entra na varredura e sai como `arquivo:0:(caminho)`; o
-   alvo textual de um symlink, sem seguir o link, sai como
-   `arquivo:0:(alvo do symlink)`; entrada no índice ausente do disco (sparse
-   checkout) tem o blob varrido. Termos passam por remoção de CR/BOM e trim
-   antes de casar (review rodadas 1-3).
+1. Montar o conjunto de termos a partir de **duas fontes complementares**
+   (FR-022, emenda 1.1.0 do Princípio I):
+   - `scripts/agnostico.lista` (versionada): só termos que não identificam
+     ninguém; **pode ficar vazia**;
+   - `AGNOSTICO_TERMOS` (variável de ambiente): no CI, preenchida pela variável de
+     Actions do repositório ou da organização; na máquina, exportada pelo dev a
+     partir de arquivo local ignorado pelo git. Mesmo formato da lista — um termo
+     por linha, `#` comenta, linhas em branco ignoradas (data-model §Lista).
+   Os dois conjuntos passam pelo mesmo trim/remoção de CR/BOM e são unidos.
+2. **Guarda anti-vacuidade**: se o conjunto unido ficar vazio **e** a execução for
+   de CI, sair com erro — a garantia nunca volta a ser vazia por construção. Fora
+   do CI, lista vazia segue sendo estado inicial legítimo (sucesso). A detecção de
+   CI é **explícita**: o job `agnostico` exporta `AGNOSTICO_EXIGIR_TERMOS=1`
+   (research Decision 17) — não se infere por variável ambiente do runner.
+3. Enumerar os arquivos versionados por `git ls-files` (Decision 6) **excluindo
+   `scripts/agnostico.lista`** (Decision 7) e casar por substring literal, sem
+   distinção de maiúsculas (`grep -i -a -F`, todo arquivo tratado como texto,
+   independente de locale), reportando `arquivo:linha` por ocorrência. O caminho
+   de cada entrada versionada (inclusive gitlink) entra na varredura e sai como
+   `arquivo:0:(caminho)`; o alvo textual de um symlink, sem seguir o link, sai
+   como `arquivo:0:(alvo do symlink)`; entrada no índice ausente do disco (sparse
+   checkout) tem o blob varrido (review rodadas 1-3).
 
 Saída: `0` com zero ocorrências (FR-013); `1` listando arquivo e linha de cada
-ocorrência (FR-014). Sem efeito colateral — o script só lê (FR-016).
+ocorrência (FR-014); `2` erro de uso, **incluindo** a guarda anti-vacuidade do
+passo 2. Sem efeito colateral — o script só lê (FR-016).
 
-**Lista vazia ou só com comentários**: resultado é zero ocorrências, saída `0`. É o
-estado inicial legítimo de um cockpit que ainda não catalogou termos, não um erro.
+**Não-vazamento dos termos de `AGNOSTICO_TERMOS`**: a saída de falha imprime
+`arquivo:linha:<trecho da linha>` — o trecho contém o termo encontrado, o que é o
+propósito do relatório. O script **nunca** imprime a lista de termos em si, nem em
+modo de erro, e o workflow não faz `echo` da variável — os termos só aparecem no
+log quando um deles de fato vazou para o repositório.
 
 ## CI do cockpit (`.github/workflows/ci.yml`)
 
@@ -190,7 +213,7 @@ que o relatório diga qual garantia barrou (User Story 3, cenários 1 a 3):
 | Job | O que faz | FR |
 |-----|-----------|-----|
 | `shellcheck` | instala `shellcheck` explicitamente e roda sobre todo `.sh` do repositório | FR-017 |
-| `agnostico` | executa `scripts/verificar-agnostico.sh` | FR-018 |
+| `agnostico` | executa `scripts/verificar-agnostico.sh` com `AGNOSTICO_TERMOS` mapeada da variável de Actions e `AGNOSTICO_EXIGIR_TERMOS=1` (falha com as duas fontes vazias) | FR-018, FR-022 |
 | `segredos` | instala o binário do `gitleaks` (release fixada, checksum conferido) e roda `gitleaks dir . --redact -v` (e, no pull_request, `gitleaks git` sobre o range base..head) | FR-019, FR-020, FR-021 |
 
 O `shellcheck` é instalado pelo job em vez de assumido pré-instalado no runner:
@@ -232,16 +255,17 @@ explicitamente nos Edge Cases.
 Gate `owasp-security` executado sobre esta arquitetura em 2026-09-25. A feature
 não tem autenticação, sessão, banco nem endpoint — o risco é quase todo de
 **cadeia de suprimentos e execução de código** (A03, A08, CICD-SEC-4, ASI04/ASI05),
-porque o `instalar.sh` executa código de terceiro na máquina do dev e o CI executa
-código de PR.
+porque o CI executa código de PR. Desde a emenda 1.1.0 o `instalar.sh` **não**
+executa mais código de instalação de terceiro na máquina do dev — só comandos
+somente leitura de ferramentas que a própria pessoa já instalou.
 
 ### Controles adotados no desenho
 
 | Risco | Controle | Referência |
 |-------|----------|------------|
-| Download truncado do bootstrap executa parcialmente | Baixar para arquivo temporário e **só então** executar — nunca `curl \| sh` direto. Continua sendo o canal oficial (não é reimplementação), apenas não canaliza para o shell. | A08 |
-| Execução acidental como root | `instalar.sh` **recusa** rodar como root/`sudo`. Os alvos são `~/.claude/` e `~/.local/` do próprio usuário; como root, o bootstrap rodaria com privilégio total e escreveria no `HOME` errado. | A01 |
-| Comando declarado por marketplace auto-aceito | **Não** passar `-y`/`--accept-command` de forma cega na instalação de plugins. A CLI exige confirmação de comandos declarados pelo marketplace justamente para que um humano os veja (MEDIDO: `claude plugin update --help` documenta `--accept-command <sha256>` como aceitação restrita a um comando específico). Auto-aceitar converteria uma atualização hostil de marketplace em execução silenciosa. | ASI04, ASI05 |
+| Bootstrap de terceiro sem assinatura executado por script | **Eliminado pela emenda 1.1.0**: o instalador não baixa nem executa bootstrap; imprime a URL oficial em dois passos (baixar, inspecionar, executar) e para. A decisão de executar canal sem assinatura passa a ser da pessoa, com o risco à vista (§Risco residual 1). | A08, ASI04 |
+| Execução acidental como root | `instalar.sh` **recusa** rodar como root/`sudo`. O alvo é `~/.claude/skills/` do próprio usuário; como root, a cópia de skills escreveria no `HOME` errado e a verificação leria a máquina errada. | A01 |
+| Comando declarado por marketplace auto-aceito | **Eliminado pela emenda 1.1.0** — o instalador não instala nem atualiza plugin; o registro abaixo fica como regra para o comando impresso: ele **nunca** inclui `-y`/`--accept-command`. A CLI exige confirmação de comandos declarados pelo marketplace justamente para que um humano os veja (MEDIDO: `claude plugin update --help` documenta `--accept-command <sha256>` como aceitação restrita a um comando específico). Auto-aceitar converteria uma atualização hostil de marketplace em execução silenciosa. | ASI04, ASI05 |
 | `GITHUB_TOKEN` com permissão além do necessário | Workflow declara `permissions: contents: read` no nível do workflow. | CICD-SEC-2 |
 | Pwn-request | Gatilho é `pull_request`, **nunca** `pull_request_target`. É deliberado e não deve ser "corrigido": `pull_request` roda o código do fork com token somente-leitura e sem segredos; `pull_request_target` rodaria código não-confiável com token de escrita e acesso a segredos. | CICD-SEC-4 |
 | Ação de terceiro mutável | Actions de terceiro fixadas por **SHA de commit**, não por tag móvel. | A03, CICD-SEC-8 |
@@ -251,11 +275,13 @@ código de PR.
 | O próprio relatório do CI vaza o segredo que acabou de detectar | `--redact` **obrigatório** na invocação: o console default do gitleaks imprime o campo `Secret:` com o valor. Sem a flag, barrar o vazamento seria publicá-lo no log da PR, legível por quem tem acesso ao repositório. | FR-019 |
 | Exceção de falso positivo vira porta dos fundos permanente | Exceção só existe em `.gitleaksignore` / `.gitleaks.toml` **versionados**, e portanto aparece no diff da PR que a introduz. Não há toggle fora do repositório, e desligar o job é mudança visível no workflow. | FR-021 |
 | Ferramenta de varredura de terceiro executando no CI | Binário fixado por versão de release e conferido contra um sha256 literal fixado no workflow (copiado do `checksums.txt` da release no bump — o arquivo lido na hora vem da mesma origem mutável), baixado e extraído em `$RUNNER_TEMP` dentro do job — **não** a Action de terceiro (que exigiria `GITLEAKS_LICENSE` para repositório de organização e não é mais MIT), **não** tag/branch móvel. O `shellcheck` **não** segue essa disciplina: vem do `apt` da imagem do runner, então sua versão flutua e um bump de regra pode reprovar PR que não mudou shell. Risco aceito (falha fechada, nunca falso verde); pinar o binário por versão+sha256 é a saída se incomodar — review rodada 4. | A03, CICD-SEC-8 |
+| Texto de terceiro ecoado no terminal / no comando impresso (round r02) | Todo valor vindo de stdout/stderr de ferramenta externa que entra numa linha autoral ou num `Execute:` passa por allowlist antes de ser impresso: nome de skill `^[A-Za-z0-9][A-Za-z0-9._@-]*$`; versões (`latest:X`, `.version` de plugin) só se casarem `^v?[0-9]+(\.[0-9]+)*$`, senão saem como `desconhecida`. Evita sequência de escape/ANSI e token-flag chegando ao terminal ou à área de transferência de quem copia o comando. | A05, LLM05 |
+| Arquivo baixado pelo comando impresso cai dentro do repositório | O `Execute:` de bootstrap grava em `$HOME/cstk-install.sh`, nunca no diretório corrente (que costuma ser o próprio clone) | A08 |
 | `versoes.env` interpretado como código | Ler `CSTK_MIN` por **parse explícito** (grep/cut), não por `source`. O arquivo é versionado e confiável, mas `source` transforma um arquivo de dados em script executável sem necessidade. | A08 |
 
 ### Risco residual aceito
 
-Quatro riscos permanecem **por desenho**. Os dois primeiros porque a constituição
+Cinco riscos permanecem **por desenho**. Os dois primeiros porque a constituição
 ratificada os escolhe explicitamente; os dois últimos porque são o teto conhecido
 da varredura de segredo. Ficam registrados aqui para que sejam visíveis, não
 invisíveis:
@@ -271,6 +297,9 @@ invisíveis:
    checksum correspondente, então o `.sha256` de mesma origem só protege contra
    corrupção em trânsito, que o TLS já cobre. O Princípio IV, além disso, proíbe
    essa reimplementação.
+   *Estado após a emenda 1.1.0*: o risco **não é mais assumido por script**. O
+   instalador imprime o comando oficial; quem o executa decide. O texto acima
+   permanece como a informação que a pessoa precisa para decidir.
    *Correção de registro (2026-09-28)*: a redação anterior afirmava "aceito
    formalmente pelo owner em 2026-09-25, na rodada 4". O owner não havia sido
    consultado — a rodada 4 registrou o aceite em nome dele. Consultado em
@@ -283,18 +312,27 @@ invisíveis:
    FR-002/FR-003 — é a que vale, e o incremento desta frente altera esses
    requisitos. O risco passa a ser **de quem executa o comando**, com a
    informação acima à vista; deixa de ser risco que um script assume por ela.
-2. **Ausência de janela de maturação (*soak*) nas atualizações.** O Princípio IV
-   determina, com redação MUST, manter a máquina na última release. Isso é uma
-   decisão de compatibilidade, e `CSTK_MIN` é um piso de **compatibilidade, não um
-   controle de segurança** — ele impede versão velha demais, nunca versão
-   maliciosa nova.
+2. **`CSTK_MIN` é piso de compatibilidade, não controle de segurança.** Ele
+   impede versão velha demais, nunca versão maliciosa nova. Desde a emenda 1.1.0 a
+   atualização deixou de ser automática — release mais nova vira aviso com
+   `cstk self-update` impresso —, então a janela de maturação (*soak*) passa a ser
+   de fato a da pessoa, que decide quando atualizar. O que continua sem controle é
+   o conteúdo da release que ela escolher executar.
 3. **A varredura de segredo é regex + entropia, não prova de ausência.** Ela
    detecta o que os detectores conhecem; segredo em formato não coberto passa. E
    o gitleaks está declarado *feature complete* pelo próprio autor — só correções
    de segurança, sem detectores novos (Decision 15). O caminho de saída está
    contido: a troca por outra ferramenta afeta o workflow e os dois arquivos de
    exceção, nada mais.
-4. **NÃO VERIFICADO**: se o binário do gitleaks faz chamada de rede ao avaliar
+4. **Termos de `AGNOSTICO_TERMOS` legíveis por quem controla um job (round r02).**
+   A variável de Actions não é segredo (Decision 17) e um PR que altere o
+   workflow ou o script pode imprimi-la no log (CICD-SEC-4). Os termos não são
+   credencial — a exigência do Princípio I é não citá-los *no repositório* —, então
+   o risco é de exposição de nomes, não de acesso. **NÃO VERIFICADO**: se variáveis
+   de Actions chegam a workflows disparados por PR de fork; se não chegarem, o job
+   `agnostico` desses PRs falha fechado pela guarda anti-vacuidade (nunca falso
+   verde). A conferir na documentação oficial ao implementar.
+5. **NÃO VERIFICADO**: se o binário do gitleaks faz chamada de rede ao avaliar
    candidatos. A documentação oficial lida não afirma nem nega, e o Princípio V
    não deixa afirmar sem fonte. Mitigação estrutural já em vigor: o job roda com
    `permissions: contents: read` e sem segredos disponíveis.
@@ -335,8 +373,8 @@ DB↔backend nem broker↔consumer: são scripts de shell locais e um workflow d
 sem serviço, sem payload serializado e sem persistência. Não há convenção de
 case style nem camada de mapeamento a declarar.
 
-As duas convenções de interface que de fato existem — formato de
-`scripts/agnostico.lista` e da chave `CSTK_MIN` em `versoes.env` — estão em
+As convenções de interface que de fato existem — formato de
+`scripts/agnostico.lista` (e de `AGNOSTICO_TERMOS`, mesmo formato) e da chave `CSTK_MIN` em `versoes.env` — estão em
 [data-model.md](./data-model.md); os contratos de CLI (flags, saídas, códigos de
 saída) estão em [contracts/cli.md](./contracts/cli.md).
 
@@ -374,6 +412,27 @@ Os três pontos que mereciam nova conferência após o design:
   como requisito verificável em vez de convenção tácita (SC-007).
 - **Princípio IV** — a ferramenta é usada como dependência, chamada pelo binário
   oficial pinado; nada dela é copiado nem reimplementado no repositório.
+
+**Re-check após a emenda 1.1.0 (round r02, 2026-09-28)**:
+
+- **Princípio IV** — conferido comando a comando: das chamadas de terceiro que
+  restam no `instalar.sh` (`cstk --version`, `cstk self-update --check`,
+  `cstk install --dry-run`, `cstk update --dry-run`, `claude plugin list --json`,
+  `claude plugin marketplace list --json`), nenhuma instala nem atualiza — todas
+  são leitura (research Decision 16, com a fonte de cada `--check`/`--dry-run`).
+  Research Decisions 1, 2 e 3 foram revisadas: o one-liner passa a ser **texto
+  impresso**, o piso é conferido contra a versão instalada, e a distinção
+  `self-update` × `install/update` determina **qual** comando imprimir, não qual
+  executar.
+- **Princípio I** — os termos proibidos saem do repositório (`AGNOSTICO_TERMOS`),
+  e a guarda anti-vacuidade no CI (Decision 17) fecha a brecha que a 1.0.0 deixava
+  (lista vazia passando por construção).
+- **Princípio VII** — a escrita encolheu para `~/.claude/skills/`; a lista fechada
+  de pré-requisitos não muda. Idempotência fica mais simples: o instalador quase só
+  lê.
+- **Clarify r02 (sequencial por gates)** — o pipeline deixa de acumular falhas
+  bloqueantes das etapas 2-7: para na primeira, e o relatório cobre só o avaliado.
+  Consistente com FR-009 revisado.
 
 **Resultado**: PASS em todos os sete princípios, sem violação a justificar.
 
