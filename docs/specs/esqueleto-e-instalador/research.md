@@ -624,10 +624,47 @@ afirmar o comportamento do runner (Princípio V), e é testável localmente
 (`AGNOSTICO_EXIGIR_TERMOS=1 ./scripts/verificar-agnostico.sh` reproduz o CI).
 Remover a guarda exige editar o workflow — mudança visível no diff da PR.
 
-**Formato multilinha**: variável de Actions aceita valor com quebras de linha; a
-sintaxe exata de mapeamento no workflow (contexto `vars`) **não foi relida nesta
-round** — NÃO VERIFICADO, a conferir na documentação oficial do GitHub Actions ao
-implementar (Princípio V). O desenho não depende dela além do nome da variável.
+**Formato multilinha (CHK017, fechado rodada r02/FASE 6)**: a sintaxe de
+mapeamento `env: AGNOSTICO_TERMOS: ${{ vars.AGNOSTICO_TERMOS }}` é a forma
+documentada oficialmente para expor uma Configuration Variable como variável de
+ambiente (mesmo mecanismo de interpolação de contexto de qualquer outro
+`${{ }}`, sem sintaxe especial). **Fonte lida**:
+<https://docs.github.com/en/actions/learn-github-actions/variables> — bloco de
+exemplo `env: env_var: ${{ vars.ENV_CONTEXT_VAR }}`. A página **não** discute
+explicitamente o caso de um valor com quebras de linha (busca por
+"multiline"/"escaping"/limites não encontrou seção correspondente) — permanece
+lacuna factual declarada (não suposta), não impede o desenho: o valor unido de
+`AGNOSTICO_TERMOS` já é tratado por `verificar-agnostico.sh` com o mesmo
+trim/CR/BOM da lista versionada, então uma eventual diferença de codificação de
+quebra de linha feita pelo runner é absorvida pela normalização existente.
+
+**`vars.*` em `pull_request` de fork (CHK017, mesma pergunta)**: **não
+encontrado** nenhuma fonte oficial que confirme ou negue se Configuration
+Variables do repositório/organização chegam a um workflow `pull_request`
+disparado de um fork da mesma forma que num PR interno. As três páginas mais
+prováveis foram lidas e **só tratam a restrição para `secrets` e
+`GITHUB_TOKEN`**, nunca para `vars`:
+
+- <https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows>
+  (seção "Workflows in forked repositories", sob `pull_request`): *"With the
+  exception of `GITHUB_TOKEN`, secrets are not passed to the runner when a
+  workflow is triggered from a forked repository. The `GITHUB_TOKEN` has
+  read-only permissions in pull requests from forked repositories."*
+- <https://docs.github.com/en/actions/how-tos/security-for-github-actions/security-guides/using-secrets-in-github-actions>
+  — mesma frase, seção "Using secrets in a workflow".
+- <https://docs.github.com/en/actions/security-for-github-actions/security-guides/security-hardening-for-github-actions>
+  — trata `pull_request_target`/`workflow_run` como triggers privilegiados com
+  acesso a secrets; também sem menção a `vars`.
+
+**Consequência para o desenho (nenhum ajuste em 6.7.1/plan.md)**: como nenhuma
+fonte contradiz o desenho (job `agnostico` exporta `AGNOSTICO_TERMOS` da
+variável de Actions e `AGNOSTICO_EXIGIR_TERMOS=1`), o comportamento não
+diverge do projetado — a pergunta fica como lacuna factual **citada e
+pesquisada**, não mais "nenhuma fonte lida nesta rodada". Se um PR de fork
+chegar com `vars.AGNOSTICO_TERMOS` vazio na prática (comportamento não
+documentado), o pior caso observável é a guarda anti-vacuidade barrar o PR do
+fork mesmo com a lista de Actions preenchida — uma falha ruidosa e segura
+(nunca um "OK" silencioso), não uma quebra da garantia do Princípio I.
 
 **Não-vazamento**: o script nunca imprime os termos; o workflow nunca faz `echo`
 da variável. Um termo só aparece no log dentro do trecho da linha onde ele

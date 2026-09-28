@@ -119,16 +119,16 @@ pelo dev e cobertura dos caminhos de erro operacionais. Domínio customizado
       — "o relatório lista só Pré-requisitos de máquina e cstk presente — as
       etapas seguintes não aparecem"; Contracts/cli.md exemplo "Parada por
       gate"] {auto}
-- [ ] CHK017 - research.md Decision 17 declara explicitamente NÃO VERIFICADA
-      (Princípio V) a sintaxe exata de mapeamento do contexto `vars` do GitHub
-      Actions para um valor multilinha em `AGNOSTICO_TERMOS`. O mesmo
-      documento não trata uma pergunta relacionada e igualmente não
-      verificada: PRs de fork (que também disparam o job `agnostico` via
-      `pull_request`, plan.md §CI do cockpit) recebem `vars.*` do repositório
-      da mesma forma que PRs internos, ou o valor chega vazio/diferente
-      nesse caso — o que mudaria o comportamento da guarda anti-vacuidade
-      (FR-022) num fork? Nenhuma fonte oficial foi lida para fechar nenhuma
-      das duas perguntas nesta rodada. [Gap, Research.md Decision 17] {auto}
+- [x] CHK017 - research.md Decision 17 agora cita fonte oficial lida para as
+      duas perguntas (rodada r02/FASE 6, tarefa 6.7.2): (1) a sintaxe
+      `${{ vars.AGNOSTICO_TERMOS }}` em `env:` é a forma documentada
+      (docs.github.com/en/actions/learn-github-actions/variables), sem
+      seção específica sobre valor multilinha; (2) PRs de fork: três páginas
+      oficiais lidas só documentam a restrição de `secrets`/`GITHUB_TOKEN`,
+      nunca de `vars` — permanece lacuna factual, agora **pesquisada e
+      citada**, não mais "nenhuma fonte lida". Nenhuma das duas respostas
+      diverge do desenho de 6.7.1/plan.md — nenhum ajuste foi necessário.
+      [Gap fechado com fonte, Research.md Decision 17] {auto}
 
 ## Notes
 

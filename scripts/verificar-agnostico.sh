@@ -4,8 +4,19 @@
 # Garante o Princípio I (Agnosticismo Verificável, NON-NEGOTIABLE): nenhum
 # arquivo versionado cita termo de projeto, cliente, organização, domínio ou
 # credencial reais — nem no conteúdo, nem no caminho, nem no alvo de um
-# symlink. Lê scripts/agnostico.lista (data-model.md §Lista de termos
-# proibidos) e varre todo o repositório contra ela.
+# symlink. O conjunto de termos proibidos é a UNIÃO de duas fontes
+# complementares (FR-022, emenda 1.1.0): scripts/agnostico.lista (versionada,
+# data-model.md §Lista de termos proibidos, PODE ficar vazia) e a variável de
+# ambiente AGNOSTICO_TERMOS (fora do repositório — variável de Actions no CI,
+# ou exportada localmente pelo dev a partir de um arquivo ignorado pelo git).
+# Mesmo formato nas duas: um termo por linha, `#` comenta, linha em branco é
+# ignorada. Varre todo o repositório contra o conjunto unido.
+#
+# Guarda anti-vacuidade (research Decision 17): se as duas fontes ficarem
+# vazias e AGNOSTICO_EXIGIR_TERMOS=1 estiver setada (o job `agnostico` do CI
+# a exporta sempre), o script falha — a garantia nunca é "vazia por
+# construção" no CI. Fora do CI (variável ausente), conjunto vazio segue
+# sendo estado inicial legítimo (sucesso).
 #
 # Uso: ./scripts/verificar-agnostico.sh   (sem parâmetros — nenhum modo
 # parcial: a garantia é sobre "todo arquivo do repositório")
@@ -13,11 +24,13 @@
 # Efeito colateral: nenhum — só leitura. Idempotente por construção.
 #
 # Códigos de saída (contracts/cli.md):
-#   0  zero ocorrências (inclui lista vazia ou só com comentários)
+#   0  zero ocorrências (inclui as duas fontes de termos vazias quando
+#      AGNOSTICO_EXIGIR_TERMOS não é "1")
 #   1  uma ou mais ocorrências, listadas como arquivo:linha:texto; ocorrência
 #      no caminho sai como arquivo:0:(caminho) e no alvo de um symlink como
 #      arquivo:0:(alvo do symlink)
-#   2  erro de uso — agnostico.lista ausente ou ilegível, execução fora de um
+#   2  erro de uso — agnostico.lista ausente ou ilegível, as duas fontes de
+#      termos vazias com AGNOSTICO_EXIGIR_TERMOS=1, execução fora de um
 #      repositório git, git ls-files falhando ou sem listar este script,
 #      arquivo versionado ilegível, ou falha ao criar arquivo temporário
 set -euo pipefail
@@ -61,45 +74,83 @@ fi
 # Template explícito: o `mktemp` do BSD (macOS, alvo declarado no plan) exige
 # template e falharia sem argumento, saindo 2 em toda máquina local
 # (review rodada 4).
+LISTA_TMP="$(mktemp "${TMPDIR:-/tmp}/agnostico.XXXXXX")" || exit 2
+ENV_TMP="$(mktemp "${TMPDIR:-/tmp}/agnostico.XXXXXX")" || exit 2
+ENV_INPUT_TMP="$(mktemp "${TMPDIR:-/tmp}/agnostico.XXXXXX")" || exit 2
 TERMOS_TMP="$(mktemp "${TMPDIR:-/tmp}/agnostico.XXXXXX")" || exit 2
 ACHADOS_TMP="$(mktemp "${TMPDIR:-/tmp}/agnostico.XXXXXX")" || exit 2
 ARQS_TMP="$(mktemp "${TMPDIR:-/tmp}/agnostico.XXXXXX")" || exit 2
 BLOB_TMP="$(mktemp "${TMPDIR:-/tmp}/agnostico.XXXXXX")" || exit 2
-trap 'rm -f "$TERMOS_TMP" "$TERMOS_TMP.raw" "$TERMOS_TMP.trim" "$ACHADOS_TMP" "$ARQS_TMP" "$BLOB_TMP" "$BLOB_TMP.oc"' EXIT
+trap 'rm -f "$LISTA_TMP" "$LISTA_TMP.raw" "$LISTA_TMP.trim" "$ENV_TMP" "$ENV_TMP.raw" "$ENV_TMP.trim" "$ENV_INPUT_TMP" "$TERMOS_TMP" "$ACHADOS_TMP" "$ARQS_TMP" "$BLOB_TMP" "$BLOB_TMP.oc"' EXIT
 
-# Termos. Normalização ANTES de filtrar, senão "<termo>\r", "<termo> " ou um
-# BOM grudado no primeiro termo nunca casariam (review rodadas 1-2):
+# Termos, duas fontes (FR-022). Normalização ANTES de filtrar, senão
+# "<termo>\r", "<termo> " ou um BOM grudado no primeiro termo nunca casariam
+# (review rodadas 1-2):
 #   - tr -d '\r'  : CRLF (tr, não sed 's/\r$//' — no BSD sed o \r é 'r' literal)
 #   - BOM UTF-8   : só na 1ª linha (editor Windows "UTF-8 com BOM")
 #   - trim        : espaço nas pontas
 # Depois, '#' comenta e linha em branco é ignorada (research Decision 8). O que
 # sobra são os termos, um por linha, casados como substring literal (grep -F,
-# alimentado por -f para todos de uma vez). A leitura da lista fica fora do
-# `|| true` para que um erro de I/O seja exit 2, não "OK".
+# alimentado por -f para todos de uma vez). Mesma normalização para as duas
+# fontes — função única para não divergirem com o tempo.
 BOM="$(printf '\357\273\277')"
-tr -d '\r' < "$LISTA_REL" > "$TERMOS_TMP.raw" || {
-  echo "Agnosticismo: erro de uso — falha ao ler $LISTA_REL." >&2
-  exit 2
-}
-# Sem pipeline com `|| true`: ele engolia também uma falha do sed ou da
-# escrita (TMPDIR cheio) e o script anunciava "OK" sem ter aplicado um único
-# termo — falso negativo da guarda (review rodada 4). Em etapas separadas, só
-# o rc 1 do `grep -v` (lista só com comentários) é aceitável.
-sed -e "1s/^$BOM//" -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' "$TERMOS_TMP.raw" \
-  > "$TERMOS_TMP.trim" || {
-  echo "Agnosticismo: erro de uso — falha ao normalizar $LISTA_REL." >&2
-  exit 2
-}
-grep -vE '^(#|$)' "$TERMOS_TMP.trim" > "$TERMOS_TMP" || {
-  rc=$?
-  if [ "$rc" -ne 1 ]; then
-    echo "Agnosticismo: erro de uso — falha ao filtrar $LISTA_REL (grep rc=$rc)." >&2
+
+# normalizar_termos <arquivo-de-entrada> <arquivo-de-saida> <rotulo-p/-erro>
+# A leitura fica fora do `|| true` para que um erro de I/O seja exit 2, não
+# "OK"; sem pipeline com `|| true` no filtro final, senão engolia também uma
+# falha do sed ou da escrita (TMPDIR cheio) e o script anunciava "OK" sem ter
+# aplicado um único termo — falso negativo da guarda (review rodada 4). Só o
+# rc 1 do `grep -v` (fonte só com comentários) é aceitável.
+normalizar_termos() {
+  local origem="$1" destino="$2" rotulo="$3" rc
+  tr -d '\r' < "$origem" > "$destino.raw" || {
+    echo "Agnosticismo: erro de uso — falha ao ler $rotulo." >&2
     exit 2
-  fi
+  }
+  sed -e "1s/^$BOM//" -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' "$destino.raw" \
+    > "$destino.trim" || {
+    echo "Agnosticismo: erro de uso — falha ao normalizar $rotulo." >&2
+    exit 2
+  }
+  grep -vE '^(#|$)' "$destino.trim" > "$destino" || {
+    rc=$?
+    if [ "$rc" -ne 1 ]; then
+      echo "Agnosticismo: erro de uso — falha ao filtrar $rotulo (grep rc=$rc)." >&2
+      exit 2
+    fi
+  }
+  rm -f "$destino.raw" "$destino.trim"
 }
-rm -f "$TERMOS_TMP.raw" "$TERMOS_TMP.trim"
+
+normalizar_termos "$LISTA_REL" "$LISTA_TMP" "$LISTA_REL"
+
+# AGNOSTICO_TERMOS: variável de ambiente, não arquivo — grava o valor num
+# temporário antes de reusar a mesma normalização. `printf '%s'` (nunca
+# `echo`) preserva o conteúdo literal, inclusive sem quebra de linha final.
+printf '%s' "${AGNOSTICO_TERMOS:-}" > "$ENV_INPUT_TMP" || {
+  echo "Agnosticismo: erro de uso — falha ao materializar AGNOSTICO_TERMOS." >&2
+  exit 2
+}
+normalizar_termos "$ENV_INPUT_TMP" "$ENV_TMP" "AGNOSTICO_TERMOS"
+rm -f "$ENV_INPUT_TMP"
+
+# União (FR-022): concatenação simples — grep -f não distingue a origem de
+# cada padrão, e não precisa.
+cat "$LISTA_TMP" "$ENV_TMP" > "$TERMOS_TMP" || {
+  echo "Agnosticismo: erro de uso — falha ao unir as fontes de termos." >&2
+  exit 2
+}
 
 if [ ! -s "$TERMOS_TMP" ]; then
+  # Guarda anti-vacuidade (research Decision 17): só falha quando a execução
+  # se declara CI via AGNOSTICO_EXIGIR_TERMOS=1 (o job `agnostico` sempre
+  # exporta) — nunca por inferência de variável do runner (Princípio V). Fora
+  # do CI, conjunto vazio permanece estado inicial legítimo. Nunca imprime os
+  # termos em si, só que as duas fontes estão vazias.
+  if [ "${AGNOSTICO_EXIGIR_TERMOS:-}" = "1" ]; then
+    echo "Agnosticismo: erro de uso — as duas fontes de termos (scripts/agnostico.lista e AGNOSTICO_TERMOS) estão vazias; AGNOSTICO_EXIGIR_TERMOS=1 exige ao menos um termo em alguma delas." >&2
+    exit 2
+  fi
   echo "Agnosticismo: OK — nenhuma ocorrência de termo proibido."
   exit 0
 fi

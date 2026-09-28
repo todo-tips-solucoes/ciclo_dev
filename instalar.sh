@@ -1,29 +1,34 @@
 #!/usr/bin/env bash
 # instalar.sh — preparo de máquina para o ciclo de desenvolvimento do cockpit-dev.
 #
-# Pipeline linear de sete etapas (ver docs/specs/esqueleto-e-instalador/plan.md
-# §Arquitetura de `instalar.sh`): pré-requisitos, cstk (instalar/atualizar,
-# responde, piso mínimo), catálogo de skills do toolkit, skills do cockpit,
-# plugins. Escreve exclusivamente em ~/.claude/ e ~/.local/ — nunca dentro de
-# um diretório de projeto-alvo (Princípio VII, FR-011).
+# Pipeline sequencial por gates de sete etapas (ver
+# docs/specs/esqueleto-e-instalador/plan.md §Arquitetura de `instalar.sh`):
+# pré-requisitos, cstk (presente, responde, piso mínimo + release mais nova),
+# catálogo de skills do toolkit, skills do cockpit, plugins. A partir da
+# emenda 1.1.0 (Princípio IV) o script só VERIFICA e IMPRIME — nenhuma etapa
+# instala nem atualiza terceiro; a única escrita é a cópia das skills do
+# próprio cockpit em ~/.claude/skills/ (etapa 6, FR-011).
 #
 # Uso: ./instalar.sh   (sem parâmetros — não há variante)
 #
 # Códigos de saída (contracts/cli.md):
 #   0  nenhum item bloqueante falhou
-#   1  algum item bloqueante falhou
+#   1  algum item bloqueante falhou — o pipeline para nele (sequencial por
+#      gates); o relatório cobre só os itens avaliados até ali
 #   2  pré-requisito ausente ou abaixo do mínimo, HOME indefinido ou
 #      execução como root/sudo (recusadas antes de qualquer etapa)
-#   3  sem permissão de escrita em ~/.claude/ e/ou ~/.local/
+#   3  sem permissão de escrita em ~/.claude/skills/
 set -euo pipefail
 
 if [ -z "${HOME:-}" ]; then
-  echo "instalar.sh: HOME não definido — não há onde instalar (~/.claude/, ~/.local/)." >&2
+  echo "instalar.sh: HOME não definido — não há onde verificar/instalar skills (~/.claude/skills/)." >&2
   exit 2
 fi
-# O bootstrap do cstk instala em ~/.local/bin sem alterar o PATH do processo
-# (o install.sh oficial só avisa). Sem isto, numa máquina nova as etapas 3-5
-# falhariam em cascata logo depois de a etapa 2 instalar (review rodada 1).
+# cstk instalado pela pessoa vai para ~/.local/bin (README oficial) e pode não
+# estar no PATH da sessão atual — sem isto, esta verificação reportaria
+# "ausente" numa máquina onde o cstk já foi instalado, só porque o PATH do
+# shell corrente não inclui ~/.local/bin. Puramente para detecção: o script
+# não instala nada ali (emenda 1.1.0).
 case ":$PATH:" in
   *":$HOME/.local/bin:"*|*":$HOME/.local/bin/:"*) LOCAL_BIN_JA_NO_PATH=true ;;
   *) LOCAL_BIN_JA_NO_PATH=false ;;
@@ -44,18 +49,13 @@ REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)" || {
 REPORT_LINHAS=()
 REPORT_STATUS=()
 REPORT_BLOQUEANTE=()
+REPORT_EXECUTE=()
 
 CSTK_VERSAO_INSTALADA=""
 CSTK_MIN=""
-PLUGIN_STATUS=""
-
-# Temporários próprios, sempre sob ~/.local (FR-011). O trap cobre Ctrl-C no
-# meio do bootstrap ou do plano, que antes deixava sobras acumulando
-# (review rodada 5).
-TMPS=()
-# shellcheck disable=SC2317  # chamada pelo trap, não em linha reta
-limpar_tmps() { [ "${#TMPS[@]}" -eq 0 ] || rm -f -- "${TMPS[@]}" 2>/dev/null || :; }
-trap limpar_tmps EXIT
+PLUGIN_PRESENTE=""
+PLUGIN_HABILITADO=""
+PLUGIN_VERSAO=""
 
 # --- utilidades -------------------------------------------------------
 
@@ -68,9 +68,7 @@ log_etapa_fim() {
 }
 
 # dica_path — sufixo de aviso quando o cstk em uso vem de ~/.local/bin e esse
-# diretório não estava no PATH original do shell. Vale nas duas execuções: na
-# 2ª o prepend feito acima esconderia o problema e a dica sumia (review
-# rodada 2).
+# diretório não estava no PATH original do shell.
 dica_path() {
   [ "$LOCAL_BIN_JA_NO_PATH" = false ] || return 0
   case "$(command -v cstk 2>/dev/null || true)" in
@@ -79,11 +77,28 @@ dica_path() {
   return 0
 }
 
-# registrar_item <texto-completo-da-linha> <ok|falhou|pulada> <true|false-bloqueante>
+# registrar_item <texto-completo-da-linha> <ok|aviso|falhou|pulada> <true|false-bloqueante> [comando(s)-Execute]
+# O 4º argumento, quando presente, é uma ou mais linhas já formatadas como
+# "Execute: ..." (ou "Execute (depois de inspecionar): ..."), separadas por
+# newline literal — impressas indentadas sob o item no relatório final.
 registrar_item() {
   REPORT_LINHAS+=("$1")
   REPORT_STATUS+=("$2")
   REPORT_BLOQUEANTE+=("$3")
+  REPORT_EXECUTE+=("${4:-}")
+}
+
+# parar_se_bloqueado — sequencial por gates (FR-009, clarify Session
+# 2026-09-28): a primeira etapa que registrou item bloqueante com "falhou"
+# encerra a execução aqui; as etapas seguintes não rodam nem aparecem no
+# relatório. Item não bloqueante (aviso, ou falhou não-bloqueante) segue.
+parar_se_bloqueado() {
+  local i
+  for i in "${!REPORT_STATUS[@]}"; do
+    if [ "${REPORT_STATUS[$i]}" = falhou ] && [ "${REPORT_BLOQUEANTE[$i]}" = true ]; then
+      imprimir_relatorio_e_sair
+    fi
+  done
 }
 
 # versao_ge <instalada> <minima> — compara MAJOR.MINOR.PATCH numericamente,
@@ -145,23 +160,21 @@ checar_prerequisitos() {
   fi
 }
 
-# pré-checagem de escrita (CHK010): cria e remove arquivo temporário em cada
-# área antes de qualquer etapa escrever de verdade — sem isso não há como
-# garantir zero estado parcial (Acceptance Scenario 8/12).
+# pré-checagem de escrita (CHK010): cria e remove arquivo temporário em
+# ~/.claude/skills/ — única área que este script escreve (FR-011, emenda
+# 1.1.0) — antes de qualquer etapa escrever de verdade.
 prechecar_escrita() {
-  local area tmp
-  for area in "$HOME/.claude" "$HOME/.local"; do
-    if ! mkdir -p "$area" 2>/dev/null; then
-      echo "Sem permissão de escrita em: $area" >&2
-      exit 3
-    fi
-    tmp="$area/.instalar-sh-teste-escrita.$$"
-    if ! (: >"$tmp") 2>/dev/null; then
-      echo "Sem permissão de escrita em: $area" >&2
-      exit 3
-    fi
-    rm -f "$tmp"
-  done
+  local area="$HOME/.claude/skills" tmp
+  if ! mkdir -p "$area" 2>/dev/null; then
+    echo "Sem permissão de escrita em: $area" >&2
+    exit 3
+  fi
+  tmp="$area/.instalar-sh-teste-escrita.$$"
+  if ! (: >"$tmp") 2>/dev/null; then
+    echo "Sem permissão de escrita em: $area" >&2
+    exit 3
+  fi
+  rm -f "$tmp"
 }
 
 etapa1_prerequisitos() {
@@ -172,35 +185,24 @@ etapa1_prerequisitos() {
   log_etapa_fim 1 "concluída"
 }
 
-# --- etapas 2-4: cstk (instalar/atualizar, responde, piso) -------------
+# --- etapas 2-4: cstk (presente, responde, piso + release mais nova) ---
 
-etapa2_cstk_instalar_ou_atualizar() {
-  log_etapa_inicio 2 "instalando/atualizando cstk"
-  local status tmp
+# Verificar e imprimir, nunca instalar (emenda 1.1.0, Princípio IV): a etapa
+# 2 não baixa nem executa o instalador oficial — só confere presença. A URL
+# impressa é a mesma do one-liner do README, em dois passos (baixar para
+# arquivo, inspecionar, executar); a forma canalizada direto para o shell
+# não é impressa (A08 — research Decision 1/16).
+etapa2_cstk_presente() {
+  log_etapa_inicio 2 "verificando presença do cstk"
   if command -v cstk >/dev/null 2>&1; then
-    # Saída nativa do cstk passa sem filtro (block-002 → dec-036) — nada de
-    # >/dev/null aqui.
-    if cstk self-update --yes; then status=ok; else status=falhou; fi
-    registrar_item "cstk atualizado$(dica_path)" "$status" true
+    registrar_item "cstk presente$(dica_path)" ok false
+    log_etapa_fim 2 "concluída"
   else
-    # Temporário dentro de ~/.local (FR-011: nada fora de ~/.claude e ~/.local;
-    # a etapa 1 já garantiu que ~/.local existe e é gravável).
-    # CSTK_INSTALL_TELEMETRY=no: o install.sh oficial abre um prompt de
-    # telemetria em /dev/tty e, se aceito, grava no rc do shell — fora da área
-    # permitida e contra o "sem interação" do contrato. O dev habilita depois
-    # com `cstk help telemetry` se quiser (review rodada 1).
-    tmp="$(mktemp "$HOME/.local/.instalar-cstk.XXXXXX")"
-    TMPS+=("$tmp")
-    if curl -fsSL "$CSTK_INSTALL_URL" -o "$tmp" && CSTK_INSTALL_TELEMETRY=no sh "$tmp"; then
-      status=ok
-    else
-      status=falhou
-    fi
-    rm -f "$tmp"
-    hash -r
-    registrar_item "cstk instalado$(dica_path)" "$status" true
+    registrar_item "cstk presente — cstk não encontrado no PATH" falhou true \
+      "Execute: curl -fsSL $CSTK_INSTALL_URL -o \"\$HOME/cstk-install.sh\"
+Execute (depois de inspecionar): sh \"\$HOME/cstk-install.sh\""
+    log_etapa_fim 2 "falhou"
   fi
-  log_etapa_fim 2 "$([ "$status" = ok ] && echo "concluída" || echo "falhou")"
 }
 
 etapa3_cstk_responde() {
@@ -247,10 +249,17 @@ ler_cstk_min() {
   printf '%s' "$v" | tr -d '[:space:]'
 }
 
+# O piso (FR-004) é conferido contra a versão INSTALADA — sem self-update
+# prévio (a etapa 2 já não instala nem atualiza nada). Só quando o piso é
+# atendido a etapa consulta, também somente leitura, se há release mais nova
+# (`cstk self-update --check`, rc 0 em dia / 10 há mais nova / outro erro —
+# research Decision 16): release mais nova ou checagem indisponível avisam,
+# sem bloquear; abaixo do piso bloqueia (Decision 12: aviso/falhou não-
+# bloqueante precisa de status capturado explicitamente sob set -e).
 etapa4_cstk_piso() {
   log_etapa_inicio 4 "conferindo piso mínimo do cstk"
   CSTK_MIN="$(ler_cstk_min)"
-  local status detalhe
+  local status detalhe execute=""
   if ! [[ "$CSTK_MIN" =~ ^[0-9]+(\.[0-9]+){1,2}$ ]]; then
     status=falhou
     detalhe="CSTK_MIN ausente ou inválido em versoes.env (lido: '${CSTK_MIN:-vazio}')"
@@ -260,110 +269,106 @@ etapa4_cstk_piso() {
   elif versao_ge "$CSTK_VERSAO_INSTALADA" "$CSTK_MIN"; then
     status=ok
     detalhe="$CSTK_VERSAO_INSTALADA >= $CSTK_MIN"
+    local saida rc=0
+    saida="$(cstk self-update --check 2>&1)" || rc=$?
+    case "$rc" in
+      0) : ;; # em dia — ok, sem Execute (nada a fazer)
+      10)
+        status=aviso
+        local latest
+        latest="$(printf '%s' "$saida" | grep -oE 'latest:[^[:space:]]+' | cut -d: -f2- || true)"
+        detalhe="$detalhe — release mais nova disponível: ${latest:-desconhecida}"
+        execute="Execute: cstk self-update"
+        ;;
+      *)
+        status=aviso
+        detalhe="$detalhe — não foi possível verificar release mais nova"
+        ;;
+    esac
   else
     status=falhou
     detalhe="instalada $CSTK_VERSAO_INSTALADA, piso exigido $CSTK_MIN"
+    execute="Execute: cstk self-update"
   fi
-  registrar_item "Versão do cstk >= CSTK_MIN ($detalhe)" "$status" true
-  log_etapa_fim 4 "$([ "$status" = ok ] && echo "concluída" || echo "falhou")"
+  registrar_item "Versão do cstk >= CSTK_MIN ($detalhe)" "$status" \
+    "$([ "$status" = falhou ] && echo true || echo false)" "$execute"
+  log_etapa_fim 4 "$([ "$status" = falhou ] && echo "falhou" || echo "concluída")"
 }
 
 # --- etapa 5: catálogo de skills do toolkit -----------------------------
 
-# skills_faltantes — nomes que o catálogo da release tem e esta máquina não.
-# `cstk install --dry-run` marca cada artefato como `install:` (ausente) ou
-# `update:` (presente); só os primeiros interessam. Cobre tanto skill apagada
-# do disco quanto skill nova de uma release mais recente. Falha de parse
-# devolve lista vazia — degrada para "só update", nunca para escrita cega.
-# skills_faltantes <arquivo-de-saída> — grava um nome por linha e devolve o rc
-# do próprio `cstk install --dry-run`. Separar o rc do parse importa: com
-# `| sed ... || true`, um dry-run que falha (sem rede, subcomando renomeado)
-# ficava indistinguível de "nada falta", e a etapa terminava [ok] numa máquina
-# com skills faltando (review rodada 4).
-#   2>&1: o cstk imprime o plano em STDERR (medido: 33 linhas em stderr, 0 em
-#   stdout). </dev/null: o dry-run não escreve nada, mas o stdin herdado é o
-#   terminal e o contrato do instalador é "sem interação".
-#   Filtro: só nome plausível de artefato. Token começando com hífen viraria
-#   FLAG de `cstk install` — e uma flag errada aqui é exatamente a escrita
-#   cega que esta etapa existe para evitar.
-skills_faltantes() {
-  local saida rc=0
-  saida="$(cstk install --dry-run --yes </dev/null 2>&1)" || rc=$?
-  printf '%s\n' "$saida" \
-    | sed -n 's/.*\[dry-run\] install: *//p' \
-    | grep -E '^[A-Za-z0-9][A-Za-z0-9._@-]*$' > "$1" || true
-  return "$rc"
-}
-
+# Verificar e imprimir, nunca instalar (emenda 1.1.0): catálogo ausente
+# bloqueia (mesma classe de pré-requisito duro que "sem cstk" — FR-006);
+# skill faltando ou artefato defasado, detectados só por `--dry-run`
+# (research Decision 16), viram aviso não-bloqueante com o comando oficial
+# impresso — nunca `cstk install`/`cstk update` reais.
 etapa5_catalogo() {
-  log_etapa_inicio 5 "provisionando catálogo de skills do toolkit"
-  local status
+  log_etapa_inicio 5 "verificando catálogo de skills do toolkit"
   if ! command -v cstk >/dev/null 2>&1; then
     registrar_item "Catálogo de skills do toolkit — cstk indisponível" falhou true
     log_etapa_fim 5 "falhou"
     return
   fi
-  # Sem manifest não há catálogo: instalação cheia, nada a preservar.
-  # Com manifest, NUNCA `install --yes` cheio — ele sobrescreve toda edição
-  # local de skills, commands e agents em silêncio (medido: toda skill do perfil marcada `updated`,
-  # edição local perdida, rc 0). O que restaura o que falta sem tocar no resto
-  # é o cherry-pick por nome (medido: `installed: 1`, edição das demais
-  # intacta). Depois, `update` para o que já existe.
-  #   Histórico: "não-vazio" (r1) mandava update a máquina sem catálogo;
-  #   "manifest presente" (r2) relatava [ok] com catálogo vazio; o cherry-pick
-  #   fecha os dois e ainda traz skill nova de release mais recente (r3).
-  local faltantes=() n
   if [ ! -f "$HOME/.claude/skills/.cstk-manifest" ]; then
-    if cstk install --yes; then status=ok; else status=falhou; fi
-    registrar_item "Catálogo de skills do toolkit" "$status" true
-    log_etapa_fim 5 "$([ "$status" = ok ] && echo "concluída" || echo "falhou")"
-    return
-  fi
-  local plano detalhe=""
-  if ! plano="$(mktemp "$HOME/.local/.instalar-plano.XXXXXX")"; then
-    registrar_item "Catálogo de skills do toolkit — não consegui criar arquivo temporário" falhou true
+    registrar_item "Catálogo de skills do toolkit — manifest ausente" falhou true "Execute: cstk install"
     log_etapa_fim 5 "falhou"
     return
   fi
-  TMPS+=("$plano")
-  status=ok
-  if ! skills_faltantes "$plano"; then
-    rm -f "$plano"
-    registrar_item "Catálogo de skills do toolkit — 'cstk install --dry-run' falhou; não dá para saber o que falta" falhou true
-    log_etapa_fim 5 "falhou"
-    return
-  fi
-  while IFS= read -r n; do [ -n "$n" ] && faltantes+=("$n"); done < "$plano"
-  rm -f "$plano"
-  if [ "${#faltantes[@]}" -gt 0 ]; then
-    if cstk install --yes "${faltantes[@]}"; then
-      detalhe=" — ${#faltantes[@]} item(ns) ausente(s) reinstalado(s): ${faltantes[*]}"
-    else
-      status=falhou
+  local status=ok detalhe="" execute=""
+
+  # O que falta: linhas "[dry-run] install: <nome>" em stderr (2>&1 captura
+  # ambos); só nome plausível entra no comando impresso — um token com
+  # hífen viraria flag na mão de quem copia (mesmo filtro do review rodada
+  # 3-4 anterior à emenda).
+  local saida rc=0 faltantes
+  saida="$(cstk install --dry-run --yes </dev/null 2>&1)" || rc=$?
+  if [ "$rc" -ne 0 ]; then
+    status=aviso
+    detalhe="não foi possível verificar o que falta ('cstk install --dry-run' rc=$rc)"
+  else
+    faltantes="$(printf '%s\n' "$saida" \
+      | sed -n 's/.*\[dry-run\] install: *//p' \
+      | grep -E '^[A-Za-z0-9][A-Za-z0-9._@-]*$' | tr '\n' ' ' || true)"
+    faltantes="${faltantes% }"
+    if [ -n "$faltantes" ]; then
+      status=aviso
+      detalhe="faltando: $faltantes"
+      execute="Execute: cstk install $faltantes"
     fi
   fi
-  if [ "$status" = ok ]; then
-    # rc 4 é `CSTK_EXIT_LOCAL_EDIT` ("artefato pulado por edicao local sem
-    # --force/--keep", `cstk update --help` §EXIT CODES): a preservação é o
-    # comportamento correto e documentado, não uma falha — tratá-la como
-    # bloqueante fazia toda execução sair 1 numa máquina com qualquer ajuste
-    # local (review rodada 3). Sem --force e sem --keep de propósito: o aviso
-    # nativo do cstk nomeia o artefato e passa sem filtro (dec-036).
-    cstk update --yes && rc=0 || rc=$?
-    case "$rc" in
-      0) : ;;
-      4) detalhe="$detalhe — edição local preservada (nada sobrescrito)" ;;
-      *) status=falhou ;;
-    esac
+
+  # O que está defasado: resumo "updated: N" de `cstk update --dry-run`
+  # (research Decision 16/Adendo rodada 4).
+  rc=0
+  saida="$(cstk update --dry-run --yes </dev/null 2>&1)" || rc=$?
+  if [ "$rc" -ne 0 ]; then
+    status=aviso
+    detalhe="${detalhe:+$detalhe; }não foi possível verificar defasagem ('cstk update --dry-run' rc=$rc)"
+  else
+    local n
+    n="$(printf '%s\n' "$saida" | grep -oE '^updated: [0-9]+' | grep -oE '[0-9]+' || true)"
+    if [ -n "$n" ] && [ "$n" -gt 0 ]; then
+      status=aviso
+      detalhe="${detalhe:+$detalhe; }defasado: $n item(ns)"
+      if [ -n "$execute" ]; then
+        execute="$execute
+Execute: cstk update"
+      else
+        execute="Execute: cstk update"
+      fi
+    fi
   fi
-  registrar_item "Catálogo de skills do toolkit${detalhe}" "$status" true
-  log_etapa_fim 5 "$([ "$status" = ok ] && echo "concluída" || echo "falhou")"
+
+  registrar_item "Catálogo de skills do toolkit${detalhe:+ — $detalhe}" "$status" false "$execute"
+  log_etapa_fim 5 "concluída"
 }
 
 # --- etapa 6: skills do cockpit -----------------------------------------
 
 # Idempotência com aviso, nunca sobrescrita silenciosa (research Decision 14):
 # ausente → copia; idêntico → no-op; diverge → avisa e atualiza mesmo assim.
+# Única escrita do instalador (FR-007, FR-011) — a emenda 1.1.0 não muda
+# esta etapa.
 etapa6_skills_cockpit() {
   log_etapa_inicio 6 "provisionando skills do cockpit"
   local origem="$REPO_ROOT/skills"
@@ -469,34 +474,58 @@ marketplace_registrado() {
     jq -e --arg n "$1" '[.[] | select(.name==$n)] | length > 0' >/dev/null 2>&1
 }
 
-plugin_instalado_user() {
-  claude plugin list --json 2>/dev/null |
-    jq -e --arg id "$1" '[.[] | select(.id==$id and .scope=="user")] | length > 0' >/dev/null 2>&1
+# plugin_info <id> — somente leitura (`claude plugin list --json`, campos
+# .id/.scope/.enabled/.version — research Decision 16). Preenche
+# PLUGIN_PRESENTE/PLUGIN_HABILITADO/PLUGIN_VERSAO; nunca instala/atualiza.
+plugin_info() {
+  local id="$1" json
+  json="$(claude plugin list --json 2>/dev/null)" || json="[]"
+  PLUGIN_PRESENTE=false
+  PLUGIN_HABILITADO=false
+  PLUGIN_VERSAO=""
+  if printf '%s' "$json" | jq -e --arg id "$id" '[.[] | select(.id==$id and .scope=="user")] | length > 0' >/dev/null 2>&1; then
+    PLUGIN_PRESENTE=true
+    PLUGIN_HABILITADO="$(printf '%s' "$json" | jq -r --arg id "$id" '[.[] | select(.id==$id and .scope=="user")][0].enabled')"
+    PLUGIN_VERSAO="$(printf '%s' "$json" | jq -r --arg id "$id" '[.[] | select(.id==$id and .scope=="user")][0].version')"
+  fi
 }
 
-# provisionar_plugin <plugin> <marketplace> <origem-github> — ausente instala,
-# presente atualiza (mesmo padrão da etapa 2 com o cstk — CHK011). Nunca passa
-# -y/--accept-command: comando declarado pelo marketplace exige confirmação
-# humana (plan.md §Superfície de Segurança, controle ASI04/ASI05). Deixa a
-# saída nativa do `claude` passar sem filtro (dec-036) — por isso o status é
-# devolvido via $PLUGIN_STATUS, não via stdout (que aqui é do usuário, não
-# um canal de retorno).
-provisionar_plugin() {
-  local plugin="$1" marketplace="$2" origem="$3" id
-  id="${plugin}@${marketplace}"
-  if ! marketplace_registrado "$marketplace"; then
-    claude plugin marketplace add "$origem" || true
-  fi
-  if plugin_instalado_user "$id"; then
-    if claude plugin update "$plugin" -s user; then PLUGIN_STATUS=ok; else PLUGIN_STATUS=falhou; fi
+# verificar_plugin <plugin> <marketplace> <origem-github> <bloqueante> —
+# decide por plugin, não em bloco (CHK011): presente e habilitado → ok, sem
+# comando impresso (Decision 16 — não há sinal somente leitura de
+# "desatualizado", não se afirma o que não se sabe); ausente → Execute com
+# marketplace add (só se o marketplace também faltar) + install; desabilitado
+# → Execute enable. Nunca `-y`/`--accept-command`: comando declarado pelo
+# marketplace exige confirmação humana (plan.md §Superfície de Segurança).
+verificar_plugin() {
+  local plugin="$1" marketplace="$2" origem="$3" bloqueante="$4"
+  local id="${plugin}@${marketplace}" status execute="" texto
+  plugin_info "$id"
+  if [ "$PLUGIN_PRESENTE" = true ] && [ "$PLUGIN_HABILITADO" = true ]; then
+    status=ok
+    texto="Plugin $plugin (${PLUGIN_VERSAO:-versão desconhecida})"
+  elif [ "$PLUGIN_PRESENTE" = true ]; then
+    status=falhou
+    texto="Plugin $plugin — desabilitado"
+    execute="Execute: claude plugin enable $plugin -s user"
   else
-    if claude plugin install "$id" -s user; then PLUGIN_STATUS=ok; else PLUGIN_STATUS=falhou; fi
+    status=falhou
+    texto="Plugin $plugin — ausente"
+    if marketplace_registrado "$marketplace"; then
+      execute="Execute: claude plugin install $id -s user"
+    else
+      execute="Execute: claude plugin marketplace add $origem
+Execute: claude plugin install $id -s user"
+    fi
   fi
+  if [ "$status" = falhou ] && [ "$bloqueante" = false ]; then
+    texto="$texto (não bloqueante)"
+  fi
+  registrar_item "$texto" "$status" "$([ "$status" = falhou ] && echo "$bloqueante" || echo false)" "$execute"
 }
 
 etapa7_plugins() {
-  log_etapa_inicio 7 "provisionando plugins"
-  local status_cm status_pt
+  log_etapa_inicio 7 "verificando plugins"
   # O CLI claude não é pré-requisito de máquina (Princípio VII), mas sem ele
   # a etapa inteira falha: nomear a causa no relatório em vez de deixar um
   # "command not found" engolido (review rodada 1).
@@ -506,17 +535,11 @@ etapa7_plugins() {
     log_etapa_fim 7 "falhou"
     return
   fi
-  provisionar_plugin "context-mode" "context-mode" "$CTX_MODE_REPO"
-  status_cm="$PLUGIN_STATUS"
-  registrar_item "Plugin context-mode" "$status_cm" true
-
-  provisionar_plugin "ponytail" "ponytail" "$PONYTAIL_REPO"
-  status_pt="$PLUGIN_STATUS"
-  if [ "$status_pt" = ok ]; then
-    registrar_item "Plugin ponytail" ok false
-  else
-    registrar_item "Plugin ponytail — não bloqueante" falhou false
-  fi
+  local n status_cm
+  n=${#REPORT_STATUS[@]}
+  verificar_plugin "context-mode" "context-mode" "$CTX_MODE_REPO" true
+  status_cm="${REPORT_STATUS[$n]}"
+  verificar_plugin "ponytail" "ponytail" "$PONYTAIL_REPO" false
   log_etapa_fim 7 "$([ "$status_cm" = ok ] && echo "concluída" || echo "falhou")"
 }
 
@@ -525,9 +548,14 @@ etapa7_plugins() {
 imprimir_relatorio_e_sair() {
   echo
   echo "Relatório de preparo da máquina:"
-  local i
+  local i linha
   for i in "${!REPORT_LINHAS[@]}"; do
     printf '  %-10s%s\n' "[${REPORT_STATUS[$i]}]" "${REPORT_LINHAS[$i]}"
+    if [ -n "${REPORT_EXECUTE[$i]}" ]; then
+      while IFS= read -r linha; do
+        printf '            %s\n' "$linha"
+      done <<<"${REPORT_EXECUTE[$i]}"
+    fi
   done
   for i in "${!REPORT_STATUS[@]}"; do
     if [ "${REPORT_STATUS[$i]}" = falhou ] && [ "${REPORT_BLOQUEANTE[$i]}" = true ]; then
@@ -539,16 +567,16 @@ imprimir_relatorio_e_sair() {
 
 main() {
   if [ "$(id -u)" -eq 0 ]; then
-    echo "instalar.sh recusa rodar como root/sudo — os alvos são ~/.claude/ e ~/.local/ do próprio usuário." >&2
+    echo "instalar.sh recusa rodar como root/sudo — o alvo é ~/.claude/skills/ do próprio usuário." >&2
     exit 2
   fi
-  etapa1_prerequisitos
-  etapa2_cstk_instalar_ou_atualizar
-  etapa3_cstk_responde
-  etapa4_cstk_piso
-  etapa5_catalogo
-  etapa6_skills_cockpit
-  etapa7_plugins
+  etapa1_prerequisitos; parar_se_bloqueado
+  etapa2_cstk_presente; parar_se_bloqueado
+  etapa3_cstk_responde; parar_se_bloqueado
+  etapa4_cstk_piso; parar_se_bloqueado
+  etapa5_catalogo; parar_se_bloqueado
+  etapa6_skills_cockpit; parar_se_bloqueado
+  etapa7_plugins; parar_se_bloqueado
   imprimir_relatorio_e_sair
 }
 
