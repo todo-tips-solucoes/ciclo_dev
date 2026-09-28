@@ -1,0 +1,15 @@
+# Lista de termos proibidos — cockpit-dev.
+#
+# Comentários começam com "#" e são ignorados. Linhas em branco são
+# ignoradas. Um termo por linha, casado como substring literal e sem
+# distinção de maiúsculas/minúsculas (grep -i -F) por
+# scripts/verificar-agnostico.sh — nunca como expressão regular.
+#
+# scripts/agnostico.lista é o próprio excluído da varredura (senão casaria
+# contra si mesmo e a verificação falharia sempre).
+#
+# Este arquivo nasce vazio de propósito: nenhum termo real pode ser citado
+# aqui como exemplo, porque isso violaria o próprio agnosticismo que ele
+# garante (Princípio I da constitution). Acrescente um termo por linha
+# quando houver de fato o que barrar (nome de cliente, projeto, organização,
+# domínio ou credencial reais).
