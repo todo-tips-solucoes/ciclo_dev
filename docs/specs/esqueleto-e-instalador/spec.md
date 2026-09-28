@@ -33,10 +33,13 @@
 
 ### User Story 1 - Preparar a máquina para o ciclo com um comando (Priority: P1)
 
-Um dev do time, numa máquina nova ou desatualizada, roda um único comando para deixar
-a máquina pronta para o ciclo de desenvolvimento agêntico: as ferramentas de base
-presentes na versão mínima exigida, a etapa de implementação do ciclo instalada e
-atualizada, as skills do cockpit disponíveis e os plugins necessários instalados.
+Um dev do time, numa máquina nova ou desatualizada, roda um único comando para
+verificar que a máquina está pronta para o ciclo de desenvolvimento agêntico: as
+ferramentas de base presentes na versão mínima exigida, a presença e o piso de versão
+da etapa de implementação do ciclo conferidos, as skills do cockpit disponíveis e a
+presença dos plugins necessários conferida — o que faltar vem com o comando oficial
+exato para o próprio dev executar, nunca instalado ou atualizado pelo comando em nome
+dele (Princípio IV, emenda 1.1.0).
 
 **Why this priority**: sem a máquina pronta, nenhuma outra etapa do ciclo (worktree,
 `/feature-00c`, revisão, PR) é possível. É o ponto de entrada de qualquer novo dev ou
@@ -54,15 +57,16 @@ versão exigida — sem precisar de nenhuma outra parte desta feature.
    exatamente quais ferramentas estão faltando, antes de tentar qualquer instalação.
 2. **Given** uma máquina com todos os pré-requisitos na versão mínima exigida, mas sem a
    ferramenta de implementação do ciclo instalada, **When** o comando de preparo é
-   executado, **Then** a ferramenta é instalada pelo canal oficial e, ao final, sua versão
-   é confirmada contra o piso mínimo do projeto.
+   executado, **Then** ele para (exit diferente de zero) imprimindo o comando oficial
+   exato de instalação — sem baixar nem executar nada em nome do dev.
 3. **Given** uma máquina onde a ferramenta de implementação já está instalada numa versão
-   mais antiga, **When** o comando de preparo é executado, **Then** ela é atualizada para a
-   última versão disponível antes de qualquer verificação de piso.
-4. **Given** uma máquina onde, mesmo após a atualização, a versão instalada da ferramenta
-   de implementação fica abaixo do piso mínimo do projeto, **When** o comando de preparo é
-   executado, **Then** ele falha com uma mensagem clara informando a versão instalada e o
-   piso exigido.
+   que atende ao piso mínimo, mas existe uma release mais nova disponível, **When** o
+   comando de preparo é executado, **Then** ele avisa e imprime o comando oficial de
+   atualização, sem executá-lo, e o restante do preparo prossegue normalmente.
+4. **Given** uma máquina onde a versão instalada da ferramenta de implementação fica
+   abaixo do piso mínimo do projeto, **When** o comando de preparo é executado, **Then**
+   ele falha (exit diferente de zero) com uma mensagem clara informando a versão
+   instalada, o piso exigido e o comando oficial de atualização.
 5. **Given** uma máquina onde a ferramenta de implementação não responde a uma checagem de
    versão, **When** o comando de preparo é executado, **Then** ele falha com uma mensagem
    clara — nunca prossegue silenciosamente sem essa peça.
@@ -78,9 +82,10 @@ versão exigida — sem precisar de nenhuma outra parte desta feature.
    escrita, código de saída dedicado, e sem deixar nenhum estado parcial (nada chegou a ser
    escrito).
 9. **Given** a ferramenta de implementação do ciclo já instalada na versão exigida, mas um
-   dos plugins necessários ausente enquanto o outro já está instalado e correto, **When** o
-   comando de preparo é executado, **Then** apenas o plugin ausente é instalado — o plugin
-   já correto não é reinstalado nem afetado.
+   dos plugins necessários ausente enquanto o outro já está presente e habilitado,
+   **When** o comando de preparo é executado, **Then** ele imprime o comando oficial
+   apenas para o plugin ausente — o plugin já presente e habilitado não é mencionado nem
+   tocado.
 
 ---
 
@@ -173,11 +178,22 @@ que a checagem automática da mudança falha nos três casos, apontando qual che
   código de saída dedicado (ver contracts/cli.md), distinto do código de pré-requisito de
   ferramenta ausente, e a mensagem identifica qual área não pôde ser escrita.
 - O que acontece quando a ferramenta de implementação do ciclo está instalada, na versão
-  exigida, mas um dos plugins necessários está ausente? A execução deve instalar apenas o
-  que falta, sem reinstalar o que já está correto.
-- O que acontece quando a instalação/atualização do plugin recomendado falha? O comando
-  reporta a falha apenas no status individual desse item e ainda assim relata sucesso
-  geral; só a falha do plugin obrigatório bloqueia o comando inteiro.
+  exigida, mas um dos plugins necessários está ausente? A execução imprime o comando
+  oficial apenas para o que falta, sem mencionar o que já está correto.
+- O que acontece quando o plugin recomendado está ausente ou desabilitado? O comando
+  reporta isso apenas no status individual desse item e ainda assim relata sucesso geral;
+  só a ausência ou desabilitação do plugin obrigatório bloqueia o comando inteiro.
+- O que acontece quando o catálogo de skills do toolkit nunca foi provisionado nesta
+  máquina? É pré-requisito duro, na mesma classe de "sem cstk": o comando falha
+  (exit diferente de zero) e imprime o comando oficial de instalação do catálogo.
+- O que acontece quando o catálogo de skills do toolkit já existe nesta máquina mas está
+  desatualizado frente à release instalada do `cstk`? É aviso, não bloqueio: o comando
+  imprime o comando oficial de atualização e o restante do preparo prossegue normalmente.
+- O que acontece quando a verificação de agnosticismo roda no CI sem nenhum termo em
+  `scripts/agnostico.lista` e sem a variável `AGNOSTICO_TERMOS` setada? Ela falha — a
+  garantia nunca pode voltar a ser vazia por construção (Princípio I, emenda 1.1.0). Fora
+  do CI (máquina local), as duas fontes vazias é o estado inicial legítimo e a
+  verificação passa normalmente.
 - O que acontece quando um arquivo binário do repositório contém, por acaso, uma sequência
   de bytes igual a um termo da lista proibida? Fica fora do escopo desta feature tratar
   colisões binárias; a varredura assume conteúdo textual.
@@ -206,26 +222,35 @@ que a checagem automática da mudança falha nos três casos, apontando qual che
   mínima exigida de git (>=2.36) e node (>=20) — gh, jq e curl MUST ser checados apenas
   por presença, sem piso de versão — e MUST falhar listando claramente cada uma que
   estiver ausente ou (no caso de git/node) abaixo do mínimo.
-- **FR-002**: O sistema MUST instalar a ferramenta de implementação do ciclo pelo canal
-  oficial quando ela não estiver presente na máquina.
-- **FR-003**: O sistema MUST atualizar a ferramenta de implementação do ciclo para a
-  última versão disponível quando ela já estiver presente, antes de qualquer verificação
-  de piso mínimo.
-- **FR-004**: O sistema MUST conferir, após a instalação ou atualização, se a versão da
-  ferramenta de implementação atende a um piso mínimo mantido em um único lugar
-  versionado, e MUST falhar apenas quando a versão instalada ficar abaixo desse piso.
+- **FR-002**: O sistema MUST verificar a ausência da ferramenta de implementação do ciclo
+  e, quando ausente, MUST imprimir o comando oficial exato de instalação e parar (exit
+  diferente de zero) — nunca baixar nem executar código de instalação em nome do dev
+  (Princípio IV, emenda 1.1.0).
+- **FR-003**: O sistema MUST verificar se há uma release mais nova da ferramenta de
+  implementação disponível quando ela já estiver presente e, havendo, MUST avisar e
+  imprimir o comando oficial de atualização, sem executá-lo e sem bloquear o restante da
+  execução — o piso mínimo (FR-004) é o que importa, não estar na última release.
+- **FR-004**: O sistema MUST conferir se a versão presente da ferramenta de implementação
+  atende a um piso mínimo mantido em um único lugar versionado, e MUST falhar (exit
+  diferente de zero) apenas quando a versão instalada ficar abaixo desse piso.
 - **FR-005**: O sistema MUST falhar com mensagem clara quando a ferramenta de
   implementação não responder a uma checagem de versão.
-- **FR-006**: O sistema MUST provisionar (instalar na primeira execução, atualizar nas
-  seguintes) o que a ferramenta de implementação exige para operar sobre a máquina, de
-  forma idempotente.
+- **FR-006**: O sistema MUST verificar, em modo somente leitura, se o catálogo de skills
+  que a ferramenta de implementação provisiona está ausente ou desatualizado nesta
+  máquina, e MUST imprimir o comando oficial correspondente (instalação quando ausente,
+  atualização quando desatualizado) sem executá-lo. Catálogo totalmente ausente MUST
+  falhar o comando (exit diferente de zero) — mesma classe de pré-requisito duro que
+  "sem cstk"; catálogo presente porém desatualizado MUST apenas avisar, sem bloquear
+  (Princípio IV, emenda 1.1.0).
 - **FR-007**: O sistema MUST disponibilizar as skills do cockpit no diretório de skills
   global do usuário.
-- **FR-008**: O sistema MUST instalar ou atualizar, pelos canais oficiais de cada um, um
-  plugin obrigatório de consulta externa e um plugin recomendado de simplicidade de
-  código. Falha na instalação/atualização do plugin obrigatório MUST falhar o comando
-  inteiro; falha na instalação/atualização do plugin recomendado MUST ser reportada
-  apenas no status individual desse item (FR-009), sem falhar o comando.
+- **FR-008**: O sistema MUST verificar, pelos canais oficiais de cada um, se um plugin
+  obrigatório de consulta externa e um plugin recomendado de simplicidade de código
+  estão presentes e habilitados, e MUST imprimir o comando oficial de instalação ou
+  atualização para cada um que estiver ausente, desabilitado ou desatualizado — sem
+  executar nenhum desses comandos. Plugin obrigatório ausente/desabilitado MUST falhar o
+  comando inteiro; plugin recomendado ausente/desabilitado MUST ser reportado apenas no
+  status individual desse item (FR-009), sem falhar o comando.
 - **FR-009**: O sistema MUST, ao final da execução, relatar o status individual de
   cada item preparado (ferramentas de base, ferramenta de implementação, skills,
   plugins) com o resultado do comando que o preparou; a ferramenta de implementação
@@ -265,6 +290,12 @@ que a checagem automática da mudança falha nos três casos, apontando qual che
 - **FR-021**: As exceções da varredura de segredo (placeholders de exemplo reconhecidos
   como falso positivo) MUST ser mantidas em arquivo versionado do repositório, revisável
   na mesma alteração que as introduz.
+- **FR-022**: A verificação de agnosticismo MUST unir os termos de
+  `scripts/agnostico.lista` (versionada, MAY ficar vazia) com os termos da variável de
+  ambiente `AGNOSTICO_TERMOS` (setada por variável de Actions no CI, ou exportada
+  localmente pelo dev a partir de uma fonte fora do controle de versão) como fontes
+  complementares de termos proibidos, e MUST falhar quando as duas fontes estiverem
+  vazias e a execução for detectada como CI (Princípio I, emenda 1.1.0).
 
 > Decisões de infraestrutura: N/A — feature stateless, sem scheduler, sessão persistente,
 > refresh de token externo, rotação de chave ou lock multi-processo. É um comando de
@@ -286,8 +317,9 @@ que a checagem automática da mudança falha nos três casos, apontando qual che
 
 ### Measurable Outcomes
 
-- **SC-001**: Uma máquina nova fica com todas as ferramentas do ciclo confirmadas
-  rodando um único comando, sem nenhuma etapa manual adicional.
+- **SC-001**: Um único comando confirma, numa só execução, se a máquina está pronta para
+  o ciclo — sem etapa manual adicional quando já está; com o comando oficial exato a
+  executar, quando não está.
 - **SC-002**: Rodar o comando de preparo da máquina uma segunda vez consecutiva produz o
   mesmo relatório de sucesso da primeira vez, sem nenhuma duplicação perceptível.
 - **SC-003**: 100% das tentativas de introduzir um termo proibido em qualquer arquivo do
@@ -308,7 +340,4 @@ que a checagem automática da mudança falha nos três casos, apontando qual che
 
 ## Delta Requirements
 
-**Skip**: repositório novo, sem corpus `docs/specs/current/` ainda publicado — nenhum
-comportamento hoje ativo do cockpit para esta feature alterar; é a primeira frente de
-código do MVP (item 1 e item 6 do briefing) — agente-00c-feature-orchestrator,
-2026-09-25.
+**Skip**: repositório novo, sem corpus `docs/specs/current/` ainda publicado — nenhum comportamento hoje ativo do cockpit para esta feature alterar; é a primeira frente de código do MVP (item 1 e item 6 do briefing) e o incremento da rodada r02 (emenda 1.1.0) apenas corrige requisitos já registrados nesta mesma spec, sem tocar comportamento de outra feature — agente-00c-feature-orchestrator, 2026-09-28.
