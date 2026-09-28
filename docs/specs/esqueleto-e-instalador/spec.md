@@ -29,6 +29,16 @@
   automática do repositório — sem acrescentar pré-requisito à máquina do dev (Princípio VII
   preservado) e sem emenda constitucional. Decidido pelo owner (block-001/dec-023).
 
+### Session 2026-09-28
+
+- Q: Quando um item bloqueante é encontrado (ex.: ferramenta de base ausente ou abaixo do
+  piso), o comando de preparo deve parar imediatamente sem avaliar as categorias
+  seguintes, ou deve sempre avaliar as 4 categorias inteiras (ferramentas de base,
+  ferramenta de implementação, skills, plugins) antes de reportar, mesmo após uma falha
+  bloqueante? → A: Sequencial por gates — para no primeiro item bloqueante (exit
+  diferente de zero); o relatório final (FR-009) lista apenas os itens efetivamente
+  avaliados até a parada, não as 4 categorias sempre.
+
 ## User Scenarios & Testing
 
 ### User Story 1 - Preparar a máquina para o ciclo com um comando (Priority: P1)
@@ -254,9 +264,12 @@ que a checagem automática da mudança falha nos três casos, apontando qual che
 - **FR-009**: O sistema MUST, ao final da execução, relatar o status individual de
   cada item preparado (ferramentas de base, ferramenta de implementação, skills,
   plugins) com o resultado do comando que o preparou; a ferramenta de implementação
-  MUST adicionalmente ser conferida por uma chamada de versão (FR-005). *(Redação
-  alinhada ao plan na revisão de código, rodada 1: reconsulta pós-instalação por item
-  foi avaliada e descartada pelo owner.)*
+  MUST adicionalmente ser conferida por uma chamada de versão (FR-005). O relatório
+  cobre apenas os itens efetivamente avaliados até uma eventual parada por item
+  bloqueante — a execução é sequencial por gates, não uma varredura completa das 4
+  categorias antes de reportar (clarify, Session 2026-09-28). *(Redação alinhada ao
+  plan na revisão de código, rodada 1: reconsulta pós-instalação por item foi avaliada
+  e descartada pelo owner.)*
 - **FR-010**: O comando de preparo da máquina MUST ser idempotente — executá-lo mais de
   uma vez MUST produzir o mesmo estado final, sem duplicar registros nem sobrescrever
   configuração local sem aviso.
