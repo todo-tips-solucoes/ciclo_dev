@@ -123,15 +123,15 @@ genericamente ao dev — nunca um literal do projeto de origem.
 |---|---|---|
 | 0 → preparatória (não numerada) | `REPO_REMOTO`, `BRANCH_INTEGRACAO` | `gh api repos/<org>/<repo>/...` (literal real do projeto de origem) → `gh api repos/<REPO_REMOTO>/...` |
 | 1 → Fase 1 (Branch) | `BRANCH_INTEGRACAO` | prefixos de branch (`feature/`, `fix/` etc.) e `--base origin/<BRANCH_INTEGRACAO>` — já genéricos na fonte |
-| 2 → Fase 2 (Desenvolver) | — | checklist de domínio do projeto de origem (módulos, RLS, `SERVICE_ROLE_KEY`) **não é portado**: é regra de arquitetura de UM projeto (Supabase multi-tenant), não do rito. Generaliza para "consulte a convenção de domínio do próprio projeto-alvo, se houver" |
+| 2 → Fase 2 (Desenvolver) | — | checklist de domínio do projeto de origem (módulos, RLS, `SERVICE_ROLE_KEY`) **não é portado**: é regra de arquitetura de UM projeto (backend multi-tenant do projeto de origem), não do rito. Generaliza para "consulte a convenção de domínio do próprio projeto-alvo, se houver" |
 | 3 → Fase 3 (Commit) | — | Conventional Commits PT-BR mantido fixo (Princípio VI do cockpit, não é literal de projeto) |
 | 4 → Fase 4 (Abrir PR) | `BRANCH_INTEGRACAO` | reviewer (handle real do projeto de origem) → pergunta genérica (Decision 4); `hotfix` usa `BRANCH_PRODUCAO` |
-| 5 → Fase 5 (CI) | — | ressalva "EFs Deno" (Supabase-específica) descartada; texto genérico sobre integrações não cobertas pelo typecheck do CI |
+| 5 → Fase 5 (CI) | — | ressalva específica do runtime do provedor de backend do projeto de origem descartada; texto genérico sobre integrações não cobertas pelo typecheck do CI |
 | 6 → Fase 6 (Review, ponto de parada) | `REPO_REMOTO` (para `gh pr view`) | reviewer/owner → pergunta genérica (Decision 4); formato do gate (pontos de alteração + recomendação + comando pronto) mantido — é processo, não literal |
 | 7 → Fase 7 (Merge) | `BRANCH_INTEGRACAO`, `CMD_DEPLOY_INTEGRACAO` | nome de workflow e número de execução reais do projeto de origem descartados; texto genérico "se o projeto tem deploy automático no push, ele dispara aqui" (Decision 5) |
 | 8 → Fase 8 (Smoke integração) | `URL_AMBIENTE_INTEGRACAO` (opcional), `CMD_DEPLOY_INTEGRACAO` | `gh run list --workflow=<nome-real>.yml` → `gh run list` filtrado por branch, sem nome de workflow fixo (Decision 5) |
 | 9 → Fase 9 (Promoção) | `BRANCH_INTEGRACAO`, `BRANCH_PRODUCAO`, `CMD_DEPLOY_PRODUCAO` | radar automático (nome e número de PR reais do projeto de origem) → texto condicional: "se existir PR draft `<BRANCH_INTEGRACAO>→<BRANCH_PRODUCAO>`, promova-o; senão, abra um" (Decision 5); **caso `BRANCH_INTEGRACAO == BRANCH_PRODUCAO`**: fase inteira vira no-op explícito (Princípio I — modelo único) |
-| 10 → Fase 10 (Smoke produção) | `URL_AMBIENTE_PRODUCAO` (opcional), `CMD_DEPLOY_PRODUCAO` | `project ref` Supabase específico descartado (Decision 6); regra "rollback anotado antes" mantida (processo, não literal) |
+| 10 → Fase 10 (Smoke produção) | `URL_AMBIENTE_PRODUCAO` (opcional), `CMD_DEPLOY_PRODUCAO` | identificador de projeto do provedor de backend descartado (Decision 6); regra "rollback anotado antes" mantida (processo, não literal) |
 | 11 → Fase 11 (Encerramento) | `BRANCH_INTEGRACAO`/`BRANCH_PRODUCAO` conforme o caso | procedimento de worktree/branch já é genérico na fonte (usa `<branch>`, `<caminho-da-worktree>` como placeholders) |
 
 `docs/rito-dev-nav.md`/`docs/skills/CICLO-GIT.md` (documentos-irmãos mais

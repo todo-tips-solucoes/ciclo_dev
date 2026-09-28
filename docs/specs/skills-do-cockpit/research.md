@@ -130,7 +130,7 @@ filtrado por branch/evento já resolve sem chave nova).
 ## Decision 6: Gates invioláveis específicos de infraestrutura do projeto de origem ficam de fora
 
 **Decision**: os itens do "Gates invioláveis" da fonte que citam
-infraestrutura real (ex: `project ref` do Supabase de produção) **não** são
+infraestrutura real (ex: identificador do projeto de produção no provedor de backend) **não** são
 copiados para `rito-dev` — o clarify (dec-013/dec-015) restringiu a fonte-base
 à seção "## Fases", não a "Gates invioláveis" inteira. Gates genéricos que já
 aparecem DENTRO das próprias seções de fase (nunca `git add -A`, nunca
@@ -140,14 +140,14 @@ seções de fase correspondentes (Fase 2, Fase 3, Fase 10).
 
 **Rationale**: consistente com o próprio recorte que dec-010/dec-013
 resolveram (a pergunta era sobre "## Fases", especificamente). Itens de
-infraestrutura de um provedor específico (Supabase project ref) são o tipo
+infraestrutura de um provedor específico (identificador de projeto) são o tipo
 exato de literal que FR-003/FR-009 proíbem, e não têm equivalente de
 propósito geral em `cockpit.config`.
 
 **Alternatives considered**: copiar os gates invioláveis inteiros e
 parametrizar o project ref como nova chave — rejeitada por escopo: nenhuma
 user story pede verificação de infraestrutura de banco de dados; a
-constitution do cockpit não assume Supabase como dependência de nenhum
+constitution do cockpit não assume nenhum provedor de backend como dependência de nenhum
 projeto-alvo.
 
 ## Decision 7: `bmad-code-review` é cópia literal, sem adaptação de conteúdo
