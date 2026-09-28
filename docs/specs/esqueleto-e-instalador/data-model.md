@@ -75,7 +75,7 @@ Decision 17):
 | Fonte | Onde vive | Conteúdo |
 |-------|-----------|----------|
 | `scripts/agnostico.lista` | versionada no repositório | só termos que não identificam ninguém; **pode ficar vazia** |
-| `AGNOSTICO_TERMOS` | fora do repositório: variável de Actions (CI) ou exportada pelo dev a partir de arquivo local ignorado pelo git | os termos que identificam — nunca citados no repositório |
+| `AGNOSTICO_TERMOS` | fora do repositório: secret de Actions (CI) ou exportada pelo dev a partir de arquivo local ignorado pelo git | os termos que identificam — nunca citados no repositório |
 
 As duas usam o mesmo formato abaixo (um termo por linha; na variável, separados
 por quebra de linha).

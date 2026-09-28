@@ -43,7 +43,7 @@ Relatório de preparo da máquina:
   [ok]      Catálogo de skills do toolkit
   [pulada]  Skills do cockpit — diretório skills/ ainda não existe
   [ok]      Plugin context-mode (<versão>)
-  [falhou]  Plugin ponytail — não bloqueante
+  [falhou]  Plugin ponytail — ausente (não bloqueante)
             Execute: claude plugin install ponytail@<marketplace> -s user
 ```
 
@@ -82,11 +82,11 @@ Fonte de cada sinal em research Decision 16.
 | `cstk` presente | `command -v cstk` | builtin POSIX |
 | Versão | `cstk --version` | MEDIDO — devolve `cstk v10.8.0` |
 | Release mais nova | `cstk self-update --check` — rc `0` em dia, `10` há mais nova, `1` erro; imprime `latest:X current:Y` | MEDIDO — `--help` e execução (rc `10`) |
-| Catálogo ausente | existência de `~/.claude/skills/.cstk-manifest` | MEDIDO |
-| Skill faltando | `cstk install --dry-run --yes </dev/null`, linhas `[dry-run] install: <nome>` em **stderr**; só nome casando `^[A-Za-z0-9][A-Za-z0-9._@-]*$` entra no comando impresso (um token com hífen viraria flag na mão de quem copia) | MEDIDO (review rodadas 3-4) |
-| Catálogo defasado | `cstk update --dry-run --yes </dev/null`, resumo `updated: N` e `commands:`/`agents:` com `updated=N` | MEDIDO — `--help` (*"Mostra plano sem escrever"*) e execução |
+| Catálogo ausente | `~/.claude/skills/.cstk-manifest` inexistente, **ou** `cstk install --dry-run` com linhas `[dry-run] install:` e nenhuma `[dry-run] update:` (nenhuma skill do catálogo presente) | MEDIDO (review rodada 6) |
+| Skill faltando | `cstk install --dry-run </dev/null` (sem `--yes`; saída sem o marcador `[dry-run]` vira `aviso`, nada dela é usado — review rodada 6), linhas `[dry-run] install: <nome>` em **stderr**; só nome casando `^[A-Za-z0-9][A-Za-z0-9._@-]*$` entra no comando impresso (um token com hífen viraria flag na mão de quem copia); nome recusado pelo filtro vira `aviso` | MEDIDO (review rodadas 3-4) |
+| Catálogo defasado | `cstk update --dry-run </dev/null` (sem `--yes`; exige o marcador `(dry-run)`), soma do resumo `updated: N` (indentado na saída real) e de `commands:`/`agents:` com `updated=N` | MEDIDO — `--help` (*"Mostra plano sem escrever"*) e execução |
 | Marketplace registrado | `claude plugin marketplace list --json`, campo `.name` | MEDIDO |
-| Plugin presente/habilitado | `claude plugin list --json`, campos `.id`, `.scope` (`user`) e `.enabled` | MEDIDO |
+| Plugin presente/habilitado | `claude plugin list --json`, campos `.id`, `.scope` (`user`) e `.enabled`; listagem que falha ou não é array JSON, ou `.enabled` ausente, vira `aviso` ("não foi possível verificar"), nunca "ausente"/"desabilitado"; versão impressa só se casar `^v?[0-9]+(\.[0-9]+)*$` | MEDIDO |
 
 ### Comandos impressos para a pessoa executar
 
@@ -179,7 +179,7 @@ não por tag móvel.
 | Job | Comando | Barra a mudança quando | FR |
 |-----|---------|------------------------|-----|
 | `shellcheck` | instala `shellcheck` e roda sobre todo `.sh` do repositório | há problema de portabilidade de shell | FR-017 |
-| `agnostico` | `./scripts/verificar-agnostico.sh` com `env:` `AGNOSTICO_TERMOS` (da variável de Actions) e `AGNOSTICO_EXIGIR_TERMOS: "1"`; nunca `echo` da variável | há termo proibido, **ou** as duas fontes de termos estão vazias | FR-018, FR-022 |
+| `agnostico` | `./scripts/verificar-agnostico.sh` com `env:` `AGNOSTICO_TERMOS` (do secret de Actions `secrets.AGNOSTICO_TERMOS`) e `AGNOSTICO_EXIGIR_TERMOS: "1"`; nunca `echo` da variável | há termo proibido, **ou** `AGNOSTICO_TERMOS` está vazia (inclui PR de fork, que não recebe secrets) | FR-018, FR-022 |
 | `segredos` | instala o binário do `gitleaks` e roda dois passos: `gitleaks dir . --redact -v` (árvore) e, no `pull_request`, `gitleaks git . --redact -v --log-opts="origin/<base>..HEAD"` (histórico da PR) | há segredo em arquivo versionado, **ou** em qualquer commit do range da PR | FR-019, FR-020, FR-021 |
 
 Jobs independentes, para que a falha identifique **qual** garantia barrou (User

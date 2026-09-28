@@ -24,16 +24,20 @@ if [ -z "${HOME:-}" ]; then
   echo "instalar.sh: HOME não definido — não há onde verificar/instalar skills (~/.claude/skills/)." >&2
   exit 2
 fi
+# Barra final em HOME faria "$HOME/.local/bin" virar "//.local/bin" e o teste
+# de PATH abaixo dar falso "não está no PATH" (review rodada 6).
+[ "$HOME" = / ] || HOME="${HOME%/}"
 # cstk instalado pela pessoa vai para ~/.local/bin (README oficial) e pode não
 # estar no PATH da sessão atual — sem isto, esta verificação reportaria
 # "ausente" numa máquina onde o cstk já foi instalado, só porque o PATH do
 # shell corrente não inclui ~/.local/bin. Puramente para detecção: o script
-# não instala nada ali (emenda 1.1.0).
+# não instala nada ali (emenda 1.1.0). Ao FINAL do PATH: na frente, um cstk
+# antigo em ~/.local/bin esconderia o que a pessoa de fato usa (review rodada 6).
 case ":$PATH:" in
   *":$HOME/.local/bin:"*|*":$HOME/.local/bin/:"*) LOCAL_BIN_JA_NO_PATH=true ;;
   *) LOCAL_BIN_JA_NO_PATH=false ;;
 esac
-export PATH="$HOME/.local/bin:$PATH"
+[ "$LOCAL_BIN_JA_NO_PATH" = true ] || export PATH="$PATH:$HOME/.local/bin"
 
 CSTK_INSTALL_URL="https://github.com/JotJunior/cstk/releases/latest/download/install.sh"
 CTX_MODE_REPO="mksglu/context-mode"
@@ -118,6 +122,14 @@ versao_ge() {
     if ((10#$ai < 10#$bi)); then return 1; fi
   done
   return 0
+}
+
+# versao_imprimivel <texto> — devolve o texto só se for uma versão
+# (^v?N(.N)*$); qualquer outra coisa (ANSI, quebra de linha, "null") vira
+# "desconhecida". Todo valor de ferramenta externa impresso no relatório passa
+# por aqui (plan.md §Superfície de Segurança, review rodada 6).
+versao_imprimivel() {
+  if [[ "$1" =~ ^v?[0-9]+(\.[0-9]+)*$ ]]; then printf '%s' "$1"; else printf 'desconhecida'; fi
 }
 
 # --- etapa 1: pré-requisitos de máquina --------------------------------
@@ -223,6 +235,11 @@ etapa3_cstk_responde() {
     # `|| true`: saída sem x.y.z deixa a versão vazia e a etapa 4 registra
     # falha, em vez de pipefail matar o script sem relatório (review rodada 1).
     CSTK_VERSAO_INSTALADA="$(printf '%s' "$saida" | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1 || true)"
+    # rc 0 sem x.y.z: a falha é desta etapa, não "da anterior" (review rodada 6).
+    if [ -z "$CSTK_VERSAO_INSTALADA" ]; then
+      status=falhou
+      detalhe=" — versão x.y.z não reconhecida na saída de 'cstk --version'"
+    fi
   fi
   registrar_item "cstk responde à checagem de versão${detalhe}" "$status" true
   log_etapa_fim 3 "$([ "$status" = ok ] && echo "concluída" || echo "falhou")"
@@ -270,14 +287,14 @@ etapa4_cstk_piso() {
     status=ok
     detalhe="$CSTK_VERSAO_INSTALADA >= $CSTK_MIN"
     local saida rc=0
-    saida="$(cstk self-update --check 2>&1)" || rc=$?
+    saida="$(cstk self-update --check </dev/null 2>&1)" || rc=$?
     case "$rc" in
       0) : ;; # em dia — ok, sem Execute (nada a fazer)
       10)
         status=aviso
         local latest
         latest="$(printf '%s' "$saida" | grep -oE 'latest:[^[:space:]]+' | cut -d: -f2- || true)"
-        detalhe="$detalhe — release mais nova disponível: ${latest:-desconhecida}"
+        detalhe="$detalhe — release mais nova disponível: $(versao_imprimivel "$latest")"
         execute="Execute: cstk self-update"
         ;;
       *)
@@ -292,7 +309,7 @@ etapa4_cstk_piso() {
   fi
   registrar_item "Versão do cstk >= CSTK_MIN ($detalhe)" "$status" \
     "$([ "$status" = falhou ] && echo true || echo false)" "$execute"
-  log_etapa_fim 4 "$([ "$status" = falhou ] && echo "falhou" || echo "concluída")"
+  log_etapa_fim 4 "$(case "$status" in falhou) echo "falhou" ;; aviso) echo "concluída com aviso" ;; *) echo "concluída" ;; esac)"
 }
 
 # --- etapa 5: catálogo de skills do toolkit -----------------------------
@@ -316,38 +333,65 @@ etapa5_catalogo() {
   fi
   local status=ok detalhe="" execute=""
 
-  # O que falta: linhas "[dry-run] install: <nome>" em stderr (2>&1 captura
-  # ambos); só nome plausível entra no comando impresso — um token com
-  # hífen viraria flag na mão de quem copia (mesmo filtro do review rodada
-  # 3-4 anterior à emenda).
-  local saida rc=0 faltantes
-  saida="$(cstk install --dry-run --yes </dev/null 2>&1)" || rc=$?
+  # Sondas sem `--yes` e com o marcador de dry-run conferido na saída: se uma
+  # versão do cstk ignorasse `--dry-run`, o `--yes` a transformaria em
+  # instalação real sem confirmação (Princípio IV, review rodada 6). Sem o
+  # marcador, nada da saída é usado — vira aviso.
+  # O que falta: linhas "[dry-run] install: <nome>" (ausente) e
+  # "[dry-run] update: <nome>" (presente), em stderr (2>&1 captura ambos); só
+  # nome plausível entra no comando impresso — um token com hífen viraria flag
+  # na mão de quem copia (mesmo filtro do review rodada 3-4).
+  local saida rc=0 brutos faltantes n_brutos n_ok presentes
+  saida="$(cstk install --dry-run </dev/null 2>&1)" || rc=$?
   if [ "$rc" -ne 0 ]; then
     status=aviso
     detalhe="não foi possível verificar o que falta ('cstk install --dry-run' rc=$rc)"
+  elif [[ "$saida" != *"[dry-run]"* ]]; then
+    status=aviso
+    detalhe="'cstk install --dry-run' não confirmou o modo dry-run na saída — nada verificado"
   else
-    faltantes="$(printf '%s\n' "$saida" \
-      | sed -n 's/.*\[dry-run\] install: *//p' \
+    brutos="$(printf '%s\n' "$saida" | sed -n 's/.*\[dry-run\] install: *//p' || true)"
+    faltantes="$(printf '%s\n' "$brutos" \
       | grep -E '^[A-Za-z0-9][A-Za-z0-9._@-]*$' | tr '\n' ' ' || true)"
     faltantes="${faltantes% }"
+    n_brutos="$(printf '%s' "$brutos" | grep -c . || true)"
+    n_ok="$(printf '%s\n' "$brutos" | grep -cE '^[A-Za-z0-9][A-Za-z0-9._@-]*$' || true)"
+    presentes="$(printf '%s\n' "$saida" | grep -c '\[dry-run\] update: ' || true)"
+    # Catálogo ausente, segundo critério da Decision 16: manifest existe, mas
+    # nenhuma skill do catálogo está presente — mesma classe de "sem cstk".
+    if [ "$n_brutos" -gt 0 ] && [ "$presentes" -eq 0 ]; then
+      registrar_item "Catálogo de skills do toolkit — nenhuma skill do catálogo presente" falhou true "Execute: cstk install"
+      log_etapa_fim 5 "falhou"
+      return
+    fi
     if [ -n "$faltantes" ]; then
       status=aviso
       detalhe="faltando: $faltantes"
       execute="Execute: cstk install $faltantes"
     fi
+    # Nome recusado pelo filtro não pode sumir com o item em ok (review rodada 6).
+    if [ "$n_brutos" -gt "$n_ok" ]; then
+      status=aviso
+      detalhe="${detalhe:+$detalhe; }$((n_brutos - n_ok)) item(ns) faltando com nome não imprimível — rode 'cstk install --dry-run'"
+    fi
   fi
 
-  # O que está defasado: resumo "updated: N" de `cstk update --dry-run`
-  # (research Decision 16/Adendo rodada 4).
+  # O que está defasado: soma de "updated: N" (skills; indentado na saída
+  # real) e "updated=N" (commands/agents) de `cstk update --dry-run` (research
+  # Decision 16; contracts/cli.md).
   rc=0
-  saida="$(cstk update --dry-run --yes </dev/null 2>&1)" || rc=$?
+  saida="$(cstk update --dry-run </dev/null 2>&1)" || rc=$?
   if [ "$rc" -ne 0 ]; then
     status=aviso
     detalhe="${detalhe:+$detalhe; }não foi possível verificar defasagem ('cstk update --dry-run' rc=$rc)"
+  elif [[ "$saida" != *"(dry-run)"* ]]; then
+    status=aviso
+    detalhe="${detalhe:+$detalhe; }'cstk update --dry-run' não confirmou o modo dry-run na saída — defasagem não verificada"
   else
     local n
-    n="$(printf '%s\n' "$saida" | grep -oE '^updated: [0-9]+' | grep -oE '[0-9]+' || true)"
-    if [ -n "$n" ] && [ "$n" -gt 0 ]; then
+    n="$(printf '%s\n' "$saida" | grep -oE '(^|[[:space:]])updated(: |=)[0-9]+' \
+      | grep -oE '[0-9]+$' | awk '{s += $1} END {print s + 0}' || true)"
+    if [ "${n:-0}" -gt 0 ]; then
       status=aviso
       detalhe="${detalhe:+$detalhe; }defasado: $n item(ns)"
       if [ -n "$execute" ]; then
@@ -360,7 +404,7 @@ Execute: cstk update"
   fi
 
   registrar_item "Catálogo de skills do toolkit${detalhe:+ — $detalhe}" "$status" false "$execute"
-  log_etapa_fim 5 "concluída"
+  log_etapa_fim 5 "$([ "$status" = aviso ] && echo "concluída com aviso" || echo "concluída")"
 }
 
 # --- etapa 6: skills do cockpit -----------------------------------------
@@ -477,15 +521,23 @@ marketplace_registrado() {
 # plugin_info <id> — somente leitura (`claude plugin list --json`, campos
 # .id/.scope/.enabled/.version — research Decision 16). Preenche
 # PLUGIN_PRESENTE/PLUGIN_HABILITADO/PLUGIN_VERSAO; nunca instala/atualiza.
+# Listagem que falha ou não é array JSON → PLUGIN_PRESENTE=desconhecido: sem
+# ela não se sabe se o plugin existe, e "ausente" mandaria reinstalar o que
+# pode estar instalado (Decision 16 — verificação que falha ≠ lacuna; review
+# rodada 6). `.enabled` ausente/null → "desconhecido", nunca "desabilitado".
 plugin_info() {
   local id="$1" json
-  json="$(claude plugin list --json 2>/dev/null)" || json="[]"
   PLUGIN_PRESENTE=false
   PLUGIN_HABILITADO=false
   PLUGIN_VERSAO=""
+  if ! json="$(claude plugin list --json 2>/dev/null)" \
+     || ! printf '%s' "$json" | jq -e 'type == "array"' >/dev/null 2>&1; then
+    PLUGIN_PRESENTE=desconhecido
+    return 0
+  fi
   if printf '%s' "$json" | jq -e --arg id "$id" '[.[] | select(.id==$id and .scope=="user")] | length > 0' >/dev/null 2>&1; then
     PLUGIN_PRESENTE=true
-    PLUGIN_HABILITADO="$(printf '%s' "$json" | jq -r --arg id "$id" '[.[] | select(.id==$id and .scope=="user")][0].enabled')"
+    PLUGIN_HABILITADO="$(printf '%s' "$json" | jq -r --arg id "$id" '[.[] | select(.id==$id and .scope=="user")][0].enabled | if . == null then "desconhecido" else tostring end')"
     PLUGIN_VERSAO="$(printf '%s' "$json" | jq -r --arg id "$id" '[.[] | select(.id==$id and .scope=="user")][0].version')"
   fi
 }
@@ -501,13 +553,20 @@ verificar_plugin() {
   local plugin="$1" marketplace="$2" origem="$3" bloqueante="$4"
   local id="${plugin}@${marketplace}" status execute="" texto
   plugin_info "$id"
-  if [ "$PLUGIN_PRESENTE" = true ] && [ "$PLUGIN_HABILITADO" = true ]; then
+  if [ "$PLUGIN_PRESENTE" = desconhecido ]; then
+    status=aviso
+    texto="Plugin $plugin — não foi possível listar plugins ('claude plugin list --json' falhou ou não devolveu JSON)"
+  elif [ "$PLUGIN_PRESENTE" = true ] && [ "$PLUGIN_HABILITADO" = true ]; then
     status=ok
-    texto="Plugin $plugin (${PLUGIN_VERSAO:-versão desconhecida})"
+    texto="Plugin $plugin ($(versao_imprimivel "$PLUGIN_VERSAO"))"
+  elif [ "$PLUGIN_PRESENTE" = true ] && [ "$PLUGIN_HABILITADO" = desconhecido ]; then
+    status=aviso
+    texto="Plugin $plugin ($(versao_imprimivel "$PLUGIN_VERSAO")) — não foi possível confirmar se está habilitado"
   elif [ "$PLUGIN_PRESENTE" = true ]; then
     status=falhou
     texto="Plugin $plugin — desabilitado"
-    execute="Execute: claude plugin enable $plugin -s user"
+    # $id, não o nome curto: o mesmo que plugin_info e o install usam.
+    execute="Execute: claude plugin enable $id -s user"
   else
     status=falhou
     texto="Plugin $plugin — ausente"
@@ -540,7 +599,7 @@ etapa7_plugins() {
   verificar_plugin "context-mode" "context-mode" "$CTX_MODE_REPO" true
   status_cm="${REPORT_STATUS[$n]}"
   verificar_plugin "ponytail" "ponytail" "$PONYTAIL_REPO" false
-  log_etapa_fim 7 "$([ "$status_cm" = ok ] && echo "concluída" || echo "falhou")"
+  log_etapa_fim 7 "$(case "$status_cm" in ok) echo "concluída" ;; aviso) echo "concluída com aviso" ;; *) echo "falhou" ;; esac)"
 }
 
 # --- relatório final e código de saída (FR-009, FR-012 via contracts/cli.md) --

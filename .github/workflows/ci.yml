@@ -57,16 +57,17 @@ jobs:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      # AGNOSTICO_TERMOS: variável de Actions do repositório/organização — a
-      # fonte externa de termos que o Princípio I proíbe citar no próprio
-      # repositório (FR-022, emenda 1.1.0). AGNOSTICO_EXIGIR_TERMOS=1 declara
+      # AGNOSTICO_TERMOS: secret de Actions do repositório — a fonte externa
+      # de termos que o Princípio I proíbe citar no próprio repositório
+      # (FR-022, emenda 1.1.0). Secret, não `vars`: o valor é mascarado no log
+      # e não chega a PR de fork, onde a guarda falha fechada (review rodada 6). AGNOSTICO_EXIGIR_TERMOS=1 declara
       # explicitamente "esta execução é CI" para a guarda anti-vacuidade do
       # script (research Decision 17) — nunca inferido de variável do runner.
       # Nunca um `echo`/`run` que imprima AGNOSTICO_TERMOS: o script só reporta
       # o trecho da linha onde um termo vazou, nunca a lista em si.
       - name: Verificar agnosticismo (FR-018, FR-022)
         env:
-          AGNOSTICO_TERMOS: ${{ vars.AGNOSTICO_TERMOS }}
+          AGNOSTICO_TERMOS: ${{ secrets.AGNOSTICO_TERMOS }}
           AGNOSTICO_EXIGIR_TERMOS: "1"
         run: ./scripts/verificar-agnostico.sh
 

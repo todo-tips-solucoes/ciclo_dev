@@ -94,8 +94,8 @@ versão exigida — sem precisar de nenhuma outra parte desta feature.
 9. **Given** a ferramenta de implementação do ciclo já instalada na versão exigida, mas um
    dos plugins necessários ausente enquanto o outro já está presente e habilitado,
    **When** o comando de preparo é executado, **Then** ele imprime o comando oficial
-   apenas para o plugin ausente — o plugin já presente e habilitado não é mencionado nem
-   tocado.
+   apenas para o plugin ausente — o plugin já presente e habilitado aparece só com seu
+   status `[ok]` no relatório (FR-009), sem comando impresso, e não é tocado.
 
 ---
 
@@ -257,8 +257,10 @@ que a checagem automática da mudança falha nos três casos, apontando qual che
 - **FR-008**: O sistema MUST verificar, pelos canais oficiais de cada um, se um plugin
   obrigatório de consulta externa e um plugin recomendado de simplicidade de código
   estão presentes e habilitados, e MUST imprimir o comando oficial de instalação ou
-  atualização para cada um que estiver ausente, desabilitado ou desatualizado — sem
-  executar nenhum desses comandos. Plugin obrigatório ausente/desabilitado MUST falhar o
+  habilitação para cada um que estiver ausente ou desabilitado — sem executar nenhum
+  desses comandos. "Plugin desatualizado" fica fora: o canal oficial não oferece sinal
+  somente leitura de versão mais nova (research Decision 16), e o sistema não afirma o
+  que não mede (emenda do FR-008, review rodada 6, 2026-09-28). Plugin obrigatório ausente/desabilitado MUST falhar o
   comando inteiro; plugin recomendado ausente/desabilitado MUST ser reportado apenas no
   status individual desse item (FR-009), sem falhar o comando.
 - **FR-009**: O sistema MUST, ao final da execução, relatar o status individual de
@@ -305,10 +307,12 @@ que a checagem automática da mudança falha nos três casos, apontando qual che
   na mesma alteração que as introduz.
 - **FR-022**: A verificação de agnosticismo MUST unir os termos de
   `scripts/agnostico.lista` (versionada, MAY ficar vazia) com os termos da variável de
-  ambiente `AGNOSTICO_TERMOS` (setada por variável de Actions no CI, ou exportada
+  ambiente `AGNOSTICO_TERMOS` (setada por secret de Actions no CI, ou exportada
   localmente pelo dev a partir de uma fonte fora do controle de versão) como fontes
-  complementares de termos proibidos, e MUST falhar quando as duas fontes estiverem
-  vazias e a execução for detectada como CI (Princípio I, emenda 1.1.0).
+  complementares de termos proibidos, e MUST falhar quando `AGNOSTICO_TERMOS` estiver
+  vazia numa execução que se declara CI pelo sinal explícito
+  `AGNOSTICO_EXIGIR_TERMOS=1` — nunca por inferência de variável do runner (research
+  Decision 17; Princípio I, emenda 1.1.0; review rodada 6).
 
 > Decisões de infraestrutura: N/A — feature stateless, sem scheduler, sessão persistente,
 > refresh de token externo, rotação de chave ou lock multi-processo. É um comando de

@@ -276,7 +276,7 @@ Cobre FR-022; Princípio I (emenda 1.1.0); research Decision 17.
 6. **Expected**: código `1` apontando arquivo e linha — a fonte externa é casada
    exatamente como a lista versionada; a saída não lista os termos além do
    trecho da linha onde o termo vazou.
-7. No CI, com a variável de Actions vazia: o job `agnostico` fica vermelho.
+7. No CI, com o secret `AGNOSTICO_TERMOS` vazio ou ausente (inclusive PR de fork): o job `agnostico` fica vermelho, mesmo com `scripts/agnostico.lista` preenchida.
 
 ---
 

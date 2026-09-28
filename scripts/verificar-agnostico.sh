@@ -29,8 +29,8 @@
 #   1  uma ou mais ocorrências, listadas como arquivo:linha:texto; ocorrência
 #      no caminho sai como arquivo:0:(caminho) e no alvo de um symlink como
 #      arquivo:0:(alvo do symlink)
-#   2  erro de uso — agnostico.lista ausente ou ilegível, as duas fontes de
-#      termos vazias com AGNOSTICO_EXIGIR_TERMOS=1, execução fora de um
+#   2  erro de uso — agnostico.lista ausente ou ilegível, AGNOSTICO_TERMOS
+#      vazia com AGNOSTICO_EXIGIR_TERMOS=1, execução fora de um
 #      repositório git, git ls-files falhando ou sem listar este script,
 #      arquivo versionado ilegível, ou falha ao criar arquivo temporário
 set -euo pipefail
@@ -38,7 +38,7 @@ set -euo pipefail
 LISTA_REL="scripts/agnostico.lista"
 SELF_REL="scripts/verificar-agnostico.sh"
 
-# Caixa fora do ASCII (Promoção vs PROMOÇÃO) só dobra em locale UTF-8; o runner
+# Caixa fora do ASCII (Ação vs AÇÃO) só dobra em locale UTF-8; o runner
 # do GitHub já é C.UTF-8, uma máquina local pode estar em C/POSIX e divergir em
 # silêncio (review rodada 2). Só exporta se o locale existir.
 # Sem pipe para `grep -q`: ele encerra no primeiro casamento, o escritor leva
@@ -141,16 +141,18 @@ cat "$LISTA_TMP" "$ENV_TMP" > "$TERMOS_TMP" || {
   exit 2
 }
 
+# Guarda anti-vacuidade (research Decision 17): só vale quando a execução se
+# declara CI via AGNOSTICO_EXIGIR_TERMOS=1 (o job `agnostico` sempre exporta)
+# — nunca por inferência de variável do runner (Princípio V). Exige a fonte
+# EXTERNA, não só a união: com agnostico.lista preenchida, a falta do secret
+# passava verde em silêncio (review rodada 6). Fora do CI, conjunto vazio
+# permanece estado inicial legítimo. Nunca imprime os termos em si.
+if [ "${AGNOSTICO_EXIGIR_TERMOS:-}" = "1" ] && [ ! -s "$ENV_TMP" ]; then
+  echo "Agnosticismo: erro de uso — AGNOSTICO_TERMOS está vazia; AGNOSTICO_EXIGIR_TERMOS=1 exige a fonte externa de termos (secret do repositório)." >&2
+  exit 2
+fi
+
 if [ ! -s "$TERMOS_TMP" ]; then
-  # Guarda anti-vacuidade (research Decision 17): só falha quando a execução
-  # se declara CI via AGNOSTICO_EXIGIR_TERMOS=1 (o job `agnostico` sempre
-  # exporta) — nunca por inferência de variável do runner (Princípio V). Fora
-  # do CI, conjunto vazio permanece estado inicial legítimo. Nunca imprime os
-  # termos em si, só que as duas fontes estão vazias.
-  if [ "${AGNOSTICO_EXIGIR_TERMOS:-}" = "1" ]; then
-    echo "Agnosticismo: erro de uso — as duas fontes de termos (scripts/agnostico.lista e AGNOSTICO_TERMOS) estão vazias; AGNOSTICO_EXIGIR_TERMOS=1 exige ao menos um termo em alguma delas." >&2
-    exit 2
-  fi
   echo "Agnosticismo: OK — nenhuma ocorrência de termo proibido."
   exit 0
 fi

@@ -729,3 +729,26 @@ com a fonte de cada um (Princípio V). Detalhe por achado em
 | O gitleaks confere o *fingerprint* sem commit (`<file>:<rule>:<line>`) para todo achado, inclusive no modo `git` — por isso a entrada de 3 campos silencia os dois passos quando a linha coincide | `detect/detect.go` da tag v8.30.1 (função que registra o achado), lido via context-mode |
 | `fetch-depth: 0` no `actions/checkout` traz todo o histórico; o default `1` traria só o commit do evento | README oficial de `actions/checkout` |
 | `grep -q` encerra no primeiro casamento; sob `pipefail`, o escritor do pipe morre com SIGPIPE (141) e o comando composto "falha" | comportamento POSIX de `grep -q`; reproduzido com lista acima do buffer de pipe |
+
+## Adendo — review rodada 6 (2026-09-28)
+
+Decisões do owner sobre os achados da rodada 6 (tasks.md §rodada 6):
+
+- **Decision 16, sondas**: `cstk install/update --dry-run` passam a rodar **sem
+  `--yes`** e só têm a saída usada se ela trouxer o marcador de dry-run (`[dry-run]`
+  no install, `(dry-run) cstk update summary` no update). MEDIDO em 2026-09-28 com
+  cstk v10.8.0: sem `--yes` e com `</dev/null`, as duas rodam com rc 0 e trazem os
+  marcadores. Na mesma medição, o resumo aparece **indentado** (`  updated: 0`), então o
+  `^updated:` anterior nunca casava e a defasagem saía `ok` em silêncio; o parse agora
+  soma `updated: N` e `updated=N` em qualquer posição.
+- **Decision 16, catálogo ausente**: o segundo critério (dry-run sem nenhuma skill
+  presente) foi implementado.
+- **Decision 16, plugin desatualizado**: o FR-008 foi emendado para declarar a lacuna,
+  em vez de exigir o que não é medível.
+- **Decision 17**: a fonte externa passa de `vars.AGNOSTICO_TERMOS` a
+  `secrets.AGNOSTICO_TERMOS`. Com isso, a pergunta sobre fork fica respondida pela
+  própria documentação de secrets: *"With the exception of `GITHUB_TOKEN`, secrets are
+  not passed to the runner when a workflow is triggered from a forked repository"*
+  (FONTE OFICIAL — <https://docs.github.com/en/actions/how-tos/write-workflows/choose-what-workflows-do/use-secrets>, nota em "Using secrets in a workflow", lida em 2026-09-28). A guarda
+  anti-vacuidade passa a exigir a fonte externa não vazia sob
+  `AGNOSTICO_EXIGIR_TERMOS=1`; um PR de fork falha fechado, nunca verde.

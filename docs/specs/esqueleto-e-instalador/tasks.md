@@ -768,3 +768,56 @@ As quatro subtarefas adiadas por decisão do owner (block-003/dec-045) foram fec
 - `shellcheck` — barrou código real durante a própria rodada 5: quatro avisos informativos nas minhas correções, rc diferente de 0. Foi assim que a regressão foi pega antes da PR.
 
 O que nenhuma das duas fontes prova, e fica declarado: o job `segredos` nunca foi exercitado barrando um segredo **dentro do CI** (só localmente), porque plantar um segredo numa PR real para testar é o que a decisão do owner recusou.
+
+## Review Findings — bmad-code-review rodada 6 (2026-09-28, emenda 1.1.0, sobre 59b7667)
+
+Diff `origin/feat/esqueleto-e-instalador..HEAD` (6 commits). Camadas: Blind Hunter (17), Edge Case Hunter (14), Acceptance Auditor (15) → 5 decision-needed, 15 patch, 6 defer, 7 dispensados após dedupe.
+
+### Decision-needed (resolvidas pelo owner e aplicadas como patch)
+
+- [x] [Review][Decision] `--yes` nas sondas `cstk install/update --dry-run` — se uma versão do cstk ignorar `--dry-run`, o `--yes` vira instalação real sem confirmação, contra o Princípio IV. Opções: tirar `--yes` (já há `</dev/null`) / exigir o marcador `(dry-run)` na saída antes de confiar / aceitar o risco (blind+auditor) [instalar.sh:324,343] — **Resolvido (2026-09-28)**: owner: tirar `--yes` e exigir o marcador `(dry-run)` na saída; ausente → `aviso`.
+- [x] [Review][Decision] `vars.AGNOSTICO_TERMOS` não é mascarada: um PR interno que altere o script imprime a lista no log, e todo achado já publica o termo no log. Opções: migrar para `secrets.` (mascarado, não chega a fork) / manter `vars` e aceitar (blind+auditor) [.github/workflows/ci.yml:69] — **Resolvido (2026-09-28)**: owner: migrar para `secrets.AGNOSTICO_TERMOS` (mascarado, não chega a fork).
+- [x] [Review][Decision] A guarda anti-vacuidade só dispara com as duas fontes vazias; com `agnostico.lista` preenchida, a falta da variável passa verde (reproduzido). Opções: com `AGNOSTICO_EXIGIR_TERMOS=1`, exigir a fonte externa não vazia (fork sem vars → falha fechada) / manter (blind+edge) [scripts/verificar-agnostico.sh:144-153] — **Resolvido (2026-09-28)**: owner: com `AGNOSTICO_EXIGIR_TERMOS=1`, exigir a fonte externa não vazia.
+- [x] [Review][Decision] FR-008 exige imprimir a atualização de plugin desatualizado; a Decision 16 declarou que não existe sinal somente leitura, e o código sempre dá `ok`. Opções: emendar o FR-008 / implementar (auditor) [instalar.sh:504-506; spec.md FR-008] — **Resolvido (2026-09-28)**: owner: emendar o FR-008 declarando a lacuna da Decision 16.
+- [x] [Review][Decision] O FR-006/Decision 16 define "catálogo ausente" como manifest inexistente **ou** dry-run sem nenhuma skill presente; o código testa só o manifest (com manifest e todas as skills faltando → `aviso`, não bloqueio). Opções: implementar o segundo critério / emendar a Decision 16 (auditor) [instalar.sh:312] — **Resolvido (2026-09-28)**: owner: implementar o segundo critério de catálogo ausente.
+
+### Patch (aplicados)
+
+- [x] [Review][Patch] ALTO: allowlist de versão exigida pelo plan (`^v?[0-9]+(\.[0-9]+)*$`) não foi aplicada a `latest:` nem a `.version` — ANSI e um `Execute:` falso chegam ao relatório (reproduzido) (blind+edge) [instalar.sh:279-280,489,506]
+- [x] [Review][Patch] MÉDIO: falha ou JSON inválido de `claude plugin list --json` vira "ausente" com comando de instalação; deve virar `aviso` "não foi possível listar plugins" (Decision 16) (blind+edge+auditor) [instalar.sh:482]
+- [x] [Review][Patch] MÉDIO: `.enabled`/`.version` ausentes → `jq -r` devolve `null` → "desabilitado" bloqueante e "(null)" (blind+edge) [instalar.sh:486-489]
+- [x] [Review][Patch] MÉDIO: `~/.local/bin` entra na FRENTE do PATH e esconde o cstk que a pessoa usa; agora só serve para detecção, deve ir ao final (edge) [instalar.sh:36]
+- [x] [Review][Patch] MÉDIO: parse de `updated: N` — linha indentada, múltiplas linhas (erro de `[`) e `updated=N` de commands/agents (contrato) passam como `ok` (blind+edge) [instalar.sh:349-350]
+- [x] [Review][Patch] BAIXO: nome rejeitado pela allowlist some sem rastro e o catálogo fica `ok`; deve virar `aviso` (blind+edge) [instalar.sh:329-337]
+- [x] [Review][Patch] BAIXO: `cstk --version` com rc 0 sem x.y.z — a etapa 3 fica `ok` e a etapa 4 culpa "etapa anterior falhou" (edge+auditor) [instalar.sh:225,266-268]
+- [x] [Review][Patch] BAIXO: `cstk self-update --check` sem `</dev/null`, ao contrário das outras sondas (blind+edge) [instalar.sh:273]
+- [x] [Review][Patch] BAIXO: `HOME` com barra final gera falso aviso de PATH; `$HOME` sem aspas no padrão do `case` vira glob (edge) [instalar.sh:32-35,72-76]
+- [x] [Review][Patch] BAIXO: `log_etapa_fim 5 "concluída"` é incondicional (blind) [instalar.sh:417]
+- [x] [Review][Patch] BAIXO: `claude plugin enable` usa o nome curto; o install e o `plugin_info` usam `plugin@marketplace` (blind) [instalar.sh:484]
+- [x] [Review][Patch] BAIXO: o exemplo de caixa Unicode no comentário do próprio scanner casa um termo do mesmo radical na variável de Actions → o job falha em todo PR; trocar por exemplo neutro (edge) [scripts/verificar-agnostico.sh:41]
+- [x] [Review][Patch] BAIXO: texto do ponytail ausente diverge do exemplo do contrato (auditor) [contracts/cli.md]
+- [x] [Review][Patch] BAIXO: o AS9 diz que o plugin correto "não é mencionado", mas o relatório o lista como `[ok]` (FR-009); alinhar a redação ("sem comando impresso") (auditor) [spec.md AS9; plan.md]
+- [x] [Review][Patch] BAIXO: o FR-022 diz CI "detectado", mas o código exige o sinal explícito `AGNOSTICO_EXIGIR_TERMOS=1`; alinhar a spec à Decision 17 (auditor) [spec.md FR-022]
+
+### Defer
+
+- [x] [Review][Defer] CLI `claude` ausente sai sem `Execute:` — nenhum doc define o comando oficial [instalar.sh:533] — deferred, pre-existing
+- [x] [Review][Defer] Pré-release (`10.8.0-rc.1`) satisfaz o piso `10.8.0` [instalar.sh:115-116,225] — deferred, pre-existing
+- [x] [Review][Defer] A pré-checagem de escrita cria `~/.claude/skills` antes dos gates [instalar.sh:168] — deferred, pre-existing
+- [x] [Review][Defer] Saídas 2 e 3 sem o bloco "Relatório de preparo da máquina" [instalar.sh:159,170,175] — deferred, pre-existing
+- [x] [Review][Defer] SC-002: o texto "N instalada(s)" muda entre a 1ª e a 2ª execução [instalar.sh:465] — deferred, pre-existing
+- [x] [Review][Defer] A varredura de agnosticismo cobre a árvore, não o histórico da PR (o gitleaks cobre) [scripts/verificar-agnostico.sh] — deferred, pre-existing
+
+### Dispensados (7)
+
+Falha do dry-run → `aviso` (é o desenho da Decision 16, não regressão); timeout nas sondas (`timeout` não é POSIX/macOS); URLs e ids sem aspas no `Execute:` (constantes e ids filtrados); `cstk-install.sh` sem checksum (A08 aceito, o instalador oficial não publica soma); `10.8.0` em docs (medições datadas, não piso); ramo morto "cstk indisponível" na etapa 5 (defensivo); `parar_se_bloqueado` varrendo o relatório inteiro (correto).
+
+### Achado da própria aplicação
+
+- [x] Medição real (cstk v10.8.0, 2026-09-28): o resumo do `cstk update --dry-run` vem **indentado** (`  updated: 0`). O `^updated:` do r02 nunca casava, e a defasagem saía `ok` em silêncio em toda máquina. Está coberto pelo patch de parse; a research registra a medição num adendo.
+
+### Verificação
+
+- `shellcheck` 0.11.0 em todo `.sh` versionado: rc 0. `bash -n` nos dois scripts: ok.
+- Instalador com stubs de `cstk`/`claude` e HOME temporário: defasagem indentada mais `updated=N` somando 3; marcador ausente no install e no update → `aviso`; nenhuma skill presente → `falhou`, rc 1; nome `-rf` descartado com `aviso`; `latest:` com ESC e `.version` com ESC mais `Execute:` falso → `desconhecida`, sem ESC no relatório; listagem de plugins com falha ou JSON inválido → `aviso`, rc 0; `.enabled` ausente → `aviso`; `enable` com `plugin@marketplace`; `cstk --version` sem x.y.z → etapa 3 `falhou`; cstk antigo em `~/.local/bin` não esconde o do PATH; HOME com barra final sem falso aviso de PATH.
+- Verificador de agnosticismo: lista preenchida sem a fonte externa sob `AGNOSTICO_EXIGIR_TERMOS=1` → rc 2 (antes passava verde); fonte externa só com espaços → rc 2; termo presente → rc 1; fora do CI e sem termos → rc 0; árvore real com os termos reais → rc 0.

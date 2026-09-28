@@ -213,7 +213,7 @@ que o relatório diga qual garantia barrou (User Story 3, cenários 1 a 3):
 | Job | O que faz | FR |
 |-----|-----------|-----|
 | `shellcheck` | instala `shellcheck` explicitamente e roda sobre todo `.sh` do repositório | FR-017 |
-| `agnostico` | executa `scripts/verificar-agnostico.sh` com `AGNOSTICO_TERMOS` mapeada da variável de Actions e `AGNOSTICO_EXIGIR_TERMOS=1` (falha com as duas fontes vazias) | FR-018, FR-022 |
+| `agnostico` | executa `scripts/verificar-agnostico.sh` com `AGNOSTICO_TERMOS` mapeada do secret de Actions e `AGNOSTICO_EXIGIR_TERMOS=1` (falha com a fonte externa vazia) | FR-018, FR-022 |
 | `segredos` | instala o binário do `gitleaks` (release fixada, checksum conferido) e roda `gitleaks dir . --redact -v` (e, no pull_request, `gitleaks git` sobre o range base..head) | FR-019, FR-020, FR-021 |
 
 O `shellcheck` é instalado pelo job em vez de assumido pré-instalado no runner:
@@ -325,6 +325,11 @@ invisíveis:
    contido: a troca por outra ferramenta afeta o workflow e os dois arquivos de
    exceção, nada mais.
 4. **Termos de `AGNOSTICO_TERMOS` legíveis por quem controla um job (round r02).**
+   *Superado na review rodada 6 (2026-09-28):* a fonte passou a ser
+   `secrets.AGNOSTICO_TERMOS` — mascarado pelo runner e não repassado a PR de fork,
+   onde a guarda (que agora exige a fonte externa) falha fechada. Resta o risco de
+   um PR interno que altere o script contornar a máscara; aceito pelo owner. O texto
+   original abaixo fica como histórico.
    A variável de Actions não é segredo (Decision 17) e um PR que altere o
    workflow ou o script pode imprimi-la no log (CICD-SEC-4). Os termos não são
    credencial — a exigência do Princípio I é não citá-los *no repositório* —, então
