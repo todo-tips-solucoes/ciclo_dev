@@ -39,11 +39,13 @@ cockpit e aprova cada PR.
 
 ### MVP (Essencial)
 
-1. **`instalar.sh`** (máquina): checa pré-requisitos (`git`, `gh`, `node`, `jq`, `curl`), instala
-   o `cstk` pelo one-liner oficial quando falta e o atualiza para a última release quando existe
-   (`cstk self-update`), confere o piso `CSTK_MIN` de `versoes.env`, roda `cstk install`/`update`,
-   instala as skills do cockpit em `~/.claude/skills/`, instala ou atualiza os plugins
-   `context-mode` e `ponytail`, e valida tudo no fim — inclusive `cstk --version`, que nenhum kit
+1. **`instalar.sh`** (máquina): checa pré-requisitos (`git`, `gh`, `node`, `jq`, `curl`),
+   **verifica** o estado do `cstk` (presença, resposta, piso `CSTK_MIN` de `versoes.env`,
+   catálogo de skills/comandos) e dos plugins `context-mode`/`ponytail` (presentes e
+   habilitados) — e **imprime o comando oficial exato** para instalar ou atualizar o que
+   faltar; **nunca instala nem atualiza terceiro por conta própria** (Princípio IV, emenda
+   1.1.0) — quem executa é a pessoa. Instala as skills do cockpit em `~/.claude/skills/`
+   (isso não é terceiro) e valida tudo no fim — inclusive `cstk --version`, que nenhum kit
    anterior conferia.
 2. **`configurar.sh`** (projeto): pergunta os parâmetros (nome, `org/repo`, branch de integração,
    branch de produção, gerenciador de pacotes, comando de typecheck/lint/build, comando de deploy
