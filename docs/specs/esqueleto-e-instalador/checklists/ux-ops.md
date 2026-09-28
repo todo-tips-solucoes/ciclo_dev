@@ -76,13 +76,18 @@ pelo dev e cobertura dos caminhos de erro operacionais. Domínio customizado
 
 ## Requisitos Não-Funcionais
 
-- [ ] CHK012 - Nem spec.md nem plan.md especificam se o dev recebe algum sinal de
+- [x] CHK012 - Nem spec.md nem plan.md especificam se o dev recebe algum sinal de
       progresso durante etapas potencialmente demoradas (download/instalação do
       `cstk`, registro de marketplace, instalação de plugin) ou se fica sem
       feedback algum até o relatório final de sete etapas. Ausência não
       confirmada como decisão deliberada (silêncio-até-o-fim é uma escolha de UX
       válida, mas não está registrada como tal). [Gap, Spec (ausente); Plan
-      (ausente)] {humano}
+      (ausente)] {humano} — **Resolvido (rodada r02)**: plan.md §Arquitetura de
+      `instalar.sh` — "Feedback de progresso (CHK012-ux-ops, block-002 →
+      dec-036, respondido pelo owner)" registra a decisão explícita: cada etapa
+      imprime uma linha autoral em pt-BR ao iniciar e outra ao concluir, além do
+      relatório final consolidado; flag `--quiet`/spinner fica fora de escopo
+      (YAGNI). Deixa de ser gap. [Plan §Arquitetura de `instalar.sh`]
 
 ## Dependências e Premissas
 
@@ -92,11 +97,47 @@ pelo dev e cobertura dos caminhos de erro operacionais. Domínio customizado
       dados em script executável? [Premissa, Plan §Superfície de Segurança —
       linha "`versoes.env` interpretado como código"] {auto}
 
+## Emenda 1.1.0 (rodada r02) — verificar-e-imprimir, sequencial por gates
+
+- [x] CHK014 - Para cada uma das quatro lacunas que a emenda 1.1.0 converteu de
+      "instala" para "verifica e imprime" (etapas 2/`cstk` ausente, 4/piso ou
+      release mais nova, 5/catálogo de skills, 7/plugins), existe o comando
+      `Execute:` exato documentado — nenhuma etapa fica com instrução genérica
+      sem o comando literal a copiar? [Completude, Plan §Arquitetura de
+      `instalar.sh` tabela de 7 etapas; Contracts/cli.md §Comandos impressos
+      para a pessoa executar] {auto}
+- [x] CHK015 - A coluna "Bloqueante?" da tabela de 7 etapas (plan.md) é
+      consistente com a enumeração do código de saída `1` em contracts/cli.md
+      (mesmos itens: `cstk` ausente, sem resposta de versão, abaixo do piso,
+      catálogo ausente, falha na cópia de skills do cockpit, `context-mode`
+      ausente/desabilitado — nem mais, nem menos)? [Consistência, Plan
+      §Arquitetura de `instalar.sh`; Contracts/cli.md §Códigos de saída] {auto}
+- [x] CHK016 - A regra "sequencial por gates — para no primeiro item
+      bloqueante; o relatório cobre só os itens avaliados" (FR-009, clarify
+      Session 2026-09-28) tem cenário concreto que demonstra a parada, e não
+      só a declaração textual do requisito? [Cobertura, Quickstart Scenario 1
+      — "o relatório lista só Pré-requisitos de máquina e cstk presente — as
+      etapas seguintes não aparecem"; Contracts/cli.md exemplo "Parada por
+      gate"] {auto}
+- [ ] CHK017 - research.md Decision 17 declara explicitamente NÃO VERIFICADA
+      (Princípio V) a sintaxe exata de mapeamento do contexto `vars` do GitHub
+      Actions para um valor multilinha em `AGNOSTICO_TERMOS`. O mesmo
+      documento não trata uma pergunta relacionada e igualmente não
+      verificada: PRs de fork (que também disparam o job `agnostico` via
+      `pull_request`, plan.md §CI do cockpit) recebem `vars.*` do repositório
+      da mesma forma que PRs internos, ou o valor chega vazio/diferente
+      nesse caso — o que mudaria o comportamento da guarda anti-vacuidade
+      (FR-022) num fork? Nenhuma fonte oficial foi lida para fechar nenhuma
+      das duas perguntas nesta rodada. [Gap, Research.md Decision 17] {auto}
+
 ## Notes
 
 - Items `{auto}` já vêm resolvidos pelo agente (`[x]` com citação, ou marcador
   `[Gap]`).
 - Items `{humano}` ficam `[ ]` aguardando decisão do dono do produto.
-- Gate `requirement-coverage.sh` já rodado sobre `spec.md` em
-  [checklists/security.md](./security.md) (21/21 FRs cobertos, exit 0) — mesmo
-  `spec.md`, não repetido aqui.
+- Gate `requirement-coverage.sh` rodado de novo sobre `spec.md` nesta rodada
+  (r02, pós-clarify Session 2026-09-28): `requirements=22|covered=22|errors=0`,
+  exit 0 — todos os FRs (incluindo o novo FR-022) têm cenário associado.
+- CHK017 é a mesma lacuna citada em Research Decision 17 (verificação de
+  sintaxe/exposição `vars` do GitHub Actions) — não duplica um `[Gap]` novo,
+  só o traz para o checklist para virar tarefa em `/create-tasks`.

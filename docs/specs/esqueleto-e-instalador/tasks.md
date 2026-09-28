@@ -355,6 +355,196 @@ Ref: quickstart.md Scenario 1-11
 
 ---
 
+## FASE 6 - Emenda 1.1.0 (rodada r02): verificar-e-imprimir, sequencial por gates, `AGNOSTICO_TERMOS`
+
+Ref: `docs/specs/esqueleto-e-instalador/spec.md` FR-002, FR-003, FR-004,
+FR-006, FR-008, FR-009 (redação revisada) e FR-022 (nova) — incremento round
+r02, emenda 1.1.0 da constitution (Princípio IV/I). Deriva de
+[plan.md](./plan.md) §Arquitetura de `instalar.sh` (revisada), §Arquitetura de
+`scripts/verificar-agnostico.sh` (revisada) e §CI do cockpit (revisada), e
+consome os gaps abertos em
+[checklists/ux-ops.md](./checklists/ux-ops.md) CHK014-CHK017.
+
+**Não apaga nem reescreve nenhuma subtarefa `[x]` das FASES 1-5** — a
+implementação r01 (instala de verdade) fica registrada como histórico; esta
+fase decompõe só o que a emenda 1.1.0 muda no comportamento já implementado.
+
+### 6.1 Controle de fluxo sequencial por gates em `instalar.sh` `[A]`
+
+Ref: spec.md FR-009 (redação r02); plan.md §Arquitetura de `instalar.sh` —
+"sequencial por gates"; clarify Session 2026-09-28; contracts/cli.md §Saída —
+relatório final, exemplo "Parada por gate"; checklists/ux-ops.md CHK016
+
+- [ ] 6.1.1 Reescrever `main()` para parar na primeira etapa que registra
+      item bloqueante com `falhou`: após cada chamada de etapa, checar se
+      algum item recém-registrado tem `bloqueante=true` e `status=falhou`
+      e, se sim, chamar `imprimir_relatorio_e_sair` imediatamente — as
+      etapas seguintes não rodam nem aparecem no relatório
+- [ ] 6.1.2 Confirmar que item não-bloqueante (`aviso`, ou `falhou` de item
+      recomendado como o plugin `ponytail`) NÃO interrompe o pipeline — só
+      bloqueante-falhou para
+- [ ] 6.1.3 Teste: reproduzir quickstart Scenario 1 (máquina sem `cstk`) e
+      confirmar que o relatório lista só `Pré-requisitos de máquina` e
+      `cstk presente` — as etapas 3-7 não aparecem, `exit 1`
+
+### 6.2 Etapa 2 — `cstk` ausente: imprimir, nunca baixar nem executar `[A]`
+
+Ref: spec.md FR-002 (redação r02, emenda 1.1.0); plan.md §Arquitetura de
+`instalar.sh` tabela etapa 2; contracts/cli.md §Comandos impressos — `cstk`
+ausente; research Decision 1/16
+
+- [ ] 6.2.1 Remover de `etapa2_cstk_instalar_ou_atualizar` o branch que baixa
+      (`curl -fsSL ... -o tmp`) e executa (`sh tmp`) o instalador do `cstk` —
+      nenhum código deste script MAY baixar nem executar instalador de
+      terceiro
+- [ ] 6.2.2 Remover de `etapa2_cstk_instalar_ou_atualizar` a chamada `cstk
+      self-update --yes` do ramo "já presente" — self-update deixa de ser
+      executado nesta etapa (a checagem somente leitura de release mais nova
+      migra para a etapa 4, ver 6.3)
+- [ ] 6.2.3 Reduzir a etapa 2 a uma checagem de presença (`command -v cstk`);
+      ausente → item `falhou`/bloqueante com as duas linhas `Execute:`
+      (baixar para arquivo, inspecionar, executar — mesma URL já usada,
+      research Decision 1/16); presente → `ok`
+- [ ] 6.2.4 Teste: reproduzir quickstart Scenario 1 confirmando que nenhum
+      arquivo novo aparece em `~/.local/` e nenhum processo `curl` de
+      download é disparado pelo script quando `cstk` está ausente
+
+### 6.3 Etapa 4 — piso mínimo contra a versão instalada + release mais nova via `--check` `[A]`
+
+Ref: spec.md FR-003, FR-004 (redação r02); plan.md §Arquitetura de
+`instalar.sh` tabela etapa 4 — "o piso é conferido contra a versão instalada —
+não há mais self-update antes dele"; contracts/cli.md §Comandos externos
+invocados — "release mais nova"; research Decision 2 (revisada)
+
+- [ ] 6.3.1 Confirmar/ajustar que `etapa4_cstk_piso` compara
+      `CSTK_VERSAO_INSTALADA` (lida em `etapa3_cstk_responde`, sem
+      `self-update` prévio) contra `CSTK_MIN` — abaixo do piso →
+      `falhou`/bloqueante + `Execute: cstk self-update`
+- [ ] 6.3.2 Quando a versão atende ao piso, invocar `cstk self-update
+      --check` (somente leitura) e tratar os três `rc` conhecidos: `0` em
+      dia → `ok`, sem comando impresso; `10` release mais nova → `aviso`
+      não-bloqueante + `Execute: cstk self-update`; `1` (ou outro rc) →
+      `aviso` não-bloqueante "não foi possível verificar release", nunca
+      `ok` nem `falhou`
+- [ ] 6.3.3 Teste: reproduzir quickstart Scenario 3 (release mais nova
+      disponível) confirmando `aviso` + comando impresso, sem executar `cstk
+      self-update` de fato, e que o restante do pipeline prossegue
+
+### 6.4 Etapa 5 — catálogo de skills: dry-run + imprimir, nunca `install`/`update` reais `[A]`
+
+Ref: spec.md FR-006 (redação r02); plan.md §Arquitetura de `instalar.sh`
+tabela etapa 5; contracts/cli.md §Comandos impressos — catálogo ausente/
+faltando/defasado; research Decision 12
+
+- [ ] 6.4.1 Remover de `etapa5_catalogo` a chamada `cstk install --yes` (sem
+      argumentos, ramo "manifest ausente") — catálogo ausente vira item
+      `falhou`/bloqueante + `Execute: cstk install`, sem executar
+- [ ] 6.4.2 Remover de `etapa5_catalogo` a chamada `cstk install --yes
+      "${faltantes[@]}"` (cherry-pick real) — manter `skills_faltantes` (já
+      somente leitura, via `--dry-run`) apenas para detectar o que falta;
+      faltando algo → item `aviso` não-bloqueante + `Execute: cstk install
+      <nomes...>`, sem executar
+- [ ] 6.4.3 Remover de `etapa5_catalogo` a chamada `cstk update --yes` real —
+      usar `cstk update --dry-run` (mesmo padrão de `skills_faltantes`) só
+      para detectar se há artefato defasado; defasado → item `aviso`
+      não-bloqueante + `Execute: cstk update`, sem executar
+- [ ] 6.4.4 Teste: reproduzir quickstart cenários de catálogo (manifest
+      ausente, skill faltando, catálogo defasado) confirmando que nenhum
+      `cstk install`/`cstk update` real é disparado — só os `--dry-run`
+
+### 6.5 Etapa 7 — plugins: verificar presença/habilitação, imprimir, nunca `marketplace add`/`install`/`enable` reais `[A]`
+
+Ref: spec.md FR-008 (redação r02); plan.md §Arquitetura de `instalar.sh`
+tabela etapa 7; contracts/cli.md §Comandos impressos — marketplace/plugin
+ausente/desabilitado; research (plugin desatualizado — lacuna declarada)
+
+- [ ] 6.5.1 Reescrever `provisionar_plugin` (ou substituí-la): remover
+      `claude plugin marketplace add`, `claude plugin install ... -s user` e
+      `claude plugin update ... -s user` reais — usar apenas `claude plugin
+      marketplace list --json` e `claude plugin list --json` (já somente
+      leitura, via `marketplace_registrado`/`plugin_instalado_user`) e,
+      adicionalmente, o campo `.enabled` (MEDIDO, plan.md — não lido hoje)
+- [ ] 6.5.2 Ausente → item `falhou` (bloqueante para `context-mode`, não para
+      `ponytail`) + `Execute:` com `claude plugin marketplace add <fonte>`
+      (só se o marketplace também faltar) e `claude plugin install
+      <plugin>@<marketplace> -s user`
+- [ ] 6.5.3 Desabilitado (presente, `enabled == false`) → item `falhou`
+      (mesma regra de bloqueio de 6.5.2) + `Execute: claude plugin enable
+      <plugin> -s user`
+- [ ] 6.5.4 Presente e habilitado → item `ok`, sem nenhum comando impresso
+      (research: "plugin desatualizado — lacuna declarada"; a CLI não expõe
+      sinal de desatualização, não afirmar o que não se sabe)
+- [ ] 6.5.5 Teste: reproduzir quickstart Scenario 7 e Scenario 13 confirmando
+      que nenhum `claude plugin install`/`update`/`enable` real é disparado —
+      só as duas consultas `--json`
+
+### 6.6 `scripts/verificar-agnostico.sh` — união com `AGNOSTICO_TERMOS` + guarda anti-vacuidade `[A]`
+
+Ref: spec.md FR-022 (nova, emenda 1.1.0); plan.md §Arquitetura de
+`scripts/verificar-agnostico.sh` passo 1-2; data-model.md §Lista de termos
+proibidos (linha `AGNOSTICO_TERMOS`); contracts/cli.md
+`verificar-agnostico.sh`; research Decision 17
+
+- [ ] 6.6.1 Ler a variável de ambiente `AGNOSTICO_TERMOS` (mesmo formato de
+      `scripts/agnostico.lista`: um termo por linha, `#` comenta, linha em
+      branco ignorada) e aplicar a MESMA normalização já usada para a lista
+      versionada (trim, remoção de CR, BOM na primeira linha)
+- [ ] 6.6.2 Unir os termos das duas fontes (versionada + variável de
+      ambiente) num único conjunto antes de montar `$TERMOS_TMP`
+- [ ] 6.6.3 Implementar a guarda anti-vacuidade: quando o conjunto unido
+      ficar vazio, sair com `exit 2` **somente se** `AGNOSTICO_EXIGIR_TERMOS=1`
+      estiver setada; caso contrário (fora do CI), manter o comportamento
+      atual — lista vazia é sucesso (`OK`, `exit 0`)
+- [ ] 6.6.4 Confirmar que o script **nunca** imprime os termos de
+      `AGNOSTICO_TERMOS` em si (nem em modo de erro) — só o trecho da linha
+      onde um termo foi encontrado, como já ocorre com a lista versionada
+- [ ] 6.6.5 Atualizar o cabeçalho de comentários do script (topo do arquivo)
+      para descrever as duas fontes e a guarda anti-vacuidade, hoje ainda
+      mencionando só `scripts/agnostico.lista`
+- [ ] 6.6.6 Teste: reproduzir a varredura com `AGNOSTICO_TERMOS` setada
+      localmente (termo fora do repositório) e confirmar detecção; testar as
+      duas fontes vazias com e sem `AGNOSTICO_EXIGIR_TERMOS=1` (`exit 0` vs
+      `exit 2`)
+
+### 6.7 `.github/workflows/ci.yml` — job `agnostico` exporta as duas variáveis `[A]`
+
+Ref: spec.md FR-022; plan.md §CI do cockpit — job `agnostico`; research
+Decision 17 ("NÃO VERIFICADO"); checklists/ux-ops.md CHK017
+
+- [ ] 6.7.1 Adicionar ao step "Verificar agnosticismo" (ou ao job) do
+      `.github/workflows/ci.yml` as variáveis de ambiente `AGNOSTICO_TERMOS:
+      ${{ vars.AGNOSTICO_TERMOS }}` e `AGNOSTICO_EXIGIR_TERMOS: "1"`
+- [ ] 6.7.2 **Consumir checklists/ux-ops.md CHK017 (Gap, NÃO VERIFICADO)**:
+      antes de finalizar 6.7.1, ler a documentação oficial do GitHub Actions
+      sobre (a) a sintaxe exata de mapeamento do contexto `vars` para um
+      valor multilinha e (b) se `vars.*` do repositório/organização chega a
+      workflows disparados por `pull_request` de fork da mesma forma que
+      PRs internos — registrar a fonte lida (Princípio V) e, se o
+      comportamento divergir do desenhado, ajustar 6.7.1 e o plan.md antes
+      de fechar esta tarefa
+- [ ] 6.7.3 Teste: validar sintaxe do workflow (`bash -n` nos blocos `run:`,
+      já usado em 4.1.4, e revisão estrutural do YAML) — execução real do
+      job fica para o mesmo "fora do escopo autônomo" já decidido em
+      block-003/dec-045 (mesma limitação de ambiente de 4.1.5/4.2.3/4.3.5)
+
+### 6.8 Documentação e revisão de código pós-emenda `[M]`
+
+Ref: plan.md, data-model.md, contracts/cli.md, quickstart.md (já alinhados
+nesta rodada — conferir que a implementação não deixou nenhum resíduo)
+
+- [ ] 6.8.1 Revisar `instalar.sh` e `scripts/verificar-agnostico.sh` por
+      referência residual a comportamento pré-emenda (comentários que ainda
+      descrevem "instala de verdade", `self-update --yes` etc. fora dos
+      itens já removidos em 6.2-6.5)
+- [ ] 6.8.2 Rodar `shellcheck` local se disponível (mesma limitação
+      histórica de 4.1.5 pode se aplicar) e `bash -n instalar.sh
+      scripts/verificar-agnostico.sh` como mínimo
+- [ ] 6.8.3 Reconfirmar `requirement-coverage.sh spec.md` (22/22 FRs, gate já
+      verde nesta rodada — checklists/ux-ops.md) após qualquer ajuste de
+      redação feito durante a implementação
+
+---
+
 ## Matriz de Dependências
 
 ```mermaid
@@ -364,12 +554,16 @@ flowchart TD
     F3[Fase 3 - verificar-agnostico.sh]
     F4[Fase 4 - CI do cockpit]
     F5[Fase 5 - Testes e Validação Final]
+    F6[Fase 6 - Emenda 1.1.0 r02]
 
     F1 --> F2
     F1 --> F3
     F2 --> F4
     F3 --> F4
     F4 --> F5
+    F2 --> F6
+    F3 --> F6
+    F4 --> F6
 ```
 
 ## Resumo Quantitativo
@@ -381,7 +575,8 @@ flowchart TD
 | 3 - `verificar-agnostico.sh` | 1 | 5 | A |
 | 4 - CI do cockpit | 3 | 13 | A |
 | 5 - Testes e Validação Final | 1 | 4 | A |
-| **Total** | **12** | **54** | - |
+| 6 - Emenda 1.1.0 (r02) | 8 | 31 | A, M |
+| **Total** | **20** | **85** | - |
 
 ## Escopo Coberto
 
@@ -391,6 +586,9 @@ flowchart TD
 | FR-013..FR-016 | `scripts/verificar-agnostico.sh`: varredura de termos proibidos, lista versionada separada, idempotência | 3 |
 | FR-017..FR-021 | `.github/workflows/ci.yml`: jobs `shellcheck`, `agnostico` e `segredos` (varredura de segredo com `gitleaks --redact` e exceções versionadas) | 4 |
 | Gaps do checklist (CHK005, CHK010, CHK011, CHK012) | Resolução de requisito revelada pelo gate `checklist` (security + ux-ops) | 1 |
+| FR-002, FR-003, FR-004, FR-006, FR-008, FR-009 (redação r02) | Emenda 1.1.0: `instalar.sh` passa a verificar-e-imprimir nas etapas 2/4/5/7 (nunca instala/atualiza terceiro), sequencial por gates (para no primeiro item bloqueante) | 6 |
+| FR-022 (nova) | `scripts/verificar-agnostico.sh` une `agnostico.lista` com `AGNOSTICO_TERMOS`; `ci.yml` exporta `AGNOSTICO_TERMOS` + `AGNOSTICO_EXIGIR_TERMOS=1` (guarda anti-vacuidade) | 6 |
+| Gaps do checklist r02 (CHK017) | Verificação da sintaxe/exposição a fork PR de `vars.*` do GitHub Actions, declarada NÃO VERIFICADA em research.md Decision 17 | 6 |
 
 ## Escopo Excluído
 
