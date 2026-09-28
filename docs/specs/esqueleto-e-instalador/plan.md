@@ -449,3 +449,13 @@ Os três pontos que mereciam nova conferência após o design:
 | Violação | Por Que Necessário | Alternativa Simples Rejeitada Porque |
 |----------|-------------------|--------------------------------------|
 | — | — | — |
+
+## Nota pós-merge
+
+A PR #1 (`todo-tips-solucoes/feat/esqueleto-e-instalador` → `main`, commit
+`d45c1ce33a4e4e75865b8c55494571465a6fe19e`, 2026-09-28) foi mesclada por
+**merge commit**, não por squash — uma **exceção aceita explicitamente pelo
+owner** à regra de merge por squash do Fluxo de Trabalho da
+`docs/constitution.md`. A regra em si **não foi alterada**: continua valendo
+squash para toda PR de onda seguinte; esta é a única exceção registrada até
+o momento (feature `skills-do-cockpit`, FR-013).
