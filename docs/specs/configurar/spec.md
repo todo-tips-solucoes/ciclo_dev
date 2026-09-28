@@ -169,6 +169,24 @@ sem stdin, e obter projeto configurado.
 - Nenhum template existente sob `templates/`: passo de renderização termina com
   sucesso e informa que nada havia a renderizar.
 
+## Clarifications
+
+### Session 2026-09-28
+
+- Q1 (FR-007): como detectar arquivo editado à mão? → Manifesto de hashes
+  sha256 dos arquivos renderizados, gravado no projeto-alvo (dec-007).
+- Q2 (FR-016): fonte do modo não interativo? → Arquivo de respostas
+  `CHAVE=valor`, no mesmo formato do `cockpit.config`; sem variáveis de
+  ambiente (dec-008).
+- Q3 (FR-003): representação de identidades e board não usado? → Chave única
+  `IDENTIDADES="dev1:email1;dev2:email2"`; board não usado = `BOARD=""`
+  (resposta humana, dec-012).
+- Q4 (FR-014): quando checar o `cstk`? → No fim; se faltar, mantém
+  `cockpit.config` e templates, imprime o comando oficial e sai com erro
+  (resposta humana, dec-013).
+- Q5 (FR-009/FR-010): sintaxe do placeholder? → `{{CHAVE}}`, somente nome de
+  chave em maiúsculas (dec-009; alinhado ao briefing).
+
 ## Requirements
 
 ### Functional Requirements
@@ -182,8 +200,11 @@ sem stdin, e obter projeto configurado.
   no formato `CHAVE=valor` já definido por `cockpit.config.example` e por
   `docs/specs/skills-do-cockpit/data-model.md`, legível por `source` em bash
   puro, com as 10 chaves obrigatórias e as 2 opcionais quando informadas.
-- **FR-003**: As chaves novas (identidades, board, Princípio III) MUST ser
-  acrescentadas ao formato como extensão retrocompatível, registradas em
+- **FR-003**: As chaves novas MUST ser `IDENTIDADES`, `BOARD` e a do Princípio
+  III. `IDENTIDADES` é uma única chave, com itens separados por ponto e vírgula
+  entre aspas (ex.: `IDENTIDADES="dev1:email1;dev2:email2"`); board não usado é
+  a chave `BOARD` presente com valor vazio (`BOARD=""`), nunca sentinela nem
+  ausência. Elas MUST ser acrescentadas ao formato como extensão retrocompatível, registradas em
   `cockpit.config.example` e no `data-model.md`, de modo que um
   `cockpit.config` sem elas continue válido para `rito-dev`.
 - **FR-004**: O configurador MUST validar cada resposta (`org/repo` no formato
@@ -195,38 +216,47 @@ sem stdin, e obter projeto configurado.
   relê o `cockpit.config`, oferece os valores atuais como padrão e, sem
   mudanças, deixa todos os arquivos byte a byte idênticos.
 - **FR-007**: O configurador MUST NOT sobrescrever arquivo editado à mão sem
-  aviso e confirmação explícita; MUST oferecer opção para forçar.
+  aviso e confirmação explícita; MUST oferecer opção para forçar. A detecção de
+  edição local MUST usar um manifesto de hashes (sha256) dos arquivos
+  renderizados, gravado no projeto-alvo a cada renderização: arquivo cujo hash
+  atual difere do registrado é tratado como editado à mão.
 - **FR-008**: O configurador MUST oferecer `--atualizar`, que re-renderiza os
   templates a partir do `cockpit.config` existente sem perguntar nada, e MUST
   falhar com mensagem clara se não houver config.
 - **FR-009**: O configurador MUST renderizar todo template existente sob
   `templates/` do cockpit para o mesmo caminho relativo dentro do projeto,
   substituindo placeholders pelos valores do `cockpit.config`, sem exigir mudança
-  no script quando um template novo é adicionado.
+  no script quando um template novo é adicionado. O placeholder MUST ter a
+  sintaxe `{{CHAVE}}`, em que `CHAVE` é somente nome de chave em maiúsculas
+  (`[A-Z][A-Z0-9_]*`); texto entre chaves duplas fora desse padrão não é
+  placeholder e permanece literal.
 - **FR-010**: O configurador MUST recusar terminar com sucesso se qualquer
-  arquivo renderizado contiver placeholder sem valor; MUST listar arquivo e
+  arquivo renderizado contiver placeholder `{{CHAVE}}` sem valor; MUST listar arquivo e
   placeholder, e MUST NOT deixar no projeto o arquivo com placeholder residual.
 - **FR-011**: O valor substituído MUST aparecer literalmente no arquivo de
   saída, inclusive com caracteres especiais.
 - **FR-012**: A feature MUST trazer 1 ou 2 templates mínimos de prova sob
   `templates/`, genéricos e sem conteúdo de projeto real, exercitando o motor;
   os templates de governança e automação ficam fora desta feature.
-- **FR-013**: O configurador MUST provisionar os guard hooks executando
+- **FR-013**: O configurador MUST provisionar (como último passo, após gravar
+  `cockpit.config` e renderizar os templates) os guard hooks executando
   `cstk hooks install --project-path <raiz do projeto>`, e MUST NOT copiá-los.
-- **FR-014**: Se `cstk` estiver ausente ou abaixo do piso `CSTK_MIN` de
-  `versoes.env`, o configurador MUST imprimir o comando oficial exato e terminar
-  com exit diferente de zero; MUST NOT instalar, atualizar nem executar
+- **FR-014**: A checagem do `cstk` MUST ocorrer no fim, no passo dos hooks. Se
+  `cstk` estiver ausente ou abaixo do piso `CSTK_MIN` de `versoes.env`, o
+  configurador MUST manter o `cockpit.config` e os templates já gravados,
+  imprimir o comando oficial exato e terminar com exit diferente de zero; MUST NOT instalar, atualizar nem executar
   bootstrap de terceiro (Princípio IV). O número do piso MUST ser lido de
   `versoes.env`, nunca repetido.
 - **FR-015**: O configurador MUST escrever somente dentro do projeto-alvo
   informado; MUST recusar caminho de saída que escape dele (Princípio VII).
 - **FR-016**: O configurador MUST permitir execução não interativa, com todos os
-  valores fornecidos por arquivo ou variáveis, e MUST falhar dizendo a chave
-  faltante em vez de presumir valor.
+  valores fornecidos por um arquivo de respostas no formato `CHAVE=valor` (o
+  mesmo do `cockpit.config`), e MUST falhar dizendo a chave faltante em vez de
+  presumir valor. Variáveis de ambiente não são fonte de valores.
 - **FR-017**: A gravação do `cockpit.config` e dos arquivos renderizados MUST ser
   atômica: uma interrupção não deixa arquivo truncado ou parcial.
 - **FR-018**: A tabela de identidades MUST exigir ao menos uma identidade no
-  formato `nome <email>`; MUST avisar (sem recusar) quando o e-mail não for
+  formato `nome <email>` na pergunta, gravado no `cockpit.config` como `nome:email` em `IDENTIDADES`; MUST avisar (sem recusar) quando o e-mail não for
   endereço `noreply` do GitHub, por não constar e-mail pessoal em template.
 - **FR-019**: O configurador MUST ser bash portável (Linux, WSL, macOS) com
   `set -euo pipefail`, passar em shellcheck sem findings e depender apenas de
