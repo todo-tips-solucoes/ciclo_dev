@@ -259,7 +259,7 @@ sem stdin, e obter projeto configurado.
 - **FR-017**: A gravação do `cockpit.config` e dos arquivos renderizados MUST ser
   atômica: uma interrupção não deixa arquivo truncado ou parcial.
 - **FR-018**: A tabela de identidades MUST exigir ao menos uma identidade no
-  formato `nome <email>` na pergunta, gravado no `cockpit.config` como `nome:email` em `IDENTIDADES`; MUST avisar (sem recusar) quando o e-mail não for
+  pedindo nome e e-mail separadamente, uma identidade por vez (ratificado pelo owner em 2026-09-29), gravada no `cockpit.config` como `nome:email` em `IDENTIDADES`; MUST avisar (sem recusar) quando o e-mail não for
   endereço `noreply` do GitHub, por não constar e-mail pessoal em template.
 - **FR-019**: O configurador MUST ser bash portável (Linux, WSL, macOS) com
   `set -euo pipefail`, passar em shellcheck sem findings e depender apenas de
@@ -275,7 +275,7 @@ sem stdin, e obter projeto configurado.
 - **cockpit.config**: arquivo `CHAVE=valor` na raiz do projeto-alvo; fonte única
   dos valores que variam por projeto. Ganha chaves opcionais de identidades,
   board e Princípio III.
-- **Tabela de identidades**: lista de autores do projeto (`nome <email>`),
+- **Tabela de identidades**: lista de autores do projeto (nome e e-mail),
   usada pelos templates que declaram identidade de commit.
 - **Template**: arquivo sob `templates/` com placeholders, renderizado para o
   mesmo caminho relativo no projeto-alvo.

@@ -50,7 +50,6 @@ RE_KV='^([A-Z][A-Z0-9_]*)=(.*)$'
 # '.' ou '..' (checado à parte em validar_chave).
 RE_REPO='^[A-Za-z0-9._][A-Za-z0-9._-]*/[A-Za-z0-9._][A-Za-z0-9._-]*$'
 RE_URL='^https?://[^[:space:]]+$'
-RE_IDENT='^(.+)[[:space:]]+<([^<>]+)>$'
 BOM=$'\xEF\xBB\xBF'
 # Sequências UTF-8 bem formadas (sem overlong, sem surrogate, até U+10FFFF).
 RE_UTF8=$'^([\x01-\x7F]|[\xC2-\xDF][\x80-\xBF]|\xE0[\xA0-\xBF][\x80-\xBF]|[\xE1-\xEC\xEE\xEF][\x80-\xBF][\x80-\xBF]|\xED[\x80-\x9F][\x80-\xBF]|\xF0[\x90-\xBF][\x80-\xBF][\x80-\xBF]|[\xF1-\xF3][\x80-\xBF][\x80-\xBF][\x80-\xBF]|\xF4[\x80-\x8F][\x80-\xBF][\x80-\xBF])*$'
@@ -371,37 +370,38 @@ perguntar() {
   done
 }
 
-# perguntar_identidades — ÚNICA função que conhece a forma da pergunta de
-# identidades (FR-018 é proposta pendente; a troca por nome e e-mail
-# separados fica restrita aqui). Entrada `nome <email>`, uma por vez; vazio
-# encerra; grava `nome:email;...`.
+# perguntar_identidades — pede nome e e-mail separados, uma identidade por vez
+# (FR-018, ratificado pelo owner em 2026-09-29); nome vazio encerra a lista
+# (ou mantém as atuais, se nada foi informado). Grava `nome:email;...`.
 perguntar_identidades() {
-  local acumulado="" resp nome email atual=""
+  local acumulado="" nome email atual=""
   definido IDENTIDADES && atual="$(valor IDENTIDADES)"
   [ -z "$atual" ] || log "Identidades atuais: $atual"
   while :; do
     if [ -z "$acumulado" ] && [ -n "$atual" ]; then
-      printf 'Identidade de commit (nome <email>; vazio mantém as atuais): '
+      printf 'Nome da identidade de commit (vazio mantém as atuais): '
     elif [ -z "$acumulado" ]; then
-      printf 'Identidade de commit (nome <email>): '
+      printf 'Nome da identidade de commit: '
     else
-      printf 'Outra identidade (nome <email>; vazio encerra): '
+      printf 'Nome de outra identidade (vazio encerra): '
     fi
-    IFS= read -r resp || falhar "Entrada encerrada antes de responder IDENTIDADES."
-    if [ -z "$resp" ]; then
+    IFS= read -r nome || falhar "Entrada encerrada antes de responder IDENTIDADES."
+    nome="$(aparar "$nome")"
+    if [ -z "$nome" ]; then
       if [ -n "$acumulado" ]; then break; fi
       if [ -n "$atual" ]; then return 0; fi
       erro "Informe ao menos uma identidade."
       continue
     fi
-    if ! [[ "$resp" =~ $RE_IDENT ]]; then
-      erro "Formato esperado: nome <email>."
+    if [[ "$nome" == *[:\;\<\>]* ]]; then
+      erro "O nome não pode conter ':', ';', '<' nem '>'."
       continue
     fi
-    nome="$(aparar "${BASH_REMATCH[1]}")"
-    email="$(aparar "${BASH_REMATCH[2]}")"
-    if [[ "$nome" == *:* ]]; then
-      erro "O nome não pode conter ':'."
+    printf 'E-mail de %s: ' "$nome"
+    IFS= read -r email || falhar "Entrada encerrada antes de responder IDENTIDADES."
+    email="$(aparar "$email")"
+    if [[ "$email" == *[\;]* ]]; then
+      erro "O e-mail não pode conter ';'."
       continue
     fi
     if validar_chave IDENTIDADES "$nome:$email"; then

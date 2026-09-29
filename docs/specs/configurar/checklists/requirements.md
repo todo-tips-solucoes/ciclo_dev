@@ -43,9 +43,9 @@
 ## Dependências, premissas e princípios
 
 - [x] CHK022 - Português do Brasil com acentuação e agnosticismo verificável são requisitos testáveis? [Completude, Spec §FR-020, §FR-021, §SC-006] {auto}
-- [ ] CHK023 - Princípio V: a fonte oficial de `cstk hooks install` (doc oficial, lida via `context-mode`) está registrada? [Gap, plan §Constitution Check (V), research Decision 10] {auto}
-- [ ] CHK024 - FR-018: a conciliação da pergunta `nome <email>` com a gravação `nome:email` foi ratificada pelo owner? [Conflict, Spec §FR-018; plan §Decisões e pendências; dec-020] {humano}
-- [ ] CHK025 - O aviso (sem recusa) para e-mail não `noreply` reflete o apetite de risco do owner, versus recusar? [Risco, Spec §FR-018] {humano}
+- [x] CHK023 - Princípio V: a fonte oficial de `cstk hooks install` (doc oficial, lida via `context-mode`) está registrada? [Gap, plan §Constitution Check (V), research Decision 10] {auto} — README.pt-BR do repositório oficial, commit `561552a`, registrado em research Decision 10 (2026-09-29)
+- [x] CHK024 - FR-018: a conciliação da pergunta `nome <email>` com a gravação `nome:email` foi ratificada pelo owner? [Conflict, Spec §FR-018; plan §Decisões e pendências; dec-020] {humano} — owner ratificou: nome e e-mail separados (2026-09-29)
+- [x] CHK025 - O aviso (sem recusa) para e-mail não `noreply` reflete o apetite de risco do owner, versus recusar? [Risco, Spec §FR-018] {humano} — owner confirmou: só aviso (2026-09-29)
 
 ## Notes
 

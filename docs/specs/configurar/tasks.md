@@ -120,9 +120,9 @@ Ref: research.md Decision 10, spec.md FR-013/FR-014, plan.md §Constitution Chec
 
 Ref: checklists/requirements.md CHK023, plan.md §Constitution Check (V), research.md Decision 10, constitution Princípio V
 
-- [~] 4.2.1 Ler a documentação oficial do `cstk hooks install` via `context-mode` e registrar o link e a data em `research.md` Decision 10
+- [x] 4.2.1 Ler a documentação oficial do `cstk hooks install` via `context-mode` e registrar o link e a data em `research.md` Decision 10
 - [x] 4.2.2 Conferir o comportamento observado em `--help` contra a documentação; se divergir, ajustar `provisionar_hooks` e o contrato
-- [ ] 4.2.3 Marcar CHK023 como atendido em `checklists/requirements.md` com a referência à fonte — PENDENTE: doc oficial do cstk não lida (bash-guard bloqueia raw.githubusercontent.com); CHK023 segue aberto, listar na PR
+- [x] 4.2.3 Marcar CHK023 como atendido em `checklists/requirements.md` com a referência à fonte <!-- 2026-09-29: README.pt-BR oficial, commit 561552a -->
 
 ---
 
@@ -153,10 +153,10 @@ Ref: plan.md §Source Code, spec.md SC-006/FR-019/FR-020
 
 Ref: checklists/requirements.md CHK018/CHK024/CHK025, research.md Decision 5, spec.md FR-018/SC-001
 
-- [ ] 6.1.1 Pedir ao owner a ratificação de FR-018 (`nome <email>` na pergunta versus nome e e-mail separados) na descrição da PR (CHK024, dec-020)
-- [ ] 6.1.2 Pedir ao owner a confirmação do apetite de risco: aviso versus recusa para e-mail não `noreply` (CHK025)
+- [x] 6.1.1 Pedir ao owner a ratificação de FR-018 (`nome <email>` na pergunta versus nome e e-mail separados) na descrição da PR (CHK024, dec-020)
+- [x] 6.1.2 Pedir ao owner a confirmação do apetite de risco: aviso versus recusa para e-mail não `noreply` (CHK025)
 - [ ] 6.1.3 Pedir ao owner o método de medição de SC-001 ("menos de 5 minutos") (CHK018)
-- [ ] 6.1.4 Atualizar o histórico/briefing do projeto se a feature alterar algum item registrado
+- [x] 6.1.4 Atualizar o histórico/briefing do projeto se a feature alterar algum item registrado
 
 ---
 

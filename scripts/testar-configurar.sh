@@ -384,6 +384,36 @@ C="$(cockpit_copia)"; git init -q "$C"
 rc="$(cd "$C" && PATH="$PATH_COM_FALSO" codigo ./configurar.sh --respostas "$EXEMPLO")"
 [ "$rc" = 1 ] && grep -q -- '--projeto' "$TMP/err" && [ ! -e "$C/cockpit.config" ] || falha "raiz do cockpit sem --projeto não recusada"
 
+# --------------------------------------------------------------- 14 ---
+cenario "14: modo interativo (pty)"
+if command -v script >/dev/null 2>&1 && script -qec true /dev/null >/dev/null 2>&1; then
+  # interativo ENTRADA ARGS... — roda o configurar num pty com a entrada dada.
+  interativo() {
+    local entrada="$1"; shift
+    printf '%b' "$entrada" | PATH="$PATH_COM_FALSO" script -qec "$(printf '%q ' "$CONF" "$@")" /dev/null >"$TMP/tty" 2>&1
+  }
+  T="$(novo_repo)"
+  # 12 chaves, depois nome/e-mail de duas identidades, nome vazio encerra,
+  # board e Enter no Princípio III (sugere ligado).
+  interativo 'proj\norg/repo\ndev\nmain\nnpm\nnpm run tc\nnpm run lint\nnpm run build\nnpm run d:i\nnpm run d:p\n-\n-\nAna Silva\n1+ana@users.noreply.github.com\nBeto\n2+beto@users.noreply.github.com\n\nmeu-board\n\n' --projeto "$T" \
+    || falha "configuração interativa falhou: $(tail -3 "$TMP/tty")"
+  grep -q "^IDENTIDADES='Ana Silva:1+ana@users.noreply.github.com;Beto:2+beto@users.noreply.github.com'\$" "$T/cockpit.config" \
+    || falha "nome e e-mail separados não gravados como nome:email"
+  grep -q "^PRINCIPIO_III='ligado'\$" "$T/cockpit.config" || falha "Enter no Princípio III não aceitou o sugerido"
+  # Config incompleto: só a chave ausente é perguntada.
+  grep -v '^BOARD=' "$T/cockpit.config" >"$TMP/c14"; cp "$TMP/c14" "$T/cockpit.config"
+  interativo 'outro-board\n-\n-\n' --projeto "$T" || falha "interativo com config incompleto falhou: $(tail -3 "$TMP/tty")"
+  grep -q 'ausente(s) no cockpit.config: BOARD' "$TMP/tty" || falha "chave ausente não foi reportada"
+  ! grep -q 'Nome do projeto' "$TMP/tty" || falha "config incompleto perguntou chave já definida"
+  grep -q "^BOARD='outro-board'\$" "$T/cockpit.config" || falha "chave ausente não foi gravada"
+  # Nome com ':' é recusado e perguntado de novo; vazio depois mantém as atuais.
+  interativo '\n\n\n\n\n\n\n\n\n\n\n\nA:B\n\n\n\n' --projeto "$T" || falha "reentrada de identidade falhou: $(tail -3 "$TMP/tty")"
+  grep -q "não pode conter ':'" "$TMP/tty" || falha "nome com ':' não recusado"
+  grep -q "^IDENTIDADES='Ana Silva:" "$T/cockpit.config" || falha "identidades atuais não mantidas"
+else
+  printf '  (script(1) ausente — cenário interativo pulado)\n'
+fi
+
 # --------------------------------------------------------------- 11 ---
 cenario "11: qualidade estática"
 if command -v shellcheck >/dev/null 2>&1; then

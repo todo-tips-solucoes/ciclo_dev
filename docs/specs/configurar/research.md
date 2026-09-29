@@ -93,12 +93,18 @@ ganho.
 
 ---
 
-## Decision 5: FR-018 — entrada `nome <email>`, gravação `nome:email` [PROPOSTA — pendente de ratificação]
+## Decision 5: FR-018 — nome e e-mail perguntados separadamente, gravação `nome:email` [RATIFICADA pelo owner em 2026-09-29]
 
-**Status**: **PROPOSTA do orquestrador, não ratificada pelo owner.** A
-conciliação foi feita na onda-003 sem resposta explícita; este plano a adota
-como hipótese de trabalho e a checklist/revisão MUST levá-la ao owner antes
-do merge.
+**Status**: **Ratificada pelo owner na revisão da PR #3 (2026-09-29)**, pela
+alternativa: nome e e-mail perguntados separadamente. O aviso (sem recusa)
+para e-mail que não é `noreply` também foi confirmado (CHK025). O texto
+abaixo registra a proposta original da onda-003, substituída por esta
+decisão.
+
+**Decisão ratificada**: para cada identidade, a pergunta pede o nome e, em
+seguida, o e-mail; nome vazio encerra a lista (ou mantém as atuais, se nada
+foi informado); mínimo uma. Gravação inalterada: `nome:email` unidos por `;`
+em `IDENTIDADES`. A mudança ficou restrita à função `perguntar_identidades`.
 
 **Proposta**: a pergunta pede uma identidade por vez no formato
 `nome <email>` (o mesmo de `git var GIT_AUTHOR_IDENT` e da tabela do
@@ -211,10 +217,22 @@ cópia dos 3 hooks para `<PATH>/.claude/hooks/` e mescla do registro em
 `cstk hooks install --project-path <raiz>` na mensagem de remediação.
 Comportamento observado (execução real num repositório git temporário: exit
 0, 3 hooks provisionados, `settings.json` criado) **coincide** com o `--help`;
-`provisionar_hooks` e o contrato não precisaram de ajuste. **Pendência
-aberta (CHK023)**: leitura da doc publicada online via `context-mode`, a
-fazer pelo owner ou numa sessão com a ferramenta disponível — não foi
-declarada como atendida.
+`provisionar_hooks` e o contrato não precisaram de ajuste. ~~Pendência aberta (CHK023)~~ — atendida em 2026-09-29, abaixo.
+
+**Registro da fonte oficial (2026-09-29, revisão da PR #3)**: documentação
+publicada do repositório oficial https://github.com/JotJunior/cstk (indicado
+pelo owner), `README.pt-BR.md`, seção "Hooks do runtime 00c (`cstk hooks`)",
+lida via `gh api` no commit `561552a` do branch `main`. Confirma:
+`cstk hooks install --project-path ../outro-projeto` como forma documentada;
+o comando "toca só `.claude/hooks/` + `settings.json`"; é idempotente; sem TTY
+e sem `--remove-classic`, um bloco clássico duplicado é **mantido** com aviso
+("o `settings.json` é do operador e nunca é reescrito sem consentimento
+explícito") — o `configurar.sh` chama o `cstk` com stdin fechado, então nunca
+fica preso num prompt; e "Rode `cstk hooks install` de novo após todo upgrade
+do cstk que toque os hooks" — o que `./configurar.sh --atualizar` faz. A doc
+também oferece `--local` (registro em `settings.local.json`) para repositórios
+cujo `.claude/settings.json` é versionado pelo time: não é usado por padrão
+nesta frente. Nada diverge do comportamento implementado.
 
 **Rationale**: um único lugar para comparar versão e ler o piso (Princípio
 IV: o número só existe em `versoes.env`). Extrair duas funções é menor que

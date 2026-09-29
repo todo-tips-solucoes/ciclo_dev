@@ -51,7 +51,9 @@ cockpit e aprova cada PR.
    branch de produção, gerenciador de pacotes, comando de typecheck/lint/build, comando de deploy
    por ambiente, tabela de identidades, board), grava `cockpit.config`, renderiza os templates,
    provisiona os guard hooks via `cstk hooks install --project-path`, e recusa terminar com
-   placeholder residual.
+   placeholder residual. **Entregue em 2026-09-29** (frente `configurar`, PR #3): motor
+   genérico de templates com 1 template de prova; os templates dos itens 4 e 5 entram sem
+   mudar o script. Identidades perguntadas como nome e e-mail separados.
 3. **Três skills**: `parallel-work` (worktree com base explícita), `rito-dev` (as 11 fases do
    rito, com ambientes e comandos por parâmetro) e `bmad-code-review` (cópia, MIT).
 4. **Templates de governança**: `docs/constitution.md` (princípios II, II-bis, III — ligado por

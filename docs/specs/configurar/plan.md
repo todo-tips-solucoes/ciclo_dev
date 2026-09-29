@@ -44,9 +44,9 @@ contida na raiz do projeto.
 - Motor, leitura/escrita do config, manifesto, atomicidade, contenção,
   sufixo `.tmpl`, reuso de `instalar.sh` e teste: [research.md](./research.md)
   Decisions 1–4 e 6–11.
-- **FR-018 — PROPOSTA pendente de ratificação do owner** (research
-  Decision 5): pergunta em `nome <email>`, gravação `nome:email;…` em
-  `IDENTIDADES`. A conciliação foi feita pelo orquestrador na onda-003 sem
+- **FR-018 — ratificado pelo owner em 2026-09-29** (research Decision 5):
+  nome e e-mail perguntados separadamente, gravação `nome:email;…` em
+  `IDENTIDADES`. Histórico: a proposta original era `nome <email>`. A conciliação foi feita pelo orquestrador na onda-003 sem
   resposta explícita. Implementar como proposta; a PR MUST pedir ao owner a
   confirmação (ou a alternativa: perguntar nome e e-mail separadamente).
   A mudança, se vier, fica isolada na função de pergunta de identidades.
