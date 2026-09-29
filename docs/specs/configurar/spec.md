@@ -286,8 +286,12 @@ sem stdin, e obter projeto configurado.
 
 ### Measurable Outcomes
 
-- **SC-001**: Uma pessoa configura um projeto novo respondendo às perguntas em
-  menos de 5 minutos, sem editar nenhum arquivo à mão.
+- **SC-001**: Uma pessoa configura um projeto novo respondendo às perguntas,
+  sem editar nenhum arquivo à mão, em duas medidas (definidas pelo owner em
+  2026-09-29): (a) automática — a configuração mínima (uma identidade) exige
+  exatamente 17 respostas e conclui; com 16, não conclui (cenário 14 da suíte);
+  (b) humana — uma medição cronometrada, feita uma vez pelo owner num projeto
+  real, abaixo de 5 minutos, anotada no `quickstart.md`.
 - **SC-002**: Duas execuções consecutivas com as mesmas respostas produzem 0
   diferenças de arquivo entre a primeira e a segunda.
 - **SC-003**: 100% dos templates presentes sob `templates/` são renderizados, e

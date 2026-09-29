@@ -589,14 +589,32 @@ renderizar() {
       }
       END { if (NR > 0 && ENVIRON["SEM_NL"] == "") printf "\n" }' "$1" >"$2"
   ) || return 1
-  if [ -x "$1" ]; then chmod +x "$2" || return 1; fi
+  if template_executavel "$1"; then chmod +x "$2" || return 1; fi
+}
+
+# template_executavel TEMPLATE — 0 se o template é executável segundo o modo
+# registrado no git do cockpit (100755); fora do git, pelo sistema de arquivos.
+# O git é a fonte porque em clones sob /mnt no WSL (drvfs) todo arquivo aparece
+# como executável.
+template_executavel() {
+  local modo
+  modo="$(git -C "$COCKPIT_DIR" ls-files -s -- "${1#"$COCKPIT_DIR"/}" 2>/dev/null)" || modo=""
+  modo="${modo%% *}"
+  case "$modo" in
+    100755) return 0 ;;
+    100644 | 120000) return 1 ;;
+  esac
+  [ -x "$1" ]
 }
 
 # sincronizar_exec TEMPLATE DESTINO — o bit de execução do destino segue o do
 # template (arquivo inalterado em conteúdo, modo diferente).
 sincronizar_exec() {
-  if [ -x "$1" ] && [ ! -x "$2" ]; then chmod +x "$2" || return 1; fi
-  if [ ! -x "$1" ] && [ -x "$2" ]; then chmod a-x "$2" || return 1; fi
+  if template_executavel "$1"; then
+    [ -x "$2" ] || chmod +x "$2" || return 1
+  else
+    [ ! -x "$2" ] || chmod a-x "$2" || return 1
+  fi
   return 0
 }
 

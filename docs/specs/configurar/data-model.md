@@ -110,7 +110,7 @@ Arquivo existente fora do manifesto é tratado como `editado`.
 Template removido do cockpit: o arquivo gerado continua no projeto, a linha do
 manifesto é mantida com o hash antigo e cada execução avisa que ele não é mais
 gerado; nada é apagado. Sem nenhum template e sem manifesto anterior, nenhum
-manifesto é criado. O bit de execução do destino segue o do template; as
+manifesto é criado. O bit de execução do destino segue o do template, lido do modo registrado no git do cockpit (`100755`/`100644`) e, fora do git, do sistema de arquivos; as
 demais permissões do destino existente (ex.: 600) são mantidas na regravação,
 também no `cockpit.config`; a ausência de newline final no template é
 preservada; destino que existe e não é arquivo regular (FIFO, dispositivo) é

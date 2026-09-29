@@ -328,6 +328,18 @@ rodar "$C/configurar.sh" --projeto "$T" --respostas "$EXEMPLO" >/dev/null 2>&1 |
 chmod a-x "$T/exec.sh"
 rodar "$C/configurar.sh" --projeto "$T" --atualizar >/dev/null 2>&1 || falha "--atualizar falhou"
 [ -x "$T/exec.sh" ] || falha "bit de execução não sincronizado com o template"
+# Com o cockpit num repositório git, o modo registrado no git manda (clone sob
+# /mnt no WSL mostra todo arquivo como executável).
+(cd "$C" && git init -q && git add -A && git -c user.name=t -c user.email=t@t commit -qm t) \
+  || falha "não consegui versionar a cópia do cockpit"
+chmod +x "$C/templates/semnl.txt.tmpl"
+(cd "$C" && git update-index --chmod=-x templates/semnl.txt.tmpl)
+rodar "$C/configurar.sh" --projeto "$T" --atualizar >/dev/null 2>&1 || falha "--atualizar falhou"
+[ ! -x "$T/semnl.txt" ] || falha "bit de execução do disco venceu o modo 100644 do git"
+chmod a-x "$C/templates/exec.sh.tmpl"
+(cd "$C" && git update-index --chmod=+x templates/exec.sh.tmpl)
+rodar "$C/configurar.sh" --projeto "$T" --atualizar >/dev/null 2>&1 || falha "--atualizar falhou"
+[ -x "$T/exec.sh" ] || falha "modo 100755 do git não aplicado"
 # Permissão restritiva do destino é mantida na regravação.
 chmod 600 "$T/semnl.txt" "$T/cockpit.config"
 sed "s/^PROJETO_NOME=.*/PROJETO_NOME='outro'/" "$EXEMPLO" >"$TMP/r13m"
@@ -400,6 +412,15 @@ if command -v script >/dev/null 2>&1 && script -qec true /dev/null >/dev/null 2>
   grep -q "^IDENTIDADES='Ana Silva:1+ana@users.noreply.github.com;Beto:2+beto@users.noreply.github.com'\$" "$T/cockpit.config" \
     || falha "nome e e-mail separados não gravados como nome:email"
   grep -q "^PRINCIPIO_III='ligado'\$" "$T/cockpit.config" || falha "Enter no Princípio III não aceitou o sugerido"
+  # SC-001: configuração mínima (uma identidade) com exatamente 17 respostas.
+  MINIMO='proj\norg/repo\ndev\nmain\nnpm\nnpm run tc\nnpm run lint\nnpm run build\nnpm run d:i\nnpm run d:p\n-\n-\nAna\n1+ana@users.noreply.github.com\n\n-\n\n'
+  [ "$(printf '%b' "$MINIMO" | wc -l | tr -d ' ')" = 17 ] || falha "entrada mínima não tem 17 respostas"
+  T3="$(novo_repo)"
+  interativo "$MINIMO" --projeto "$T3" || falha "configuração mínima com 17 respostas falhou: $(tail -3 "$TMP/tty")"
+  [ -f "$T3/cockpit.config" ] && [ -f "$T3/.cockpit/LEIAME.md" ] || falha "configuração mínima não gravou config e templates"
+  T3="$(novo_repo)"
+  ! interativo "$(printf '%b' "$MINIMO" | head -16 | sed 's/$/\\n/' | tr -d '\n')" --projeto "$T3" \
+    || falha "configuração concluiu com 16 respostas; SC-001 fixa 17"
   # Config incompleto: só a chave ausente é perguntada.
   grep -v '^BOARD=' "$T/cockpit.config" >"$TMP/c14"; cp "$TMP/c14" "$T/cockpit.config"
   interativo 'outro-board\n-\n-\n' --projeto "$T" || falha "interativo com config incompleto falhou: $(tail -3 "$TMP/tty")"

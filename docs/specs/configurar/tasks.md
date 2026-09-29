@@ -155,7 +155,7 @@ Ref: checklists/requirements.md CHK018/CHK024/CHK025, research.md Decision 5, sp
 
 - [x] 6.1.1 Pedir ao owner a ratificação de FR-018 (`nome <email>` na pergunta versus nome e e-mail separados) na descrição da PR (CHK024, dec-020)
 - [x] 6.1.2 Pedir ao owner a confirmação do apetite de risco: aviso versus recusa para e-mail não `noreply` (CHK025)
-- [ ] 6.1.3 Pedir ao owner o método de medição de SC-001 ("menos de 5 minutos") (CHK018)
+- [x] 6.1.3 Pedir ao owner o método de medição de SC-001 ("menos de 5 minutos") (CHK018)
 - [x] 6.1.4 Atualizar o histórico/briefing do projeto se a feature alterar algum item registrado
 
 ---

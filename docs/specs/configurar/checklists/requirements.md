@@ -32,7 +32,7 @@
 
 - [x] CHK016 - Cada FR tem ao menos um cenário de aceite associado? [Mensurabilidade, gate requirement-coverage.sh: requirements=21 covered=21 errors=0] {auto}
 - [x] CHK017 - SC-001 (< 5 min) é mensurável e SC-002/SC-003/SC-004 são contagens objetivas? [Mensurabilidade, Spec §SC-001–SC-004] {auto}
-- [ ] CHK018 - SC-001 ("menos de 5 minutos") tem método de medição definido? [Ambiguity, Spec §SC-001] {humano}
+- [x] CHK018 - SC-001 ("menos de 5 minutos") tem método de medição definido? [Ambiguity, Spec §SC-001] {humano} — owner definiu (2026-09-29): 17 respostas na configuração mínima (automático, cenário 14) + uma medição cronometrada no projeto real
 
 ## Cobertura de edge cases e segurança
 

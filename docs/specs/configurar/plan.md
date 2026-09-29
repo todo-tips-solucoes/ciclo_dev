@@ -21,7 +21,7 @@ contida na raiz do projeto.
 **Testing**: `scripts/testar-configurar.sh` (bash, sem framework) + shellcheck + `verificar-agnostico.sh`, todos no CI
 **Target Platform**: Linux, WSL, macOS (constitution Princípio VII)
 **Project Type**: cli (script local)
-**Performance Goals**: N/A — interação humana domina (SC-001: < 5 min)
+**Performance Goals**: N/A — interação humana domina (SC-001: 17 respostas na configuração mínima + medição cronometrada < 5 min)
 **Constraints**: escreve só dentro do projeto-alvo; nenhuma dependência nova; nenhum valor de projeto no script
 **Scale/Scope**: ~13 chaves, poucos templates (1 de prova agora; itens 4 e 5 do MVP depois)
 

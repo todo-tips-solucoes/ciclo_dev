@@ -77,3 +77,26 @@ nenhum processo de rede ou instalação disparado.
 ## Roundtrip End-to-End
 
 N/A — sem borda backend↔frontend.
+
+## Cenário 14: modo interativo por pty (FR-001, FR-018, SC-001)
+
+1. Rodar `./configurar.sh --projeto <repo novo>` num terminal com as respostas
+   da configuração mínima: 12 chaves, nome e e-mail de uma identidade, Enter
+   para encerrar a lista, board e Enter no Princípio III.
+2. Repetir com 16 respostas.
+3. Remover uma chave obrigatória do `cockpit.config` e rodar de novo.
+
+**Expected**: com 17 respostas conclui e grava `IDENTIDADES='nome:email'`; com
+16 sai com erro ("Entrada encerrada antes de responder PRINCIPIO_III"); com
+config incompleto, só a chave ausente (e as URLs opcionais que faltarem) é
+perguntada.
+
+## Medição cronometrada do SC-001 (feita uma vez, pelo owner)
+
+Num projeto real, cronometrar do comando `./configurar.sh --projeto <raiz>`
+até "Guard hooks provisionados.", respondendo às perguntas sem editar nenhum
+arquivo à mão. Alvo: menos de 5 minutos.
+
+| Data | Projeto | Tempo | Observação |
+|---|---|---|---|
+| _pendente_ | | | |
