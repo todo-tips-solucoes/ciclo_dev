@@ -63,6 +63,6 @@ IDENTIDADES='Maria Exemplo:1000+maria-exemplo@users.noreply.github.com;Jose Exem
 BOARD=''
 
 # --- Princípio III (obrigatória para o configurar.sh) ------------------------
-# `ligado` (padrão) ou `desligado`.
+# `ligado` ou `desligado` (`ligado` é o sugerido na pergunta interativa; no arquivo de respostas a chave é obrigatória).
 
 PRINCIPIO_III='ligado'

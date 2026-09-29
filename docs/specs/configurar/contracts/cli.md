@@ -43,7 +43,8 @@ entrada que não virá).
 ### Saída
 
 - stdout: progresso por passo e resumo final (arquivos escritos, inalterados,
-  mantidos por edição local).
+  mantidos por edição local); sem templates, informa que nada havia a
+  renderizar.
 - stderr: erros, cada um nomeando campo, arquivo ou placeholder.
 - Todas as mensagens em português do Brasil (FR-021).
 
@@ -52,7 +53,8 @@ entrada que não virá).
 | Exit | Situação | Estado deixado no projeto |
 |---|---|---|
 | 0 | tudo concluído, inclusive hooks | config + templates + manifesto + hooks |
-| 1 | erro de uso, projeto inválido, valor inválido no modo não interativo, `--atualizar` sem config, caminho que escapa do projeto | nada novo gravado |
+| 1 | erro de uso, projeto inválido, raiz do próprio cockpit sem `--projeto`, valor inválido no modo não interativo, `--atualizar` sem config, caminho que escapa do projeto | nada novo gravado |
+| 1 | falha de escrita (permissão, disco) ao renderizar ou mover | `cockpit.config` pode ter sido gravado; templates já movidos antes da falha ficam; a mensagem nomeia o arquivo |
 | 2 | placeholder residual, ou arquivo editado à mão mantido sem confirmação | `cockpit.config` gravado; **nenhum** template movido |
 | 3 | `cstk` ausente, sem versão reconhecível ou abaixo de `CSTK_MIN` | config + templates + manifesto; comando oficial impresso; nada de terceiro executado |
 | 4 | `cstk hooks install` retornou erro | config + templates + manifesto; saída do `cstk` repassada |

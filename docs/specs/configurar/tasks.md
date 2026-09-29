@@ -252,3 +252,35 @@ limpa o board. Com board já configurado, seguir a dica não remove o board.
 - [x] 7.2.1 Corrigir `configurar.sh`: a dica de `BOARD` informa que `-` deixa sem board quando há valor atual (mesma dica das opcionais)
 
 <!-- converge-key: 562ae9e785b8 -->
+
+### Review Findings
+
+Code review adversarial (bmad-code-review, 2026-09-29) — camadas Blind Hunter, Edge Case Hunter e Acceptance Auditor sobre `git diff main...HEAD` (código; artefatos da spec só como referência).
+
+- [x] [Review][Patch] (decidido: falhar; ajustar data-model) PRINCIPIO_III ausente no modo `--respostas` — hoje presume `ligado`; FR-016 manda falhar apontando a chave, mas o data-model diz "padrão `ligado`".
+- [x] [Review][Patch] (decidido: preservar chaves desconhecidas no fim, sob comentário; avisar perda de comentários) Chaves desconhecidas e comentários do `cockpit.config` são apagados na regravação — a mensagem diz "ignorada(s)", mas a chave some; em `--respostas` nem há aviso. Preservar ou só corrigir a mensagem?
+- [x] [Review][Patch] (decidido: exigir --projeto explícito quando o alvo é o próprio cockpit) `./configurar.sh` sem `--projeto`, na raiz do cockpit, configura o próprio cockpit (deixa `cockpit.config` e `.cockpit/` não ignorados) — recusar, exigir `--projeto` ou aceitar (Princípio II)?
+- [x] [Review][Patch] (decidido: alinhar a spec às aspas simples) Aspas de IDENTIDADES/BOARD — Clarification Q3 mostra aspas duplas; código e exemplo gravam aspas simples (research Decision 3). Alinhar a spec ou o código?
+- [x] [Review][Patch] (decidido: reverter o uso novo no rito-dev) `skills/rito-dev/SKILL.md` passou a usar IDENTIDADES como identidade de quem aprova PR — fora do escopo pedido. Manter ou reverter?
+- [x] [Review][Patch] (decidido: reportar e perguntar só as chaves ausentes) Config existente incompleto no modo interativo — hoje pergunta tudo (com os valores atuais como padrão); o edge case da spec pede "reportar a chave e perguntar somente o que falta".
+- [x] [Review][Patch] (decidido: avisar e manter, nunca apagar) Arquivo gerado fica órfão quando o template sai do cockpit (sai do manifesto e nunca mais é tratado; se o template voltar, vira "editado à mão") — comportamento não especificado.
+- [x] [Review][Patch] `set -e` suspenso em `aplicar_templates`/`provisionar_hooks` por `|| rc=$?`: falha de awk/mkdir/mv grava arquivo vazio ou truncado, conta como "gravado", registra hash no manifesto e sai 0 [configurar.sh:584]
+- [x] [Review][Patch] `awk -v resfile=` interpreta barras invertidas do caminho: residual vai para outro arquivo e o placeholder residual passa (fail-open) — passar por ENVIRON [configurar.sh:389]
+- [x] [Review][Patch] `desaspar` não apara espaços antes de reconhecer aspas nem trata `# comentário` depois da aspa final: valor fica com aspas literais [configurar.sh:98]
+- [x] [Review][Patch] Versão do cstk lida de stdout+stderr pela primeira sequência numérica (aviso "node 18.20.1" burla o piso; `cstk v11` rejeitado; `-rc1` aceito) [configurar.sh:496]
+- [x] [Review][Patch] Template executável perde o bit de execução ao ser renderizado; `mv` também troca o modo do destino existente [configurar.sh:400]
+- [x] [Review][Patch] `CSTK_INSTALL_URL` sem uso no próprio arquivo — SC2034 provável no shellcheck do CI; comentário "só define funções" impreciso [scripts/lib/versao.sh:7]
+- [x] [Review][Patch] Dois templates com o mesmo destino (`x` e `x.tmpl`) aceitos em silêncio; manifesto com linha duplicada; destinos sob `.git/` não reservados [configurar.sh:372]
+- [x] [Review][Patch] Validação de valores: REPO_REMOTO aceita `..` e hífen inicial; C1 (0x9B) e bidi (U+202E) passam pelo filtro `[[:cntrl:]]` com LC_ALL=C; BOARD aceita só espaços [configurar.sh:140]
+- [x] [Review][Patch] `|` em comando quebra a tabela do LEIAME (pipe separa célula mesmo em código) [templates/.cockpit/LEIAME.md.tmpl:8]
+- [x] [Review][Patch] Cenário 9 (caracteres de controle) não testa o que diz: uma linha não gera controle real e o grep casa com a mensagem genérica [scripts/testar-configurar.sh:182]
+- [x] [Review][Patch] Lacunas de teste: sobrescrita de arquivo não editado sem `--forcar`, exit 4, `--atualizar`+`--respostas`; leitura do piso não aceita `export` [scripts/testar-configurar.sh]
+- [x] [Review][Patch] `PATH_SEM_CSTK` remove o diretório inteiro do cstk real e pode levar git/awk junto [scripts/testar-configurar.sh:44]
+- [x] [Review][Patch] BOM UTF-8 no config/respostas quebra a linha 1; `export CHAVE=` recusado (incoerente com `ler_cstk_min`) [configurar.sh:117]
+- [x] [Review][Patch] IDENTIDADES com espaço em volta do `;` recusada com mensagem enganosa; entrada inválida em `perguntar_identidades` faz perder "vazio mantém as atuais" [configurar.sh:165]
+- [x] [Review][Patch] Sem templates (ou `templates/` ausente): sem a mensagem "nada havia a renderizar" e com manifesto vazio criado [configurar.sh:368]
+- [x] [Review][Patch] Resumo final não lista os arquivos mantidos por edição local (contrato, seção Saída) [configurar.sh:461]
+- [x] [Review][Patch] `CSTK_MIN` inválido sai 3 sem o comando oficial [configurar.sh:497]
+- [x] [Review][Patch] Mensagens: `.cockpit` como arquivo vira "fora do projeto ou link simbólico"; config ilegível dá erro cru do bash; "rode de novo" sem caminho do cockpit e sem quoting seguro [configurar.sh:307]
+- [x] [Review][Patch] `destino_contido` recusa tudo com RAIZ=/ [configurar.sh:312]
+- [x] [Review][Patch] `instalar.sh` carrega `scripts/lib/versao.sh` sem checar falha (rodado fora do clone vira "abaixo do piso") [instalar.sh:52]

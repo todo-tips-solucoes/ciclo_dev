@@ -50,9 +50,13 @@ REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)" || {
 }
 
 # versao_ge e ler_cstk_min moram em scripts/lib/versao.sh (compartilhadas com
-# configurar.sh). Só definem funções — carregar não tem efeito colateral.
+# configurar.sh). Só definem funções e CSTK_INSTALL_URL — carregar não tem
+# outro efeito colateral.
 # shellcheck source=scripts/lib/versao.sh
-. "$REPO_ROOT/scripts/lib/versao.sh"
+. "$REPO_ROOT/scripts/lib/versao.sh" || {
+  echo "instalar.sh: scripts/lib/versao.sh ausente — rode a partir de um clone completo do cockpit." >&2
+  exit 2
+}
 
 REPORT_LINHAS=()
 REPORT_STATUS=()

@@ -41,10 +41,11 @@ Chaves consumidas por este rito (ver `cockpit.config.example` na raiz do cockpit
   **smoke em produção**.
 - **Nunca** promover para produção com o ambiente de integração quebrado ou sem smoke
   feito nele; **nunca** smoke em produção sem rollback anotado antes.
-- Identidade de quem aprova cada PR: se `cockpit.config` tiver `IDENTIDADES`
-  (`nome:email;...`), use a tabela; se não tiver, pergunte ao dev/owner na hora
-  (Fase 4/Fase 9). Valores do `cockpit.config` podem vir entre aspas simples —
-  ao ler, remova o par envolvente.
+- Identidade de quem aprova cada PR **não** vem de `cockpit.config` — pergunte ao
+  dev/owner na hora (Fase 4/Fase 9). As chaves `IDENTIDADES`, `BOARD` e
+  `PRINCIPIO_III` do `cockpit.config` não são consumidas por este rito; um config
+  sem elas continua válido. Valores do `cockpit.config` podem vir entre aspas
+  simples — ao ler, remova o par envolvente.
 
 ## Etapa preparatória — Sincronizar
 

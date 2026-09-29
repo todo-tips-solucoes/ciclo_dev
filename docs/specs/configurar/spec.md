@@ -180,7 +180,10 @@ sem stdin, e obter projeto configurado.
   ambiente (dec-008).
 - Q3 (FR-003): representação de identidades e board não usado? → Chave única
   `IDENTIDADES="dev1:email1;dev2:email2"`; board não usado = `BOARD=""`
-  (resposta humana, dec-012).
+  (resposta humana, dec-012). Gravado com aspas simples
+  (`IDENTIDADES='dev1:email1;dev2:email2'`, `BOARD=''`), a forma de escrita de
+  todas as chaves (research Decision 3); o conteúdo é o escolhido (code review
+  de 2026-09-29).
 - Q4 (FR-014): quando checar o `cstk`? → No fim; se faltar, mantém
   `cockpit.config` e templates, imprime o comando oficial e sai com erro
   (resposta humana, dec-013).
@@ -202,8 +205,8 @@ sem stdin, e obter projeto configurado.
   puro, com as 10 chaves obrigatórias e as 2 opcionais quando informadas.
 - **FR-003**: As chaves novas MUST ser `IDENTIDADES`, `BOARD` e a do Princípio
   III. `IDENTIDADES` é uma única chave, com itens separados por ponto e vírgula
-  entre aspas (ex.: `IDENTIDADES="dev1:email1;dev2:email2"`); board não usado é
-  a chave `BOARD` presente com valor vazio (`BOARD=""`), nunca sentinela nem
+  entre aspas (ex.: `IDENTIDADES='dev1:email1;dev2:email2'`); board não usado é
+  a chave `BOARD` presente com valor vazio (`BOARD=''`), nunca sentinela nem
   ausência. Elas MUST ser acrescentadas ao formato como extensão retrocompatível, registradas em
   `cockpit.config.example` e no `data-model.md`, de modo que um
   `cockpit.config` sem elas continue válido para `rito-dev`.

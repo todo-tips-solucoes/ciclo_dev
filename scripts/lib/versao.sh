@@ -1,9 +1,11 @@
 #!/usr/bin/env bash
 # scripts/lib/versao.sh — funções de versão compartilhadas por instalar.sh e
-# configurar.sh. Só define funções (sem efeito ao ser carregado por `source`).
+# configurar.sh. Só define funções e a constante CSTK_INSTALL_URL (sem outro
+# efeito ao ser carregado por `source`).
 # Requer REPO_ROOT definido pelo chamador (raiz do clone do cockpit).
 
 # URL oficial do instalador do cstk — único lugar no código que a escreve.
+# shellcheck disable=SC2034 # usada por instalar.sh e configurar.sh
 CSTK_INSTALL_URL="https://github.com/JotJunior/cstk/releases/latest/download/install.sh"
 
 # versao_ge <instalada> <minima> — compara MAJOR.MINOR.PATCH numericamente,

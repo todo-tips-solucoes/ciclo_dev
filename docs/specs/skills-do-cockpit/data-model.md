@@ -39,7 +39,7 @@ Três chaves acrescentadas, todas **opcionais para `rito-dev`** (um
 |-------|------|------------|-----|
 | `IDENTIDADES` | string | 1+ itens `nome:email` separados por `;` | tabela de identidades de commit (templates) |
 | `BOARD` | string | vazio = sem board; senão texto de uma linha | referência de board (templates) |
-| `PRINCIPIO_III` | string | `ligado` \| `desligado` (padrão `ligado`) | liga/desliga a regra de identidade de commit |
+| `PRINCIPIO_III` | string | `ligado` \| `desligado` (`ligado` sugerido na pergunta interativa) | liga/desliga a regra de identidade de commit |
 
 Valores podem vir entre aspas simples (forma gravada pelo `configurar.sh`);
 a leitura por `source` em bash puro continua válida.
