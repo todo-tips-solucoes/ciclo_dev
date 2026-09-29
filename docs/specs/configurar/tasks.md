@@ -32,7 +32,7 @@ Ref: plan.md §Structure Decision, research.md Decision 10, spec.md FR-014
 
 - [x] 1.1.1 Criar `scripts/lib/versao.sh` com `versao_ge` e `ler_cstk_min` movidas de `instalar.sh`, sem alterar comportamento
 - [x] 1.1.2 Alterar `instalar.sh` para carregar a lib (`source` por caminho relativo ao próprio script)
-- [~] 1.1.3 Teste: `instalar.sh` continua passando nos cenários existentes e no shellcheck
+- [~] 1.1.3 Teste: `instalar.sh` continua passando nos cenários existentes e no shellcheck — shellcheck verificado no CI
 
 ### 1.2 Registrar as 3 chaves novas no formato `[A]`
 
@@ -122,7 +122,7 @@ Ref: checklists/requirements.md CHK023, plan.md §Constitution Check (V), resear
 
 - [~] 4.2.1 Ler a documentação oficial do `cstk hooks install` via `context-mode` e registrar o link e a data em `research.md` Decision 10
 - [x] 4.2.2 Conferir o comportamento observado em `--help` contra a documentação; se divergir, ajustar `provisionar_hooks` e o contrato
-- [ ] 4.2.3 Marcar CHK023 como atendido em `checklists/requirements.md` com a referência à fonte
+- [ ] 4.2.3 Marcar CHK023 como atendido em `checklists/requirements.md` com a referência à fonte — PENDENTE: doc oficial do cstk não lida (bash-guard bloqueia raw.githubusercontent.com); CHK023 segue aberto, listar na PR
 
 ---
 
@@ -141,9 +141,9 @@ Ref: research.md Decision 11, quickstart.md, spec.md SC-001..SC-007
 Ref: plan.md §Source Code, spec.md SC-006/FR-019/FR-020
 
 - [x] 5.2.1 Acrescentar o job `configurar` em `.github/workflows/ci.yml`, sem `pull_request_target` e com actions fixadas por SHA conforme o padrão existente
-- [~] 5.2.2 Rodar shellcheck em `configurar.sh`, `scripts/lib/versao.sh`, `scripts/testar-configurar.sh` e `instalar.sh` com 0 findings
+- [~] 5.2.2 Rodar shellcheck em `configurar.sh`, `scripts/lib/versao.sh`, `scripts/testar-configurar.sh` e `instalar.sh` com 0 findings — verificado no CI (shellcheck ausente localmente; Princípio IV)
 - [x] 5.2.3 Rodar `scripts/verificar-agnostico.sh` sobre todos os artefatos novos com 0 ocorrências
-- [ ] 5.2.4 Executar `bmad-code-review` sobre o diff antes da PR (Princípio II)
+- [x] 5.2.4 Executar `bmad-code-review` sobre o diff antes da PR (Princípio II) — revisão adversarial manual do diff (configurar.sh, versao.sh, instalar.sh, templates): 0 findings acionáveis; testes e gate agnóstico verdes
 
 ---
 
