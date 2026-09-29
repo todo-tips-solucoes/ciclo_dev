@@ -196,7 +196,25 @@ posttooluse-tool-call-tick.sh + posttooluse-agent-usage.sh para
 <PATH>/.claude/settings.json" e "Idempotente como o fluxo padrao". O link da
 documentação oficial (repositório `JotJunior/cstk`, o mesmo de
 `CSTK_INSTALL_URL` em `instalar.sh`) MUST ser lido via `context-mode` e
-registrado na implementação — **não medido nesta fase**.
+registrado na implementação.
+
+**Registro da fonte (2026-09-28, execução de `execute-task`)**: a leitura
+da documentação **publicada** do repositório `JotJunior/cstk` **não foi
+possível** — o `bash-guard` da execução autônoma bloqueou o domínio
+(`raw.githubusercontent.com` fora da whitelist) e o subagente não dispunha
+das ferramentas `context-mode`. Fontes efetivamente lidas, ambas da própria
+distribuição oficial instalada (`cstk v10.8.0`, `~/.local/share/cstk/VERSION`):
+(1) `cstk hooks --help` — confirma `cstk hooks install [--project-path PATH]`,
+cópia dos 3 hooks para `<PATH>/.claude/hooks/` e mescla do registro em
+`<PATH>/.claude/settings.json`, comportamento idempotente; (2)
+`~/.local/share/cstk/lib/setup.sh` — o próprio `cstk` invoca e documenta
+`cstk hooks install --project-path <raiz>` na mensagem de remediação.
+Comportamento observado (execução real num repositório git temporário: exit
+0, 3 hooks provisionados, `settings.json` criado) **coincide** com o `--help`;
+`provisionar_hooks` e o contrato não precisaram de ajuste. **Pendência
+aberta (CHK023)**: leitura da doc publicada online via `context-mode`, a
+fazer pelo owner ou numa sessão com a ferramenta disponível — não foi
+declarada como atendida.
 
 **Rationale**: um único lugar para comparar versão e ler o piso (Princípio
 IV: o número só existe em `versoes.env`). Extrair duas funções é menor que

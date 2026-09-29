@@ -71,6 +71,18 @@ jobs:
           AGNOSTICO_EXIGIR_TERMOS: "1"
         run: ./scripts/verificar-agnostico.sh
 
+  # Cenários de docs/specs/configurar/quickstart.md (configurar.sh). O cstk é
+  # sempre o falso do próprio script de teste — nenhum terceiro é instalado.
+  configurar:
+    name: configurar
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Testar configurar.sh (cenários do quickstart)
+        run: ./scripts/testar-configurar.sh
+
   segredos:
     name: segredos
     runs-on: ubuntu-latest

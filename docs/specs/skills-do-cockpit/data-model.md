@@ -28,6 +28,22 @@ do cockpit — só `cockpit.config.example` (FR-006) o é.
 | `URL_AMBIENTE_INTEGRACAO` | string | não | URL válida ou ausente | Fase 8 (smoke); se ausente, a skill pergunta ao dev |
 | `URL_AMBIENTE_PRODUCAO` | string | não | URL válida ou ausente | Fase 10 (smoke); se ausente, a skill pergunta ao dev |
 
+### Extensão da feature `configurar` (retrocompatível)
+
+Três chaves acrescentadas, todas **opcionais para `rito-dev`** (um
+`cockpit.config` sem elas continua válido) e obrigatórias para o
+`configurar.sh`. Detalhe em
+[`docs/specs/configurar/data-model.md`](../configurar/data-model.md):
+
+| Campo | Tipo | Constraint | Uso |
+|-------|------|------------|-----|
+| `IDENTIDADES` | string | 1+ itens `nome:email` separados por `;` | tabela de identidades de commit (templates) |
+| `BOARD` | string | vazio = sem board; senão texto de uma linha | referência de board (templates) |
+| `PRINCIPIO_III` | string | `ligado` \| `desligado` (padrão `ligado`) | liga/desliga a regra de identidade de commit |
+
+Valores podem vir entre aspas simples (forma gravada pelo `configurar.sh`);
+a leitura por `source` em bash puro continua válida.
+
 ### Regras
 
 - Chave obrigatória ausente → a skill `rito-dev` MUST dizer qual chave falta,
