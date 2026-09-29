@@ -3,10 +3,11 @@
 # é). Copie para `cockpit.config` na raiz do projeto-alvo e preencha com os
 # valores reais daquele projeto.
 #
-# Formato: `CHAVE=valor`, uma por linha; linhas iniciadas por `#` são
-# comentário (mesmo formato de `versoes.env`, já em uso neste repositório —
-# research.md Decision 2 da feature skills-do-cockpit). Nenhum parser além de
-# `grep`/`source` em bash puro — sem dependência nova.
+# Formato: `CHAVE='valor'`, uma por linha, valor entre aspas simples (legível
+# por `source` em bash puro mesmo com espaços); linhas iniciadas por `#` são
+# comentário. O `configurar.sh` grava e lê esta mesma forma (aceita também
+# valor sem aspas ou entre aspas duplas ao ler). Este arquivo também serve de
+# arquivo de respostas: `./configurar.sh --respostas cockpit.config.example`.
 #
 # Todo valor abaixo é FICTÍCIO e genérico — nunca copie nome de projeto,
 # organização, repositório, URL ou credencial reais para dentro deste
@@ -14,38 +15,54 @@
 
 # --- Identidade do projeto -------------------------------------------------
 
-PROJETO_NOME=meu-projeto
-REPO_REMOTO=minha-org/meu-projeto
+PROJETO_NOME='meu-projeto'
+REPO_REMOTO='minha-org/meu-projeto'
 
 # --- Modelo de branches -----------------------------------------------------
 # BRANCH_PRODUCAO pode repetir BRANCH_INTEGRACAO — "integração = produção" é
 # um modelo válido (Princípio I do cockpit: modelo único), não um caso à parte.
 
-BRANCH_INTEGRACAO=staging
-BRANCH_PRODUCAO=main
+BRANCH_INTEGRACAO='staging'
+BRANCH_PRODUCAO='main'
 
 # --- Gerenciador de pacotes --------------------------------------------------
 # Só citado no relatório da Fase 2 do rito-dev; a skill nunca invoca
 # instalação de dependências por conta própria.
 
-GERENCIADOR_PACOTES=npm
+GERENCIADOR_PACOTES='npm'
 
 # --- Comandos de qualidade ----------------------------------------------------
 # Rodam no CI, nunca localmente (rito-dev Fase 5).
 
-CMD_TYPECHECK=npm run typecheck
-CMD_LINT=npm run lint
-CMD_BUILD=npm run build
+CMD_TYPECHECK='npm run typecheck'
+CMD_LINT='npm run lint'
+CMD_BUILD='npm run build'
 
 # --- Comandos de deploy -------------------------------------------------------
 # CMD_DEPLOY_PRODUCAO pode repetir CMD_DEPLOY_INTEGRACAO.
 
-CMD_DEPLOY_INTEGRACAO=npm run deploy:staging
-CMD_DEPLOY_PRODUCAO=npm run deploy:producao
+CMD_DEPLOY_INTEGRACAO='npm run deploy:staging'
+CMD_DEPLOY_PRODUCAO='npm run deploy:producao'
 
 # --- URLs de ambiente (opcionais) ---------------------------------------------
 # Usadas no smoke test das Fases 8 e 10 do rito-dev. Se ausentes, a skill
 # pergunta a URL ao dev uma vez, na hora, sem bloquear a fase.
 
-URL_AMBIENTE_INTEGRACAO=https://staging.meu-projeto.example.com
-URL_AMBIENTE_PRODUCAO=https://meu-projeto.example.com
+URL_AMBIENTE_INTEGRACAO='https://staging.meu-projeto.example.com'
+URL_AMBIENTE_PRODUCAO='https://meu-projeto.example.com'
+
+# --- Identidades de commit (obrigatória para o configurar.sh) ---------------
+# Uma ou mais `nome:email` separadas por `;`. Use o e-mail `noreply` do
+# provedor, nunca o pessoal. Nomes fictícios.
+
+IDENTIDADES='Maria Exemplo:1000+maria-exemplo@users.noreply.github.com;Jose Exemplo:2000+jose-exemplo@users.noreply.github.com'
+
+# --- Board (obrigatória para o configurar.sh; pode ficar vazia) --------------
+# Vazio = projeto sem board; senão o identificador do board, em texto livre.
+
+BOARD=''
+
+# --- Princípio III (obrigatória para o configurar.sh) ------------------------
+# `ligado` ou `desligado` (`ligado` é o sugerido na pergunta interativa; no arquivo de respostas a chave é obrigatória).
+
+PRINCIPIO_III='ligado'

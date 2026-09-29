@@ -1,0 +1,22 @@
+# Configuração do ciclo — {{PROJETO_NOME}}
+
+Arquivo gerado por `configurar.sh` a partir de `cockpit.config`. Para
+alterar, edite o `cockpit.config` e rode `./configurar.sh --atualizar`.
+
+Os valores ficam num bloco de texto, sem formatação, para que `|`, crases e
+outros caracteres de comando apareçam exatamente como no `cockpit.config`.
+
+```text
+Repositório remoto:     {{REPO_REMOTO}}
+Branch de integração:   {{BRANCH_INTEGRACAO}}
+Branch de produção:     {{BRANCH_PRODUCAO}}
+Gerenciador de pacotes: {{GERENCIADOR_PACOTES}}
+Typecheck:              {{CMD_TYPECHECK}}
+Lint:                   {{CMD_LINT}}
+Build:                  {{CMD_BUILD}}
+Deploy de integração:   {{CMD_DEPLOY_INTEGRACAO}}
+Deploy de produção:     {{CMD_DEPLOY_PRODUCAO}}
+Identidades de commit:  {{IDENTIDADES}}
+Board:                  {{BOARD}}
+Princípio III:          {{PRINCIPIO_III}}
+```
