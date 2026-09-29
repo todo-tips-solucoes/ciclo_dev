@@ -118,6 +118,14 @@ grep -q 'x.md.tmpl' "$TMP/err" && grep -q '{{CHAVE_INEXISTENTE}}' "$TMP/err" || 
 [ ! -e "$T/x.md" ] || falha "x.md foi criado"
 [ ! -e "$T/.cockpit/LEIAME.md" ] || falha "algum template foi movido"
 [ -z "$(find "$T" -path "$T/.git" -prune -o -name '.cockpit-tmp.*' -print)" ] || falha "temporário restante"
+# URL opcional vazia = ausente: mesmo resultado na 1ª execução e no --atualizar.
+C="$(cockpit_copia)"; printf 'url: {{URL_AMBIENTE_INTEGRACAO}}\n' >"$C/templates/u.md.tmpl"
+T="$(novo_repo)"
+{ grep -v '^URL_AMBIENTE_' "$EXEMPLO"; echo "URL_AMBIENTE_INTEGRACAO=''"; } >"$TMP/resp-url"
+rc="$(codigo rodar "$C/configurar.sh" --projeto "$T" --respostas "$TMP/resp-url")"
+[ "$rc" = 2 ] || falha "URL vazia na 1ª execução saiu com $rc (esperado 2, residual)"
+rc="$(codigo rodar "$C/configurar.sh" --projeto "$T" --atualizar)"
+[ "$rc" = 2 ] || falha "URL vazia no --atualizar saiu com $rc (esperado 2, residual)"
 
 # ---------------------------------------------------------------- 6 ---
 cenario "6: caracteres especiais"

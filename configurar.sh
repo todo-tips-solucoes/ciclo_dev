@@ -192,6 +192,9 @@ validar_todos() {
   local k rc=0
   definido PRINCIPIO_III || setar PRINCIPIO_III ligado
   for k in $CHAVES_ORDEM; do
+    # Opcional vazia = ausente, como no cockpit.config gravado; senão o render
+    # a resolveria e o --atualizar seguinte daria residual (FR-006).
+    if chave_opcional "$k" && definido "$k" && [ -z "$(valor "$k")" ]; then desetar "$k"; fi
     if ! definido "$k"; then
       chave_opcional "$k" && continue
       erro "Chave obrigatória ausente: $k"
@@ -211,7 +214,7 @@ perguntar() {
   local chave="$1" texto="$2" padrao="" resp dica=""
   definido "$chave" && padrao="$(valor "$chave")"
   chave_opcional "$chave" && dica=" (- para vazio)"
-  [ "$chave" != BOARD ] || dica=" (vazio = sem board)"
+  [ "$chave" != BOARD ] || dica=" (- = sem board)"
   while :; do
     if [ -n "$padrao" ]; then printf '%s%s [%s]: ' "$texto" "$dica" "$padrao"; else printf '%s%s: ' "$texto" "$dica"; fi
     IFS= read -r resp || falhar "Entrada encerrada antes de responder $chave."

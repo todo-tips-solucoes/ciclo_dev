@@ -209,3 +209,46 @@ flowchart TD
 |------|-----------|--------|
 | Templates de governança e automação | Templates dos itens 4 e 5 do MVP | Frentes seguintes; esta feature entrega só o motor e um template de prova (FR-012) |
 | Instalação de terceiros | Instalar ou atualizar `cstk` ou outra ferramenta | Princípio IV: só se imprime o comando oficial |
+
+
+## FASE 7 - Convergência
+
+> Fase gerada automaticamente pela skill `converge` (reconciliação
+> spec-vs-código). Cada tarefa abaixo corresponde a um achado (`Gap`)
+> entre o que `spec.md`/`plan.md`/`tasks.md` descreveram e o estado
+> presente do código. Tarefas sem o prefixo `[Revisar]` são acionáveis
+> (`missing`/`partial`/`contradicts`); tarefas com `[Revisar]` são item de
+> revisão (`unrequested`, FR-013) — nunca "implementar", o código já
+> existe. Append-only: esta fase nunca reescreve fases/tarefas anteriores
+> do arquivo (FR-009).
+
+### 7.1 URL opcional vazia resolve placeholder no render mas some do config `[C]`
+
+Ref: FR-006 · tipo: `contradicts` · severidade: `HIGH`
+
+`data-model.md` §Template define "placeholder resolvido = chave presente no
+config". Em `configurar.sh`, uma URL opcional vazia (resposta `-` no modo
+interativo ou `URL_AMBIENTE_*=''` no arquivo de respostas) fica definida com
+valor vazio e resolve `{{URL_AMBIENTE_*}}` no render, mas `gravar_config` a
+omite do `cockpit.config`. A execução seguinte (`--atualizar`, ou interativa
+sobre o config gravado) não a tem definida e falha com placeholder residual.
+Reproduzido: 1ª execução renderiza `url=`; `--atualizar` sai com
+"Placeholder sem valor: {{URL_AMBIENTE_INTEGRACAO}}". Quebra a idempotência
+(FR-006/FR-008) assim que um template usar uma URL.
+
+- [x] 7.1.1 Corrigir `configurar.sh`: URL opcional vazia é tratada como ausente também no render (desdefinir antes de renderizar), mantendo o config e o render coerentes
+- [x] 7.1.2 Teste em `scripts/testar-configurar.sh`: template com `{{URL_AMBIENTE_INTEGRACAO}}` e URL vazia dá o mesmo resultado na 1ª execução e no `--atualizar`
+
+<!-- converge-key: e6643858662b -->
+
+### 7.2 Dica da pergunta de board diz "vazio = sem board", mas vazio mantém o atual `[C]`
+
+Ref: FR-001 · tipo: `contradicts` · severidade: `HIGH`
+
+Em `configurar.sh` (`perguntar`), a dica de `BOARD` é "(vazio = sem board)",
+mas resposta vazia devolve o valor atual (padrão do config existente); só `-`
+limpa o board. Com board já configurado, seguir a dica não remove o board.
+
+- [x] 7.2.1 Corrigir `configurar.sh`: a dica de `BOARD` informa que `-` deixa sem board quando há valor atual (mesma dica das opcionais)
+
+<!-- converge-key: 562ae9e785b8 -->
