@@ -1,0 +1,114 @@
+# Rito de desenvolvimento — {{PROJETO_NOME}}
+
+Do `git fetch` até a PR mergeada, validada e encerrada. O agente conduz o rito fase a fase, sem
+pular gates. Parâmetros: `cockpit.config` (resumo em `.cockpit/LEIAME.md`). Faltou uma chave: nomeie
+a chave e pare; nunca siga com valor presumido.
+
+## Gates gerais
+
+- Nunca push direto em `{{BRANCH_INTEGRACAO}}` ou `{{BRANCH_PRODUCAO}}`, nunca force-push e nunca
+  merge sem PR.
+- Nunca `git add -A` nem `git add .`: stage sempre por caminhos explícitos.
+- Parada obrigatória no review (Fase 6): quem aprova e mergeia é um humano.
+- Validação de typecheck, lint e build segue o Princípio III da constituição (valor configurado:
+  `{{PRINCIPIO_III}}`).
+- Nunca promover com o ambiente de integração quebrado; nunca smoke em produção sem rollback anotado.
+- A identidade de quem aprova cada PR não vem do `cockpit.config`: pergunte ao humano na Fase 4.
+
+## Etapa preparatória — Sincronizar
+
+Traga a base e confirme que veio, comparando com uma fonte de rede diferente:
+
+```bash
+git fetch origin {{BRANCH_INTEGRACAO}}
+[ "$(git rev-parse origin/{{BRANCH_INTEGRACAO}})" = \
+  "$(gh api repos/{{REPO_REMOTO}}/branches/{{BRANCH_INTEGRACAO}} --jq .commit.sha)" ] \
+  && echo "base em sincronia" || echo "base local desatualizada: não comece nada"
+```
+
+## Fase 1 — Branch
+
+Crie a branch a partir de `origin/{{BRANCH_INTEGRACAO}}` conferido, em worktree, com base explícita:
+`feature/<slug>`, `fix/<slug>`, `chore/<slug>` ou `docs/<slug>`. `hotfix/<slug>` sai de
+`{{BRANCH_PRODUCAO}}` e só com incidente real. Entre na worktree antes do commit.
+
+## Fase 2 — Desenvolver
+
+Consulte antes as convenções do projeto em `docs/project-context.md`. Gerenciador de pacotes:
+`{{GERENCIADOR_PACOTES}}` (citado, nunca invocado para instalar por conta do agente).
+
+## Fase 3 — Commit
+
+Conventional Commits em português, escopo = área do diff. Stage por caminhos explícitos, nunca
+`--no-verify`, identidade conforme `docs/CICLO-GIT.md`.
+
+```bash
+git add <caminhos explícitos>
+git commit -m "<tipo>(<escopo>): <descrição em português>"
+```
+
+## Fase 4 — Abrir PR
+
+```bash
+git push -u origin <branch>
+gh pr create --base {{BRANCH_INTEGRACAO}} --title "<tipo>(<escopo>): <descrição>"
+```
+
+A base é sempre `{{BRANCH_INTEGRACAO}}`. Declare a trilha e os caminhos tocados no corpo. Pergunte
+agora ao humano quem aprova esta PR.
+
+## Fase 5 — CI (loop até verde)
+
+```bash
+gh pr checks <número> --watch
+```
+
+Checks de referência: `{{CMD_TYPECHECK}}`, `{{CMD_LINT}}`, `{{CMD_BUILD}}`. Vermelho: corrija no
+branch, faça push e cheque de novo.
+
+## Fase 6 — Review (PONTO DE PARADA)
+
+O agente para aqui. Entrega: (1) pontos de alteração, (2) `RECOMENDAÇÃO: aprovar` ou
+`RECOMENDAÇÃO: pedir mudanças`, com o porquê medido, (3) o comando pronto para o humano colar.
+O agente nunca aprova nem mergeia. Ao retomar, confira `gh pr view <número> --repo {{REPO_REMOTO}}`.
+
+## Fase 7 — Merge
+
+Só após aprovação humana explícita:
+
+```bash
+gh pr merge <número> --squash --delete-branch
+```
+
+Deploy de integração, quando configurado: `{{CMD_DEPLOY_INTEGRACAO}}`.
+
+## Fase 8 — Smoke no ambiente de integração
+
+Confira o workflow de deploy mais recente da branch `{{BRANCH_INTEGRACAO}}` (`gh run list`),
+exercite o fluxo alterado e confirme console e log limpos. Falhou: corrija com nova PR (Fase 1).
+A URL do ambiente é perguntada ao humano na hora.
+
+## Fase 9 — Promoção para produção
+
+Se `{{BRANCH_INTEGRACAO}}` e `{{BRANCH_PRODUCAO}}` forem a mesma branch, esta fase é **no-op**: o
+deploy da Fase 7 já é o de produção.
+
+Caso contrário, promova por PR de `{{BRANCH_INTEGRACAO}}` para `{{BRANCH_PRODUCAO}}`, com parada
+igual à da Fase 6, e faça merge com **merge commit** (`gh pr merge <número> --merge`), nunca squash
+e nunca `--delete-branch`. Deploy de produção, quando configurado: `{{CMD_DEPLOY_PRODUCAO}}`.
+
+## Fase 10 — Smoke em produção (rollback antes)
+
+Anote o rollback antes de testar: SHA de `{{BRANCH_PRODUCAO}}` anterior à promoção e o reverso de
+qualquer migração de dado. Exercite o fluxo promovido; falhou: execute o rollback, confirme
+produção verde e só então diagnostique.
+
+## Fase 11 — Encerramento
+
+Remova a worktree e a branch da frente e atualize a base (`{{BRANCH_INTEGRACAO}}`, ou
+`{{BRANCH_PRODUCAO}}` quando a Fase 9 foi no-op ou em hotfix).
+
+## Relatório ao humano
+
+Ao fim de cada fase, informe em uma ou duas linhas: fase concluída, evidência (PR, checks, run,
+smoke) e próxima ação. Se um gate bloquear, diga o que se espera de quem.

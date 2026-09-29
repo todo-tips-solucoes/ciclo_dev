@@ -435,6 +435,34 @@ else
   printf '  (script(1) ausente — cenário interativo pulado)\n'
 fi
 
+# --------------------------------------------------------------- 15 ---
+cenario "15: templates de governança reais"
+T="$(novo_repo)"
+rodar "$CONF" --projeto "$T" --respostas "$EXEMPLO" >/dev/null 2>&1 || falha "render com cockpit.config.example falhou"
+for f in docs/constitution.md CLAUDE.md docs/rito-dev.md docs/CICLO-GIT.md docs/project-context.md \
+  docs/agentes/guardiao.md docs/agentes/implementador.md docs/agentes/revisor.md docs/agentes/triador.md; do
+  [ -f "$T/$f" ] || falha "arquivo gerado ausente: $f"
+  ! grep -q '{{' "$T/$f" || falha "placeholder residual em $f"
+  ! grep -q 'URL_AMBIENTE' "$T/$f" || falha "chave opcional URL_AMBIENTE_* em $f"
+done
+# Nenhum template real usa chave opcional (a ausência delas não pode deixar resíduo).
+! grep -rq 'URL_AMBIENTE' "$RAIZ_COCKPIT/templates" || falha "template usa chave opcional URL_AMBIENTE_*"
+for p in II II-bis III IV IV-bis V VI VII VIII; do
+  grep -q "^### $p\. " "$T/docs/constitution.md" || falha "princípio $p ausente da constituição"
+done
+for n in 1 2 3 4 5 6 7 8 9 10 11; do
+  grep -q "^## Fase $n — " "$T/docs/rito-dev.md" || falha "Fase $n ausente do rito"
+done
+for a in guardiao implementador revisor triador; do
+  for s in Responsabilidade Entradas Saídas Limites; do
+    grep -q "^## $s\$" "$T/docs/agentes/$a.md" || falha "seção $s ausente em agentes/$a.md"
+  done
+done
+# Idempotência (FR-014): segunda execução não altera nenhum arquivo gerado.
+cp -R "$T" "$TMP/copia15"
+rodar "$CONF" --projeto "$T" --respostas "$EXEMPLO" >/dev/null 2>&1 || falha "segunda execução falhou"
+diff -r --exclude=.git "$T" "$TMP/copia15" >/dev/null || falha "segunda execução alterou arquivos gerados"
+
 # --------------------------------------------------------------- 11 ---
 cenario "11: qualidade estática"
 if command -v shellcheck >/dev/null 2>&1; then

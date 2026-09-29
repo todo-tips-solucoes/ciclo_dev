@@ -1,0 +1,127 @@
+# Constituição de {{PROJETO_NOME}}
+
+> Governança do desenvolvimento deste projeto. Gerada pelo cockpit a partir do `cockpit.config`;
+> os princípios abaixo são do ciclo e valem como ponto de partida. Os princípios que só fazem
+> sentido para este projeto entram na seção final, escritos por quem o mantém.
+
+## Princípios do ciclo
+
+### II. Toda mudança percorre uma trilha
+
+A trilha é decidida pelo **caminho** dos arquivos tocados, nunca pela extensão. A base de toda
+frente é `{{BRANCH_INTEGRACAO}}`.
+
+| Trilha | Quando | Etapas |
+|---|---|---|
+| **Completa** | qualquer arquivo fora de `docs/`, `README.md` e imagens | worktree, implementação pelo `/feature-00c`, revisão de código, PR, gate humano, registro em `docs/specs/<short-name>/` |
+| **Docs** | só `docs/**` (exceto esta constituição), `README.md` e imagens | worktree, escrita, validação de renderização, uma rodada de revisão, PR, gate humano |
+
+**MUST:**
+
+- Toda mudança de trilha completa ou docs MUST nascer em worktree com base explícita
+  (`--base origin/{{BRANCH_INTEGRACAO}}`), nunca em checkout na árvore principal.
+- Esta constituição e qualquer revert de emergência MUST NOT seguir trilha curta.
+- Nenhuma PR MUST ser mergeada sem aprovação explícita de um humano; o agente prepara,
+  acompanha o CI e para no gate de review.
+
+### II-bis. O registro da frente entra na própria PR
+
+O que explica uma mudança viaja com ela.
+
+**MUST:**
+
+- Toda PR de trilha completa MUST trazer, em `docs/specs/<short-name>/`, os artefatos da frente
+  (especificação, plano, tarefas e achados da revisão).
+- A trilha MUST ser declarada no corpo da PR, com a lista dos caminhos tocados.
+
+### III. Validação só no CI
+
+Valor configurado neste projeto: **{{PRINCIPIO_III}}**.
+
+- **Quando `ligado`:** validação local é proibida. Typecheck (`{{CMD_TYPECHECK}}`), lint
+  (`{{CMD_LINT}}`) e build (`{{CMD_BUILD}}`) rodam apenas no CI; a validação de comportamento é o
+  smoke no ambiente de integração e o smoke em produção.
+- **Quando `desligado`:** este princípio não se aplica ao projeto. Typecheck, lint e build podem
+  rodar localmente, e o CI continua sendo o gate obrigatório da PR.
+
+Leia apenas o ramo que corresponde ao valor configurado acima; o outro não vale.
+
+### IV. Ferramentas externas são dependências, não cópias
+
+O ciclo compõe ferramentas de terceiros; não as reimplementa nem as embute.
+
+**MUST:**
+
+- Ferramentas externas MUST ser instaladas e atualizadas pela pessoa, pelos canais oficiais de
+  cada uma, nunca por um script do projeto.
+- Toda cópia de código de terceiro MUST constar de aviso de licença com o texto original.
+
+### IV-bis. Identidade de commit declarada
+
+Cada commit sai com a identidade do próprio autor. Conta compartilhada não commita.
+
+Identidades declaradas (formato `nome:email`, separadas por `;`):
+
+```text
+{{IDENTIDADES}}
+```
+
+**MUST:**
+
+- Antes de commitar, `git var GIT_AUTHOR_IDENT` e `git var GIT_COMMITTER_IDENT` MUST ambos
+  corresponder a uma das identidades declaradas.
+- Entrar na lista, sair dela ou mudar a própria identidade MUST ser emenda desta constituição.
+- O agente MUST NOT alterar a identidade configurada por conta própria.
+
+### V. Fonte oficial antes de afirmar
+
+Nenhuma afirmação sobre comportamento de ferramenta externa entra no projeto sem a documentação
+oficial lida antes, com o link registrado. Nenhum número, contagem ou comportamento é inventado.
+
+**MUST:**
+
+- Toda afirmação sobre ferramenta externa MUST citar a página oficial.
+- Um dado factual sem fonte MUST ser marcado como não medido ou removido.
+
+### VI. Português do Brasil
+
+O projeto é lido por pessoas antes de ser lido por agentes.
+
+**MUST:**
+
+- Prosa de documentos e mensagens MUST estar em português do Brasil, com acentuação correta;
+  identificadores, comandos e chaves ficam como estão no código.
+- Mensagens de commit MUST seguir Conventional Commits, com descrição em português.
+
+### VII. Scripts portáveis, idempotentes e contidos
+
+Um script roda igual nos sistemas suportados, pode ser executado duas vezes sem efeito colateral
+e só escreve onde foi mandado.
+
+**MUST:**
+
+- Rodar qualquer script uma segunda vez MUST produzir o mesmo estado final, sem duplicar
+  registros nem sobrescrever edição local sem aviso.
+- Um script MUST escrever apenas dentro do escopo que declara.
+
+### VIII. Parametrização de agentes fica fora do rito de código
+
+Prompts, kits e configurações de agentes em plataformas de agentes são parametrização, não código
+do projeto, e não percorrem o rito de código.
+
+**MUST:**
+
+- Pedido para construir, corrigir ou refatorar código que vá para uma PR MUST seguir o rito e a
+  trilha do Princípio II.
+- Exploração descartável (prova de conceito) MUST NOT entrar no diff de uma PR.
+
+## Princípios próprios do projeto
+
+> Seção reservada. Acrescente aqui os princípios específicos de {{PROJETO_NOME}}, numerados a
+> partir de IX. Nenhum princípio próprio vem preenchido pelo cockpit.
+
+## Governança
+
+Esta constituição vence qualquer outro documento do projeto. Emenda é PR com aprovação explícita
+de um humano registrada no corpo da PR; a versão segue SemVer (MAJOR: princípio removido ou
+redefinido; MINOR: princípio ou regra adicionada; PATCH: redação).

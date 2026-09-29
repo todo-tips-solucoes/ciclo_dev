@@ -1,0 +1,26 @@
+# CLAUDE.md — {{PROJETO_NOME}}
+
+Contrato entre este projeto e o agente. Leia os documentos abaixo antes de qualquer mudança.
+
+## Onde está cada regra
+
+- Constituição (o que vale sempre): `docs/constitution.md`
+- Rito de desenvolvimento (11 fases, da branch ao encerramento): `docs/rito-dev.md`
+- Ciclo git (branches, commits, identidades): `docs/CICLO-GIT.md`
+- Contexto do projeto (arquitetura, domínio, áreas sensíveis): `docs/project-context.md`
+- Papéis de agente: `docs/agentes/` (`guardiao.md`, `implementador.md`, `revisor.md`, `triador.md`)
+- Parâmetros do ciclo: `cockpit.config`; resumo em `.cockpit/LEIAME.md`
+
+Board de acompanhamento (se houver): {{BOARD}}
+
+## Regras que o agente não negocia
+
+- Nunca `git add -A` nem `git add .`: stage sempre por caminhos explícitos.
+- Nunca push direto em `{{BRANCH_INTEGRACAO}}` ou `{{BRANCH_PRODUCAO}}`; toda mudança vai por PR.
+- Nunca commitar com identidade que não conste na constituição (Princípio IV-bis).
+- Prosa e mensagens de commit em português do Brasil.
+
+## Parada no gate de review
+
+O agente prepara a PR, acompanha o CI e **para no gate de review**. Aprovar e mergear é sempre de
+um humano; o agente entrega o resumo, a recomendação e o comando pronto, e aguarda.
