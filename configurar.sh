@@ -52,6 +52,8 @@ RE_REPO='^[A-Za-z0-9._][A-Za-z0-9._-]*/[A-Za-z0-9._][A-Za-z0-9._-]*$'
 RE_URL='^https?://[^[:space:]]+$'
 RE_IDENT='^(.+)[[:space:]]+<([^<>]+)>$'
 BOM=$'\xEF\xBB\xBF'
+# Sequências UTF-8 bem formadas (sem overlong, sem surrogate, até U+10FFFF).
+RE_UTF8=$'^([\x01-\x7F]|[\xC2-\xDF][\x80-\xBF]|\xE0[\xA0-\xBF][\x80-\xBF]|[\xE1-\xEC\xEE\xEF][\x80-\xBF][\x80-\xBF]|\xED[\x80-\x9F][\x80-\xBF]|\xF0[\x90-\xBF][\x80-\xBF][\x80-\xBF]|[\xF1-\xF3][\x80-\xBF][\x80-\xBF][\x80-\xBF]|\xF4[\x80-\x8F][\x80-\xBF][\x80-\xBF])*$'
 
 RAIZ=""
 STG=""
@@ -73,6 +75,7 @@ aviso() { printf 'Aviso: %s\n' "$*" >&2; }
 log() { printf '%s\n' "$*"; }
 falhar() { erro "$*"; exit 1; }
 
+# shellcheck disable=SC2317 # chamada indiretamente pelo trap EXIT
 limpar() {
   if [ -n "$STG" ] && [ -d "$STG" ]; then rm -rf "$STG"; fi
 }
@@ -119,41 +122,58 @@ aparar() {
   printf '%s' "$v"
 }
 
-# desaspar VALOR — lê o valor como `source` leria nas formas aceitas: aspas
-# simples (com '\'' interno), aspas duplas sem $, ` ou \, ou sem aspas; nas
-# três, espaço e `# comentário` depois do valor são descartados. Devolve 1 se
-# a forma não for uma dessas (o valor seria lido diferente por `source`).
+# desaspar VALOR — lê o valor como `source` leria nas formas aceitas e deixa
+# o resultado em DESASPAR_V (DESASPAR_COM=1 se havia comentário depois do
+# valor). Formas: aspas simples (com '\'' interno), aspas duplas sem $, ` ou \,
+# ou sem aspas (forma legada: espaços internos aceitos, sem $ ` \ ' "). Depois
+# da aspa final só cabe espaço seguido de `# comentário`. Devolve 1 para
+# qualquer outra forma (seria lida diferente por `source`).
 desaspar() {
-  local v resto q
+  local v resto q out=""
+  DESASPAR_V=""
+  DESASPAR_COM=""
   v="$(aparar "$1")"
   q="${v:0:1}"
-  if [ "$q" = "'" ] || [ "$q" = '"' ]; then
-    resto="${v#?}"
-    [[ "$resto" == *"$q"* ]] || return 1
-    resto="${resto##*"$q"}"
-    resto="$(aparar "$resto")"
-    case "$resto" in '' | '#'*) ;; *) return 1 ;; esac
-    v="${v:1}"
-    v="${v%"$q"*}"
-    if [ "$q" = "'" ]; then
-      [[ "${v//"'\\''"/}" != *"'"* ]] || return 1
-      v="${v//"'\\''"/"'"}"
-    else
-      [[ "$v" != *[\$\`\\\"]* ]] || return 1
-    fi
+  if [ "$q" = "'" ]; then
+    resto="${v:1}"
+    while :; do
+      case "$resto" in *"'"*) ;; *) return 1 ;; esac
+      out="$out${resto%%"'"*}"
+      resto="${resto#*"'"}"
+      if [ "${resto:0:3}" = "\\''" ]; then out="$out'"; resto="${resto:3}"; continue; fi
+      break
+    done
+  elif [ "$q" = '"' ]; then
+    resto="${v:1}"
+    case "$resto" in *'"'*) ;; *) return 1 ;; esac
+    out="${resto%%\"*}"
+    resto="${resto#*\"}"
+    [[ "$out" != *[\$\`\\]* ]] || return 1
   else
-    case "$v" in '#'*) v="" ;; *[[:space:]]'#'*) v="${v%%[[:space:]]#*}" ;; esac
+    case "$v" in *[[:space:]]'#'*) v="${v%%[[:space:]]#*}"; DESASPAR_COM=1 ;; esac
     v="$(aparar "$v")"
+    [[ "$v" != *[\$\`\\\'\"]* ]] || return 1
+    DESASPAR_V="$v"
+    return 0
   fi
-  printf '%s' "$v"
+  case "$resto" in
+    '') ;;
+    [[:space:]]*)
+      resto="$(aparar "$resto")"
+      case "$resto" in '') ;; '#'*) DESASPAR_COM=1 ;; *) return 1 ;; esac
+      ;;
+    *) return 1 ;;
+  esac
+  DESASPAR_V="$out"
 }
 
 # ler_kv ARQ [extras] — lê CHAVE=valor sem source/eval (research Decision 2).
 # Última atribuição da chave vale; chave desconhecida vai para DESCONHECIDAS.
-# Com "extras", só coleta as linhas de chave desconhecida (EXTRAS) e sinaliza
-# comentários próprios da pessoa, sem tocar nos valores.
+# Com "extras", só coleta as linhas de chave desconhecida bem formadas
+# (EXTRAS, com o `export` original) e sinaliza em COMENTARIOS_PERDIDOS o que a
+# regravação não preserva; linha malformada é avisada e ignorada, nunca erro.
 ler_kv() {
-  local arq="$1" so_extras="${2:-}" linha chave v n=0
+  local arq="$1" so_extras="${2:-}" linha orig chave bruto ok n=0
   DESCONHECIDAS=""
   [ -z "$so_extras" ] || EXTRAS=()
   while IFS= read -r linha || [ -n "$linha" ]; do
@@ -168,23 +188,34 @@ ler_kv() {
         continue
         ;;
     esac
+    orig="$linha"
     if [[ "$linha" =~ ^export[[:space:]]+(.*)$ ]]; then linha="${BASH_REMATCH[1]}"; fi
     if ! [[ "$linha" =~ $RE_KV ]]; then
+      if [ -n "$so_extras" ]; then
+        aviso "$arq:$n: linha fora do formato CHAVE=valor; não será mantida."
+        continue
+      fi
       erro "$arq:$n: linha fora do formato CHAVE=valor."
       return 1
     fi
     chave="${BASH_REMATCH[1]}"
+    bruto="${BASH_REMATCH[2]}"
+    ok=true
+    desaspar "$bruto" || ok=false
+    if [ "$orig" != "$linha" ] || [ -n "$DESASPAR_COM" ]; then COMENTARIOS_PERDIDOS=true; fi
     if ! chave_conhecida "$chave"; then
-      DESCONHECIDAS="$DESCONHECIDAS $chave"
-      [ -z "$so_extras" ] || EXTRAS+=("$linha")
+      case " $DESCONHECIDAS " in *" $chave "*) ;; *) DESCONHECIDAS="$DESCONHECIDAS $chave" ;; esac
+      if [ -n "$so_extras" ]; then
+        if $ok; then EXTRAS+=("$orig"); else aviso "$arq:$n: valor de $chave fora do formato; a linha não será mantida."; fi
+      fi
       continue
     fi
     [ -z "$so_extras" ] || continue
-    v="$(desaspar "${BASH_REMATCH[2]}")" || {
+    $ok || {
       erro "$arq:$n: valor de $chave com aspas fora do formato (use aspas simples: $chave='valor')."
       return 1
     }
-    setar "$chave" "$v"
+    setar "$chave" "$DESASPAR_V"
   done <"$arq"
 }
 
@@ -210,16 +241,16 @@ normalizar_identidades() {
 }
 
 # tem_controle VALOR — 0 se há quebra de linha, controle C0/DEL, controle C1
-# (U+0080–U+009F), marca de direção bidi ou UTF-8 inválido.
+# (U+0080–U+009F), marca de direção de texto, separador de linha/parágrafo
+# Unicode ou UTF-8 inválido. Tudo por bytes (LC_ALL=C), sem ferramenta externa.
 tem_controle() {
   local v="$1"
   [[ "$v" == *[[:cntrl:]]* ]] && return 0
+  [[ "$v" =~ $RE_UTF8 ]] || return 0
   [[ "$v" == *$'\xC2'[$'\x80'-$'\x9F']* ]] && return 0
-  [[ "$v" == *$'\xE2\x80'[$'\x8E\x8F\xAA'-$'\xAE']* ]] && return 0
+  [[ "$v" == *$'\xD8\x9C'* ]] && return 0
+  [[ "$v" == *$'\xE2\x80'[$'\x8E\x8F\xA8\xA9\xAA'-$'\xAE']* ]] && return 0
   [[ "$v" == *$'\xE2\x81'[$'\xA6'-$'\xA9']* ]] && return 0
-  if command -v iconv >/dev/null 2>&1; then
-    printf '%s' "$v" | iconv -f UTF-8 -t UTF-8 >/dev/null 2>&1 || return 0
-  fi
   return 1
 }
 
@@ -430,6 +461,7 @@ destino_contido() {
   local alvo="$1" anc real base="${RAIZ%/}/"
   if [ -L "$alvo" ]; then MOTIVO="é link simbólico"; return 1; fi
   if [ -d "$alvo" ]; then MOTIVO="é um diretório"; return 1; fi
+  if [ -e "$alvo" ] && [ ! -f "$alvo" ]; then MOTIVO="existe e não é arquivo regular"; return 1; fi
   anc="$(dirname "$alvo")"
   while [ ! -d "$anc" ]; do
     if [ -e "$anc" ] || [ -L "$anc" ]; then MOTIVO="${anc#"$base"} existe e não é diretório"; return 1; fi
@@ -487,8 +519,9 @@ gravar_config() {
       printf '\n%s\n' "$CABECALHO_EXTRAS"
       for linha in "${EXTRAS[@]}"; do printf '%s\n' "$linha"; done
     fi
-  } >"$STG/cockpit.config" || falhar "Falha ao preparar cockpit.config."
+  } >"$STG/cockpit.config" # sem `||`: o set -e pega falha de qualquer printf
   exigir_contido "$alvo" cockpit.config
+  herdar_modo "$STG/cockpit.config" "$alvo"
   if [ -f "$alvo" ] && cmp -s "$STG/cockpit.config" "$alvo"; then
     log "cockpit.config: inalterado"
   else
@@ -500,7 +533,8 @@ gravar_config() {
 # ------------------------------------------------------------------ templates
 
 preparar_templates() {
-  local tdir="$COCKPIT_DIR/templates" f rel d i
+  local tdir="$COCKPIT_DIR/templates" f rel d dl i
+  local -a dests_min=()
   TPL_ORIG=()
   DEST_REL=()
   if [ ! -d "$tdir" ]; then
@@ -511,15 +545,20 @@ preparar_templates() {
     rel="${f#"$tdir"/}"
     case "/$rel/" in */../*) falhar "Caminho de template recusado: $rel" ;; esac
     d="${rel%.tmpl}"
-    case "$d" in
-      cockpit.config | "$MANIFESTO_REL" | .git | .git/* | .cockpit-tmp.*) falhar "Template recusado (destino reservado): $rel" ;;
+    # Comparação sem diferenciar maiúsculas: em sistema de arquivos que não
+    # diferencia (macOS), .GIT e .git são o mesmo diretório.
+    dl="$(printf '%s' "$d" | tr '[:upper:]' '[:lower:]')"
+    case "$dl" in
+      cockpit.config | "$MANIFESTO_REL" | .git | .git/* | */.git | */.git/* | .cockpit-tmp.*)
+        falhar "Template recusado (destino reservado): $rel" ;;
     esac
     for ((i = 0; i < ${#DEST_REL[@]}; i++)); do
-      [ "${DEST_REL[i]}" != "$d" ] \
+      [ "${dests_min[i]}" != "$dl" ] \
         || falhar "Templates com o mesmo destino ($d): ${TPL_ORIG[i]#"$tdir"/} e $rel"
     done
     TPL_ORIG+=("$f")
     DEST_REL+=("$d")
+    dests_min+=("$dl")
   done < <(find "$tdir" -type f | sort)
 }
 
@@ -556,8 +595,21 @@ renderizar() {
 # sincronizar_exec TEMPLATE DESTINO — o bit de execução do destino segue o do
 # template (arquivo inalterado em conteúdo, modo diferente).
 sincronizar_exec() {
-  if [ -x "$1" ] && [ ! -x "$2" ]; then chmod +x "$2"; fi
-  if [ ! -x "$1" ] && [ -x "$2" ]; then chmod a-x "$2"; fi
+  if [ -x "$1" ] && [ ! -x "$2" ]; then chmod +x "$2" || return 1; fi
+  if [ ! -x "$1" ] && [ -x "$2" ]; then chmod a-x "$2" || return 1; fi
+  return 0
+}
+
+# modo_de ARQ — permissão octal (GNU ou BSD stat); vazio se não souber.
+modo_de() { stat -c %a "$1" 2>/dev/null || stat -f %Lp "$1" 2>/dev/null || true; }
+
+# herdar_modo NOVO EXISTENTE — o arquivo novo mantém a permissão do destino
+# que vai substituir (ex.: 600 continua 600).
+herdar_modo() {
+  local m
+  [ -e "$2" ] || return 0
+  m="$(modo_de "$2")"
+  [ -z "$m" ] || chmod "$m" "$1"
 }
 
 # aplicar_templates — renderiza tudo em staging; só move se não há residual
@@ -568,7 +620,7 @@ aplicar_templates() {
   local -a conflitos=() gravados=() inalterados=()
   local h_atual h_man dest
   if [ "$n" -eq 0 ]; then
-    log "Nenhum template em templates/: nada havia a renderizar."
+    [ ! -d "$COCKPIT_DIR/templates" ] || log "Nenhum template em templates/: nada havia a renderizar."
     gravar_manifesto
     return 0
   fi
@@ -621,6 +673,8 @@ aplicar_templates() {
     fi
     mkdir -p "$(dirname "$dest")" || falhar "Falha ao criar o diretório de ${DEST_REL[i]}."
     exigir_contido "$dest" "${DEST_REL[i]}"
+    { herdar_modo "$STG/r$i" "$dest" && sincronizar_exec "${TPL_ORIG[i]}" "$STG/r$i"; } \
+      || falhar "Falha ao ajustar permissão de ${DEST_REL[i]}."
     mv -f "$STG/r$i" "$dest" || falhar "Falha ao gravar ${DEST_REL[i]}."
     gravados+=("${DEST_REL[i]}")
   done
@@ -641,7 +695,7 @@ gravar_manifesto() {
   if [ -f "$alvo" ]; then
     while IFS= read -r linha || [ -n "$linha" ]; do
       rel="${linha#*  }"
-      [ -n "$rel" ] && [ "$rel" != "$linha" ] || continue
+      if [ -z "$rel" ] || [ "$rel" = "$linha" ]; then continue; fi
       achou=false
       for ((i = 0; i < n; i++)); do [ "${DEST_REL[i]}" != "$rel" ] || { achou=true; break; }; done
       $achou && continue
@@ -669,20 +723,36 @@ gravar_manifesto() {
 
 # ------------------------------------------------------------------- hooks --
 
-# versao_cstk — versão lida só do stdout de `cstk --version`: primeiro token
-# (cstk v1.2.3, 1.2, v11, 1.2.3-rc1) que seja uma versão.
+# versao_cstk — versão lida só do stdout de `cstk --version`. Linhas que citam
+# "cstk" têm precedência; em cada token, parênteses e pontuação das bordas
+# saem, e vale o primeiro com forma N.N[.N][-pré][+build] (o +build é
+# descartado). Número sem ponto só vale como `vN` ou em "cstk N".
 versao_cstk() {
-  local saida tok
-  local -a toks=()
+  local saida linha tok passada inteiro=""
+  local -a toks
   saida="$(cstk --version 2>/dev/null </dev/null)" || true
-  read -ra toks <<<"$(printf '%s' "$saida" | tr '\n' ' ')" || true
-  for tok in ${toks[@]+"${toks[@]}"}; do
-    if [[ "$tok" =~ ^v?([0-9]+(\.[0-9]+){0,2}(-[0-9A-Za-z.]+)?)$ ]]; then
-      printf '%s' "${BASH_REMATCH[1]}"
-      return 0
-    fi
+  saida="${saida//$'\r'/}"
+  for passada in cstk outras; do
+    while IFS= read -r linha; do
+      case "$linha" in
+        *cstk*) [ "$passada" = cstk ] || continue ;;
+        *) [ "$passada" = outras ] || continue ;;
+      esac
+      [ -n "$inteiro" ] || { [[ "$linha" =~ ^[[:space:]]*cstk[[:space:]]+([0-9]+)[[:space:]]*$ ]] && inteiro="${BASH_REMATCH[1]}"; } || true
+      toks=()
+      read -ra toks <<<"$linha" || true
+      for tok in ${toks[@]+"${toks[@]}"}; do
+        tok="${tok#"${tok%%[!(\[]*}"}"
+        tok="${tok%"${tok##*[!)\],.;:]}"}"
+        if [[ "$tok" =~ ^v?([0-9]+(\.[0-9]+){1,2}(-[0-9A-Za-z.-]+)?)(\+[0-9A-Za-z.-]+)?$ ]]; then
+          printf '%s' "${BASH_REMATCH[1]}"
+          return 0
+        fi
+        [ -n "$inteiro" ] || { [[ "$tok" =~ ^v([0-9]+)$ ]] && inteiro="${BASH_REMATCH[1]}"; } || true
+      done
+    done <<<"$saida"
   done
-  return 0
+  printf '%s' "$inteiro"
 }
 
 # versao_atende VER MIN — pré-release (X.Y.Z-rc) fica abaixo de X.Y.Z.
@@ -757,9 +827,10 @@ main() {
     falhar "Rodando na raiz do próprio cockpit sem --projeto. Informe --projeto DIR com o projeto-alvo (ou --projeto . para configurar o próprio cockpit)."
   fi
   log "  $RAIZ"
+  local cfg="$RAIZ/cockpit.config" k faltam
+  exigir_contido "$cfg" cockpit.config
 
   log "Passo 2/5: valores"
-  local cfg="$RAIZ/cockpit.config" k faltam
   if [ -e "$cfg" ] && [ ! -L "$cfg" ] && [ ! -r "$cfg" ]; then falhar "cockpit.config ilegível: $cfg"; fi
   case "$MODO" in
     atualizar)
@@ -775,6 +846,7 @@ main() {
     interativo)
       if [ -f "$cfg" ] && [ ! -L "$cfg" ]; then
         ler_kv "$cfg" || exit 1
+        normalizar_identidades
         log "Valores atuais em $cfg (Enter aceita cada padrão):"
         for k in $CHAVES_ORDEM; do
           definido "$k" || continue
@@ -784,6 +856,7 @@ main() {
         if [ -n "$faltam" ]; then
           aviso "chave(s) ausente(s) no cockpit.config: $faltam — perguntando só essas."
           for k in $faltam; do perguntar_chave "$k"; done
+          for k in $CHAVES_OPCIONAIS; do definido "$k" || perguntar_chave "$k"; done
         else
           perguntar_todos
         fi
@@ -800,7 +873,7 @@ main() {
     COMENTARIOS_PERDIDOS=false
     ler_kv "$cfg" extras || exit 1
     [ "${#EXTRAS[@]}" -eq 0 ] || aviso "chave(s) desconhecida(s) mantida(s) no cockpit.config:$DESCONHECIDAS"
-    ! $COMENTARIOS_PERDIDOS || aviso "comentários próprios do cockpit.config não são preservados na regravação."
+    ! $COMENTARIOS_PERDIDOS || aviso "comentários, \`export\` e comentários no fim da linha do cockpit.config não são preservados na regravação (exceto nas chaves desconhecidas mantidas)."
   fi
 
   preparar_templates

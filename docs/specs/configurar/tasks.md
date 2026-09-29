@@ -284,3 +284,22 @@ Code review adversarial (bmad-code-review, 2026-09-29) — camadas Blind Hunter,
 - [x] [Review][Patch] Mensagens: `.cockpit` como arquivo vira "fora do projeto ou link simbólico"; config ilegível dá erro cru do bash; "rode de novo" sem caminho do cockpit e sem quoting seguro [configurar.sh:307]
 - [x] [Review][Patch] `destino_contido` recusa tudo com RAIZ=/ [configurar.sh:312]
 - [x] [Review][Patch] `instalar.sh` carrega `scripts/lib/versao.sh` sem checar falha (rodado fora do clone vira "abaixo do piso") [instalar.sh:52]
+
+#### Rodada 2 (revisão só das correções: `9fedfb4..7c80a4a`)
+
+Blind Hunter + Edge Case Hunter sobre o diff das correções, mais o shellcheck do CI da PR #3.
+
+- [x] [Review][Patch] shellcheck do CI: SC2317 em `limpar` (trap), SC2015 no loop de órfãos, SC2016 na suíte (literais de propósito) [configurar.sh:77]
+- [x] [Review][Patch] Regressão: versão do cstk com CRLF, `+build`, parênteses, ponto final ou número espúrio não reconhecida; linhas que citam `cstk` têm precedência [configurar.sh:versao_cstk]
+- [x] [Review][Patch] Regressão: `--respostas` abortava com `cockpit.config` antigo malformado; a leitura de extras agora avisa e ignora a linha [configurar.sh:ler_kv]
+- [x] [Review][Patch] Chave desconhecida com valor malformado era copiada e quebrava o `source`; agora não é mantida (aviso); `export` preservado; nomes repetidos deduplicados no aviso [configurar.sh:ler_kv]
+- [x] [Review][Patch] `desaspar`: `'a'#c` e `'a'b` recusados; aspa dentro do comentário aceita; sem aspas recusa `$`, `` ` ``, `\`, aspas (espaços seguem aceitos: formato legado do exemplo antigo) [configurar.sh:desaspar]
+- [x] [Review][Patch] UTF-8 inválido checado em bash puro (sem depender de iconv); U+061C e U+2028/2029 recusados [configurar.sh:tem_controle]
+- [x] [Review][Patch] `cockpit.config` link/diretório recusado antes das perguntas; destino FIFO ou não regular recusado sem travar [configurar.sh:main, destino_contido]
+- [x] [Review][Patch] Permissão restritiva do destino (template e `cockpit.config`) mantida na regravação; falha de `chmod` em `sincronizar_exec` não passa em silêncio [configurar.sh:herdar_modo]
+- [x] [Review][Patch] Destinos reservados e duplicados comparados sem diferenciar maiúsculas; `.git` aninhado reservado [configurar.sh:preparar_templates]
+- [x] [Review][Patch] Modo interativo: IDENTIDADES normalizada antes de validar o config lido; com config incompleto, URLs opcionais ausentes também são oferecidas [configurar.sh:main]
+- [x] [Review][Patch] `gravar_config` sem `||` no bloco de escrita (set -e pega falha de qualquer printf); aviso de `export`/comentário perdidos; mensagem dupla sem `templates/` [configurar.sh]
+- [x] [Review][Patch] Suíte: formatos de versão reais, formas de aspas recusadas/aceitas, config antigo malformado com `--respostas`, sincronização do bit de execução, permissão 600, reservados sem diferenciar maiúsculas, FIFO, LRM/U+2028/U+061C/UTF-8 inválido, acentos e emoji aceitos, falha de escrita sem "gravado:" [scripts/testar-configurar.sh]
+
+Descartados na rodada 2 (verificado): `--atualizar` não regrava o config (nada se perde); `pipefail` e `LC_ALL=C` já ativos no topo; fence de crases não fecha no meio da linha; `PRINCIPIO_III` obrigatório é decisão do owner (D1); exit 1 com config gravado está documentado no contrato; aviso de órfão a cada execução é o comportamento decidido (D7); bit de execução em drvfs/WSL `/mnt` (todo arquivo 0777) fica como limitação conhecida.

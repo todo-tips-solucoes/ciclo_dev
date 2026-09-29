@@ -4,7 +4,8 @@
 # Cada cenário roda num repositório git temporário; o `cstk` é sempre o falso
 # deste script (nunca o real). Sai diferente de zero na primeira falha, dizendo
 # qual cenário falhou. Sem framework, sem rede.
-# shellcheck disable=SC2015 # `A && B || falha` é o idioma dos cenários: falha() sai
+# shellcheck disable=SC2015,SC2016 # `A && B || falha` é o idioma dos cenários
+# (falha() sai); textos em aspas simples são literais de propósito
 set -euo pipefail
 
 RAIZ_COCKPIT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
@@ -31,7 +32,8 @@ cat >"$BIN/cstk" <<'EOF'
 case "$1" in
   --version)
     [ -z "${CSTK_FALSO_STDERR:-}" ] || echo "$CSTK_FALSO_STDERR" >&2
-    echo "cstk ${CSTK_FALSO_PREFIXO-v}${CSTK_FALSO_VERSAO:-0.0.0}" ;;
+    if [ -n "${CSTK_FALSO_SAIDA:-}" ]; then printf '%b' "$CSTK_FALSO_SAIDA"; else echo "cstk ${CSTK_FALSO_PREFIXO-v}${CSTK_FALSO_VERSAO:-0.0.0}"; fi ;;
+  --versao-bruta) : ;;
   hooks)
     shift; echo "hooks $*" >>"$CSTK_LOG_FALSO"
     [ -z "${CSTK_FALSO_FALHA:-}" ] || { echo "falha simulada" >&2; exit 7; } ;;
@@ -207,12 +209,16 @@ sed "s#^IDENTIDADES=.*#IDENTIDADES='Fulana:fulana@exemplo.example'#" "$EXEMPLO" 
 rc="$(codigo rodar "$CONF" --projeto "$T" --respostas "$TMP/r")"
 [ "$rc" = 0 ] && grep -q 'noreply' "$TMP/err" || falha "e-mail não noreply deveria passar com aviso"
 # Controle real (TAB, ESC), C1 e marca bidi: cada um recusado citando a chave.
-for bruto in $'a\tb' $'a\e[31mb' $'a\xc2\x9bb' $'a\xe2\x80\xaeb'; do
+for bruto in $'a\tb' $'a\e[31mb' $'a\xc2\x9bb' $'a\xe2\x80\xaeb' $'a\xe2\x80\x8eb' $'a\xe2\x80\xa8b' $'a\xd8\x9cb' $'a\xffb' $'a\xc3'; do
   { grep -v '^CMD_BUILD=' "$EXEMPLO"; printf "CMD_BUILD='%s'\n" "$bruto"; } >"$TMP/r"
   rc="$(codigo rodar "$CONF" --projeto "$T" --respostas "$TMP/r")"
   [ "$rc" = 1 ] && grep -q 'CMD_BUILD' "$TMP/err" && grep -q 'controle' "$TMP/err" \
     || falha "valor com controle $(printf %q "$bruto") não recusado citando CMD_BUILD"
 done
+# Acentos, € e emoji são legítimos.
+{ grep -v '^CMD_BUILD=' "$EXEMPLO"; printf "CMD_BUILD='echo ação € 😀 中文'\n"; } >"$TMP/r"
+rc="$(codigo rodar "$CONF" --projeto "$T" --respostas "$TMP/r")"
+[ "$rc" = 0 ] || falha "valor com acentos e emoji recusado"
 for repo in "../x" "org/.." "-x/y" "org/-y"; do
   sed "s#^REPO_REMOTO=.*#REPO_REMOTO='$repo'#" "$EXEMPLO" >"$TMP/r"
   rc="$(codigo rodar "$CONF" --projeto "$T" --respostas "$TMP/r")"
@@ -252,6 +258,14 @@ rc="$(CSTK_FALSO_VERSAO="$PISO-rc1" codigo env PATH="$PATH_COM_FALSO" "$CONF" --
 # Versão só com major, acima do piso, é reconhecida.
 rc="$(CSTK_FALSO_VERSAO="$(( ${PISO%%.*} + 1 ))" codigo env PATH="$PATH_COM_FALSO" "$CONF" --projeto "$T" --respostas "$EXEMPLO")"
 [ "$rc" = 0 ] || falha "versão só com major não reconhecida (saiu $rc)"
+# Formatos de saída reais: CRLF, +build, parênteses, ponto final, número espúrio.
+T="$(novo_repo)"
+for saida in "cstk $PISO\\r\\n" "cstk $PISO+build5\\n" "cstk (v$PISO)\\n" "cstk v$PISO.\\n" "cstk: 3 plugins carregados\\ncstk v$PISO\\n" "aviso: nova versão 99.0.0 disponível\\ncstk v$PISO\\n"; do
+  rc="$(CSTK_FALSO_SAIDA="$saida" codigo env PATH="$PATH_COM_FALSO" "$CONF" --projeto "$T" --respostas "$EXEMPLO")"
+  [ "$rc" = 0 ] || falha "saída de versão '$saida' não reconhecida (saiu $rc)"
+done
+rc="$(CSTK_FALSO_SAIDA="aviso: nova versão 99.0.0 disponível\\ncstk v0.0.1\\n" codigo env PATH="$PATH_COM_FALSO" "$CONF" --projeto "$T" --respostas "$EXEMPLO")"
+[ "$rc" = 3 ] || falha "versão de outra linha burlou o piso (saiu $rc)"
 # hooks install falhando: exit 4, config e templates mantidos.
 T="$(novo_repo)"
 rc="$(CSTK_FALSO_FALHA=1 codigo env PATH="$PATH_COM_FALSO" "$CONF" --projeto "$T" --respostas "$EXEMPLO")"
@@ -271,6 +285,18 @@ cmp -s "$T/.cockpit/LEIAME.md" "$TMP/leiame12" || falha "valores lidos com aspas
 printf "CMD_BUILD='a' b\n" >>"$T/cockpit.config"
 rc="$(codigo rodar "$CONF" --projeto "$T" --atualizar)"
 [ "$rc" = 1 ] && grep -q 'CMD_BUILD' "$TMP/err" || falha "aspas malformadas não recusadas"
+# Formas lidas por `source` de outro jeito: recusadas citando a chave.
+for linha in "CMD_BUILD='a'#c" 'CMD_BUILD="b"#d' 'CMD_BUILD=$HOME/x' "CMD_BUILD=a'b" 'CMD_BUILD="x$y"'; do
+  { grep -v '^CMD_BUILD=' "$EXEMPLO"; printf '%s\n' "$linha"; } >"$TMP/r12"
+  rc="$(codigo rodar "$CONF" --projeto "$(novo_repo)" --respostas "$TMP/r12")"
+  [ "$rc" = 1 ] && grep -q CMD_BUILD "$TMP/err" || falha "forma '$linha' não recusada"
+done
+# Aceitas: aspa dentro do comentário e forma legada sem aspas (exemplo antigo).
+for linha in "CMD_BUILD='a' # it's" 'CMD_BUILD=npm run build'; do
+  { grep -v '^CMD_BUILD=' "$EXEMPLO"; printf '%s\n' "$linha"; } >"$TMP/r12"
+  rc="$(codigo rodar "$CONF" --projeto "$(novo_repo)" --respostas "$TMP/r12")"
+  [ "$rc" = 0 ] || falha "forma '$linha' deveria ser aceita (saiu $rc)"
+done
 # Chave desconhecida é mantida na regravação.
 T="$(novo_repo)"
 rodar "$CONF" --projeto "$T" --respostas "$EXEMPLO" >/dev/null 2>&1 || falha "configuração inicial falhou"
@@ -278,6 +304,13 @@ printf "CMD_TESTE='npm test'\n" >>"$T/cockpit.config"
 rc="$(codigo rodar "$CONF" --projeto "$T" --respostas "$EXEMPLO")"
 [ "$rc" = 0 ] && grep -q "^CMD_TESTE='npm test'\$" "$T/cockpit.config" && grep -q 'mantida' "$TMP/err" \
   || falha "chave desconhecida não foi mantida no cockpit.config"
+# --respostas com config antigo malformado: linha avisada e ignorada, sem abortar;
+# chave desconhecida com valor fora do formato não é copiada; export mantido.
+printf 'lixo sem igual\nFOO=\x27sem fim\nexport QUX=1\n' >>"$T/cockpit.config"
+rc="$(codigo rodar "$CONF" --projeto "$T" --respostas "$EXEMPLO")"
+[ "$rc" = 0 ] && grep -q 'não será mantida' "$TMP/err" || falha "config antigo malformado abortou o --respostas (saiu $rc)"
+! grep -q '^FOO=' "$T/cockpit.config" && grep -q '^export QUX=1$' "$T/cockpit.config" || falha "extras malformados copiados ou export perdido"
+espera "cockpit.config com extras não carrega com source" bash -c 'set -u; source "$1/cockpit.config"' _ "$T"
 cp "$T/cockpit.config" "$TMP/c12b"
 rodar "$CONF" --projeto "$T" --respostas "$EXEMPLO" >/dev/null 2>&1 || falha "segunda regravação falhou"
 cmp -s "$T/cockpit.config" "$TMP/c12b" || falha "regravação com chave mantida não é idempotente"
@@ -291,6 +324,16 @@ T="$(novo_repo)"
 rodar "$C/configurar.sh" --projeto "$T" --respostas "$EXEMPLO" >/dev/null 2>&1 || falha "render falhou"
 [ -x "$T/exec.sh" ] || falha "template executável perdeu o bit de execução"
 [ "$(tail -c 1 "$T/semnl.txt")" = o ] || falha "newline final acrescentado ao template sem newline"
+# Conteúdo igual, modo diferente: o bit de execução volta a seguir o template.
+chmod a-x "$T/exec.sh"
+rodar "$C/configurar.sh" --projeto "$T" --atualizar >/dev/null 2>&1 || falha "--atualizar falhou"
+[ -x "$T/exec.sh" ] || falha "bit de execução não sincronizado com o template"
+# Permissão restritiva do destino é mantida na regravação.
+chmod 600 "$T/semnl.txt" "$T/cockpit.config"
+sed "s/^PROJETO_NOME=.*/PROJETO_NOME='outro'/" "$EXEMPLO" >"$TMP/r13m"
+rodar "$C/configurar.sh" --projeto "$T" --respostas "$TMP/r13m" >/dev/null 2>&1 || falha "regravação falhou"
+[ "$(stat -c %a "$T/semnl.txt" 2>/dev/null || stat -f %Lp "$T/semnl.txt")" = 600 ] || falha "permissão 600 do template perdida"
+[ "$(stat -c %a "$T/cockpit.config" 2>/dev/null || stat -f %Lp "$T/cockpit.config")" = 600 ] || falha "permissão 600 do cockpit.config perdida"
 # Template removido do cockpit: aviso, arquivo e linha do manifesto mantidos.
 rm "$C/templates/semnl.txt.tmpl"
 rc="$(codigo rodar "$C/configurar.sh" --projeto "$T" --atualizar)"
@@ -300,9 +343,20 @@ rc="$(codigo rodar "$C/configurar.sh" --projeto "$T" --atualizar)"
 C="$(cockpit_copia)"; printf 'a\n' >"$C/templates/d.md"; printf 'b\n' >"$C/templates/d.md.tmpl"
 rc="$(codigo rodar "$C/configurar.sh" --projeto "$(novo_repo)" --respostas "$EXEMPLO")"
 [ "$rc" = 1 ] && grep -q 'mesmo destino' "$TMP/err" || falha "destino duplicado não recusado"
-C="$(cockpit_copia)"; mkdir -p "$C/templates/.git/hooks"; printf 'x\n' >"$C/templates/.git/hooks/pre-commit"
+for g in .git/hooks/pre-commit .GIT/hooks/pre-commit sub/.git/config Cockpit.config.tmpl; do
+  C="$(cockpit_copia)"; mkdir -p "$(dirname "$C/templates/$g")"; printf 'x\n' >"$C/templates/$g"
+  rc="$(codigo rodar "$C/configurar.sh" --projeto "$(novo_repo)" --respostas "$EXEMPLO")"
+  [ "$rc" = 1 ] && grep -q 'reservado' "$TMP/err" || falha "destino reservado $g não recusado"
+done
+C="$(cockpit_copia)"; printf 'a\n' >"$C/templates/D.md"; printf 'b\n' >"$C/templates/d.md"
 rc="$(codigo rodar "$C/configurar.sh" --projeto "$(novo_repo)" --respostas "$EXEMPLO")"
-[ "$rc" = 1 ] && grep -q 'reservado' "$TMP/err" || falha "destino sob .git não recusado"
+[ "$rc" = 1 ] && grep -q 'mesmo destino' "$TMP/err" || falha "destinos que só diferem em maiúsculas não recusados"
+# Destino que existe e não é arquivo regular (FIFO): recusado sem travar.
+if command -v mkfifo >/dev/null 2>&1; then
+  T="$(novo_repo)"; mkdir -p "$T/.cockpit"; mkfifo "$T/.cockpit/LEIAME.md"
+  rc="$(codigo rodar "$CONF" --projeto "$T" --respostas "$EXEMPLO" </dev/null)"
+  [ "$rc" = 1 ] && grep -q 'não é arquivo regular' "$TMP/err" || falha "destino FIFO não recusado (saiu $rc)"
+fi
 # Falha de escrita não passa em silêncio: sai != 0 e não anuncia gravação.
 T="$(novo_repo)"
 rodar "$CONF" --projeto "$T" --respostas "$EXEMPLO" >/dev/null 2>&1 || falha "configuração inicial falhou"
@@ -311,7 +365,8 @@ if [ "$(id -u)" != 0 ]; then
   chmod 555 "$T/.cockpit"
   rc="$(codigo rodar "$CONF" --projeto "$T" --respostas "$TMP/r13")"
   chmod 755 "$T/.cockpit"
-  [ "$rc" != 0 ] && ! grep -q 'Guard hooks provisionados' "$TMP/out" || falha "falha de escrita saiu com $rc"
+  [ "$rc" != 0 ] && ! grep -q 'Guard hooks provisionados' "$TMP/out" && ! grep -q 'gravado: ' "$TMP/out" \
+    && grep -q 'Falha' "$TMP/err" || falha "falha de escrita saiu com $rc ou anunciou gravação"
 fi
 # Barra invertida no caminho do projeto não desliga a detecção de residual.
 C="$(cockpit_copia)"; printf 'v: {{CHAVE_INEXISTENTE}}\n' >"$C/templates/x.md.tmpl"
