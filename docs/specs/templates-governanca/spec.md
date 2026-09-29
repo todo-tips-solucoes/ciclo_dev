@@ -154,6 +154,16 @@ guiadas, sem `{{`.
 - **Template de governança**: arquivo `.tmpl` sob `templates/` cujo destino é o mesmo caminho sem o sufixo.
 - **Chave do cockpit**: par `CHAVE='valor'` do `cockpit.config` que substitui `{{CHAVE}}`.
 
+## Clarifications
+
+### Session 2026-09-29
+
+- Q: Como o Princípio II trata as trilhas de mudança? → A: Trilhas fixas e genéricas (docs/**, README e imagens = trilha docs; o resto = completa); constituição e reverts nunca em trilha curta.
+- Q: O que o Princípio III diz quando desligado? → A: Texto único com o valor configurado: ligado = validação local proibida, só o CI valida; desligado = não se aplica, typecheck/lint/build locais permitidos, o CI segue como gate.
+- Q: Como inserir IDENTIDADES? → A: Valor literal sob cabeçalho de tabela Markdown fixa (Quem | user.name <user.email>), assumindo linhas já no formato de tabela.
+- Q: Responsabilidades de guardião e triador? → A: Guardião verifica gates e guardas (identidade, base, trilha) antes de cada fase; triador classifica a demanda na trilha e decide se abre frente, sem implementar.
+- Q: BOARD vazio? → A: Redação neutra e opcional: "Board de acompanhamento (se houver): {{BOARD}}".
+
 ## Assumptions
 
 - Decisão (inferência): a numeração e o conteúdo dos princípios seguem o briefing; como o
