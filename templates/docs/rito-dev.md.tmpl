@@ -12,25 +12,33 @@ a chave e pare; nunca siga com valor presumido.
 - Parada obrigatória no review (Fase 6): quem aprova e mergeia é um humano.
 - Validação de typecheck, lint e build segue o Princípio III da constituição (valor configurado:
   `{{PRINCIPIO_III}}`).
-- Nunca promover com o ambiente de integração quebrado; nunca smoke em produção sem rollback anotado.
+- Nunca promover com o ambiente de integração quebrado ou sem smoke feito nele; nunca smoke em
+  produção sem rollback anotado.
 - A identidade de quem aprova cada PR não vem do `cockpit.config`: pergunte ao humano na Fase 4.
 
 ## Etapa preparatória — Sincronizar
 
-Traga a base e confirme que veio, comparando com uma fonte de rede diferente:
+Traga a base e confirme que veio, comparando com uma fonte de rede diferente. Se a comparação
+falhar ou o `gh api` não responder, pare: não comece nada até a base conferir.
 
 ```bash
 git fetch origin {{BRANCH_INTEGRACAO}}
-[ "$(git rev-parse origin/{{BRANCH_INTEGRACAO}})" = \
-  "$(gh api repos/{{REPO_REMOTO}}/branches/{{BRANCH_INTEGRACAO}} --jq .commit.sha)" ] \
-  && echo "base em sincronia" || echo "base local desatualizada: não comece nada"
+local_sha="$(git rev-parse origin/{{BRANCH_INTEGRACAO}})"
+remoto_sha="$(gh api repos/{{REPO_REMOTO}}/branches/{{BRANCH_INTEGRACAO}} --jq .commit.sha)"
+[ -n "$remoto_sha" ] && [ "$local_sha" = "$remoto_sha" ]
 ```
 
 ## Fase 1 — Branch
 
 Crie a branch a partir de `origin/{{BRANCH_INTEGRACAO}}` conferido, em worktree, com base explícita:
 `feature/<slug>`, `fix/<slug>`, `chore/<slug>` ou `docs/<slug>`. `hotfix/<slug>` sai de
-`{{BRANCH_PRODUCAO}}` e só com incidente real. Entre na worktree antes do commit.
+`{{BRANCH_PRODUCAO}}` e só com incidente real.
+
+```bash
+/parallel-work <prefixo>/<slug> --base origin/{{BRANCH_INTEGRACAO}}
+```
+
+Em hotfix, a base é `origin/{{BRANCH_PRODUCAO}}`. Entre na worktree antes de editar qualquer arquivo.
 
 ## Fase 2 — Desenvolver
 
@@ -54,7 +62,7 @@ git push -u origin <branch>
 gh pr create --base {{BRANCH_INTEGRACAO}} --title "<tipo>(<escopo>): <descrição>"
 ```
 
-A base é sempre `{{BRANCH_INTEGRACAO}}`. Declare a trilha e os caminhos tocados no corpo. Pergunte
+A base é `{{BRANCH_INTEGRACAO}}`; só um hotfix abre a PR com base `{{BRANCH_PRODUCAO}}`. Declare a trilha e os caminhos tocados no corpo. Pergunte
 agora ao humano quem aprova esta PR.
 
 ## Fase 5 — CI (loop até verde)
@@ -93,9 +101,15 @@ A URL do ambiente é perguntada ao humano na hora.
 Se `{{BRANCH_INTEGRACAO}}` e `{{BRANCH_PRODUCAO}}` forem a mesma branch, esta fase é **no-op**: o
 deploy da Fase 7 já é o de produção.
 
-Caso contrário, promova por PR de `{{BRANCH_INTEGRACAO}}` para `{{BRANCH_PRODUCAO}}`, com parada
-igual à da Fase 6, e faça merge com **merge commit** (`gh pr merge <número> --merge`), nunca squash
-e nunca `--delete-branch`. Deploy de produção, quando configurado: `{{CMD_DEPLOY_PRODUCAO}}`.
+Caso contrário, confira antes se já existe uma PR de promoção aberta e reaproveite-a:
+
+```bash
+gh pr list --base {{BRANCH_PRODUCAO}} --head {{BRANCH_INTEGRACAO}}
+gh pr create --base {{BRANCH_PRODUCAO}} --head {{BRANCH_INTEGRACAO}} --title "chore(release): promover {{BRANCH_INTEGRACAO}} para {{BRANCH_PRODUCAO}}"
+```
+
+A promoção tem parada igual à da Fase 6, e faça merge com **merge commit** (`gh pr merge <número> --merge`), nunca squash
+e nunca `--delete-branch`. Deploy de produção: `{{CMD_DEPLOY_PRODUCAO}}`; se for manual, confira o alvo antes de rodar.
 
 ## Fase 10 — Smoke em produção (rollback antes)
 

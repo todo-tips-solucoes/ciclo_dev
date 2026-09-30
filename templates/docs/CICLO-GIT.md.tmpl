@@ -4,7 +4,8 @@ Repositório remoto: `{{REPO_REMOTO}}`.
 
 ## Modelo de branches
 
-- Integração: `{{BRANCH_INTEGRACAO}}`. Toda frente nasce dela, em worktree.
+- Integração: `{{BRANCH_INTEGRACAO}}`. Toda frente nasce dela, em worktree; só o hotfix nasce da
+  produção.
 - Produção: `{{BRANCH_PRODUCAO}}`.
 - Quando as duas coincidem, o projeto usa branch única: a promoção para produção é no-op e o
   deploy da integração já é o de produção.
@@ -25,8 +26,8 @@ Conventional Commits, com descrição em português do Brasil:
 
 ## Merge
 
-- **Feature para integração:** squash (`gh pr merge <número> --squash --delete-branch`). A
-  mensagem do squash vira o título da PR.
+- **Feature para integração:** squash (`gh pr merge <número> --squash --delete-branch`). O
+  título da PR vira a mensagem do commit de squash; escreva-o em Conventional Commits.
 - **Promoção da integração para produção:** merge commit (`gh pr merge <número> --merge`), nunca
   squash e nunca `--delete-branch`, para não divergir o histórico entre as duas branches.
 

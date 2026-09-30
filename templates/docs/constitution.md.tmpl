@@ -3,25 +3,35 @@
 > Governança do desenvolvimento deste projeto. Gerada pelo cockpit a partir do `cockpit.config`;
 > os princípios abaixo são do ciclo e valem como ponto de partida. Os princípios que só fazem
 > sentido para este projeto entram na seção final, escritos por quem o mantém.
+>
+> Depois da primeira edição à mão, este arquivo passa a ser do projeto: o configurador deixa de
+> atualizá-lo e avisa do conflito. Para trazer uma mudança do `cockpit.config`, rode o configurador
+> com `--forcar` e reaplique à mão o que o projeto acrescentou.
 
-## Princípios do ciclo
+## Core Principles
+
+> Os princípios do ciclo. O título fica em inglês porque o `/feature-00c` procura exatamente essa
+> seção.
 
 ### II. Toda mudança percorre uma trilha
 
 A trilha é decidida pelo **caminho** dos arquivos tocados, nunca pela extensão. A base de toda
-frente é `{{BRANCH_INTEGRACAO}}`.
+frente é `{{BRANCH_INTEGRACAO}}`; a única exceção é `hotfix/<slug>`, que nasce de
+`{{BRANCH_PRODUCAO}}` e só existe com incidente real. Quando as duas branches são a mesma, não há
+promoção: o merge na integração já é a entrega em produção.
 
 | Trilha | Quando | Etapas |
 |---|---|---|
-| **Completa** | qualquer arquivo fora de `docs/`, `README.md` e imagens | worktree, implementação pelo `/feature-00c`, revisão de código, PR, gate humano, registro em `docs/specs/<short-name>/` |
+| **Completa** | qualquer arquivo fora de `docs/`, `README.md` e imagens; e sempre esta constituição | worktree, implementação pelo `/feature-00c`, revisão de código, PR, gate humano, registro em `docs/specs/<short-name>/` |
 | **Docs** | só `docs/**` (exceto esta constituição), `README.md` e imagens | worktree, escrita, validação de renderização, uma rodada de revisão, PR, gate humano |
 
 **MUST:**
 
-- Toda mudança de trilha completa ou docs MUST nascer em worktree com base explícita
-  (`--base origin/{{BRANCH_INTEGRACAO}}`), nunca em checkout na árvore principal.
-- Esta constituição e qualquer revert de emergência MUST NOT seguir trilha curta.
-- Nenhuma PR MUST ser mergeada sem aprovação explícita de um humano; o agente prepara,
+- Toda mudança de trilha completa ou docs MUST nascer em worktree criada com base explícita
+  (`/parallel-work <branch> --base origin/{{BRANCH_INTEGRACAO}}`, ou `origin/{{BRANCH_PRODUCAO}}`
+  em hotfix), nunca em checkout na árvore principal.
+- Esta constituição e qualquer revert de emergência MUST NOT seguir a trilha Docs.
+- Uma PR MUST NOT ser mergeada sem aprovação explícita de um humano; o agente prepara,
   acompanha o CI e para no gate de review.
 
 ### II-bis. O registro da frente entra na própria PR
@@ -34,7 +44,7 @@ O que explica uma mudança viaja com ela.
   (especificação, plano, tarefas e achados da revisão).
 - A trilha MUST ser declarada no corpo da PR, com a lista dos caminhos tocados.
 
-### III. Validação só no CI
+### III. Onde roda a validação estática
 
 Valor configurado neste projeto: **{{PRINCIPIO_III}}**.
 
@@ -48,13 +58,14 @@ Leia apenas o ramo que corresponde ao valor configurado acima; o outro não vale
 
 ### IV. Ferramentas externas são dependências, não cópias
 
-O ciclo compõe ferramentas de terceiros; não as reimplementa nem as embute.
+O ciclo compõe ferramentas de terceiros em vez de reimplementá-las. Quando um trecho de código de
+terceiro precisa ser copiado, a cópia é exceção declarada, nunca o caminho padrão.
 
 **MUST:**
 
 - Ferramentas externas MUST ser instaladas e atualizadas pela pessoa, pelos canais oficiais de
   cada uma, nunca por um script do projeto.
-- Toda cópia de código de terceiro MUST constar de aviso de licença com o texto original.
+- Toda cópia de código de terceiro MUST vir acompanhada do aviso de licença com o texto original.
 
 ### IV-bis. Identidade de commit declarada
 
@@ -70,7 +81,9 @@ Identidades declaradas (formato `nome:email`, separadas por `;`):
 
 - Antes de commitar, `git var GIT_AUTHOR_IDENT` e `git var GIT_COMMITTER_IDENT` MUST ambos
   corresponder a uma das identidades declaradas.
-- Entrar na lista, sair dela ou mudar a própria identidade MUST ser emenda desta constituição.
+- Entrar na lista, sair dela ou mudar a própria identidade MUST ser emenda desta constituição:
+  a mudança é feita em `IDENTIDADES` no `cockpit.config`, re-renderizada pelo configurador e
+  aprovada na PR como emenda.
 - O agente MUST NOT alterar a identidade configurada por conta própria.
 
 ### V. Fonte oficial antes de afirmar
@@ -111,6 +124,8 @@ do projeto, e não percorrem o rito de código.
 
 **MUST:**
 
+- Parametrização de agentes MUST NOT ser tratada como mudança de código: não abre frente, não
+  exige `/feature-00c` e não entra no diff de uma PR do projeto.
 - Pedido para construir, corrigir ou refatorar código que vá para uma PR MUST seguir o rito e a
   trilha do Princípio II.
 - Exploração descartável (prova de conceito) MUST NOT entrar no diff de uma PR.
@@ -124,4 +139,7 @@ do projeto, e não percorrem o rito de código.
 
 Esta constituição vence qualquer outro documento do projeto. Emenda é PR com aprovação explícita
 de um humano registrada no corpo da PR; a versão segue SemVer (MAJOR: princípio removido ou
-redefinido; MINOR: princípio ou regra adicionada; PATCH: redação).
+redefinido; MINOR: princípio ou regra adicionada; PATCH: redação). A primeira versão é a 1.0.0,
+ratificada no merge da PR que adota esta constituição.
+
+**Version**: 1.0.0 | **Ratified**: no merge da PR que adota esta constituição

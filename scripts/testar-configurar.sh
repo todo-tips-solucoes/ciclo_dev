@@ -446,10 +446,14 @@ for f in docs/constitution.md CLAUDE.md docs/rito-dev.md docs/CICLO-GIT.md docs/
   ! grep -q 'URL_AMBIENTE' "$T/$f" || falha "chave opcional URL_AMBIENTE_* em $f"
 done
 # Nenhum template real usa chave opcional (a ausência delas não pode deixar resíduo).
+[ -d "$RAIZ_COCKPIT/templates" ] || falha "diretório templates/ ausente"
 ! grep -rq 'URL_AMBIENTE' "$RAIZ_COCKPIT/templates" || falha "template usa chave opcional URL_AMBIENTE_*"
-for p in II II-bis III IV IV-bis V VI VII VIII; do
-  grep -q "^### $p\. " "$T/docs/constitution.md" || falha "princípio $p ausente da constituição"
-done
+# Princípios na ordem, seção de princípios próprios e o que o pre-flight do /feature-00c exige.
+ordem="$(grep -oE '^### [IVX]+(-bis)?\. ' "$T/docs/constitution.md" | tr -d '#. ' | tr '\n' ' ')"
+[ "$ordem" = "II II-bis III IV IV-bis V VI VII VIII " ] || falha "princípios fora de ordem: $ordem"
+grep -q '^## Core Principles$' "$T/docs/constitution.md" || falha "constituição sem ## Core Principles"
+grep -q '^## Princípios próprios do projeto$' "$T/docs/constitution.md" || falha "seção de princípios próprios ausente"
+grep -qE '^\*\*Version\*\*: [0-9]+\.[0-9]+\.[0-9]+' "$T/docs/constitution.md" || falha "constituição sem rodapé **Version**"
 for n in 1 2 3 4 5 6 7 8 9 10 11; do
   grep -q "^## Fase $n — " "$T/docs/rito-dev.md" || falha "Fase $n ausente do rito"
 done
@@ -462,6 +466,19 @@ done
 cp -R "$T" "$TMP/copia15"
 rodar "$CONF" --projeto "$T" --respostas "$EXEMPLO" >/dev/null 2>&1 || falha "segunda execução falhou"
 diff -r --exclude=.git "$T" "$TMP/copia15" >/dev/null || falha "segunda execução alterou arquivos gerados"
+rc="$(codigo rodar "$CONF" --projeto "$T" --atualizar </dev/null)"
+[ "$rc" = 0 ] || falha "--atualizar saiu com $rc"
+diff -r --exclude=.git "$T" "$TMP/copia15" >/dev/null || falha "--atualizar alterou arquivos gerados"
+# Variação: Princípio III desligado e integração igual a produção (branch única).
+T="$(novo_repo)"
+sed -e "s/^PRINCIPIO_III=.*/PRINCIPIO_III='desligado'/" \
+  -e "s/^BRANCH_PRODUCAO=.*/$(grep '^BRANCH_INTEGRACAO=' "$EXEMPLO" | sed 's/INTEGRACAO/PRODUCAO/')/" \
+  "$EXEMPLO" >"$TMP/variacao15.config"
+rc="$(codigo rodar "$CONF" --projeto "$T" --respostas "$TMP/variacao15.config")"
+[ "$rc" = 0 ] || falha "render da variação saiu com $rc: $(cat "$TMP/err")"
+grep -q 'Valor configurado neste projeto: \*\*desligado\*\*' "$T/docs/constitution.md" || falha "Princípio III não mostra desligado"
+grep -q 'esta fase é \*\*no-op\*\*' "$T/docs/rito-dev.md" || falha "rito sem o no-op da promoção"
+! grep -rq '{{' "$T/docs" "$T/CLAUDE.md" || falha "placeholder residual na variação"
 
 # --------------------------------------------------------------- 11 ---
 cenario "11: qualidade estática"
