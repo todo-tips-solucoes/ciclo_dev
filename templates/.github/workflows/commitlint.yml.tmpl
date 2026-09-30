@@ -1,0 +1,47 @@
+# Gerado pelo cockpit. Valida título do PR e mensagens de commit contra o Conventional Commits.
+name: commitlint
+
+on:
+  pull_request:
+    types: [opened, edited, synchronize, reopened]
+
+permissions:
+  contents: read
+
+jobs:
+  commitlint:
+    name: commitlint
+    runs-on: ubuntu-latest
+    steps:
+      - name: Baixar o código
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Preparar o Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '22'
+
+      - name: Validar título e commits
+        env:
+          TITULO: ${{ github.event.pull_request.title }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          # Instala fora do projeto: o extends é resolvido a partir do arquivo de config.
+          pasta="$RUNNER_TEMP/commitlint"
+          mkdir -p "$pasta"
+          npm install --prefix "$pasta" --no-audit --no-fund @commitlint/cli@21.2.3 @commitlint/config-conventional@21.2.3
+          printf "module.exports = { extends: ['@commitlint/config-conventional'] };\n" >"$pasta/commitlint.config.cjs"
+          lint() { "$pasta/node_modules/.bin/commitlint" --config "$pasta/commitlint.config.cjs" "$@"; }
+          if ! printf '%s\n' "$TITULO" | lint; then
+            echo "::error::Título do PR fora do padrão. Formato esperado: tipo(escopo): descrição (ex.: feat(api): adiciona rota)."
+            exit 1
+          fi
+          if ! lint --from "$BASE_SHA" --to "$HEAD_SHA"; then
+            echo "::error::Há commit fora do padrão. Formato esperado: tipo(escopo): descrição."
+            exit 1
+          fi

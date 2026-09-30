@@ -1,0 +1,64 @@
+# Gerado pelo cockpit. Abre uma issue de auditoria (uma por merge) quando um PR é mergeado com check vermelho.
+# pull_request_target roda o arquivo da branch base e aqui não baixa nem executa nada do PR.
+name: audit-merge-vermelho
+
+on:
+  pull_request_target:
+    types: [closed]
+
+permissions:
+  checks: read
+  statuses: read
+  issues: write
+  pull-requests: read
+
+jobs:
+  auditar:
+    name: auditar
+    if: github.event.pull_request.merged == true
+    runs-on: ubuntu-latest
+    steps:
+      - name: Registrar merge com check vermelho
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          PR: ${{ github.event.pull_request.number }}
+          SHA: ${{ github.event.pull_request.head.sha }}
+          BASE: ${{ github.event.pull_request.base.ref }}
+          URL_PR: ${{ github.event.pull_request.html_url }}
+          AUTOR_MERGE: ${{ github.event.pull_request.merged_by.login }}
+        run: |
+          set -euo pipefail
+          TITULO="Auditoria: PR #$PR mergeado com check vermelho"
+          export TITULO
+          ja="$(gh issue list --repo "$REPO" --state all --search "\"$TITULO\" in:title" --json title --jq '[.[] | select(.title == env.TITULO)] | length')"
+          if [ "$ja" != "0" ]; then
+            echo "Já existe issue de auditoria para o PR #$PR."
+            exit 0
+          fi
+          vermelhos="$(mktemp)"
+          gh api "repos/$REPO/commits/$SHA/check-runs?per_page=100" --paginate \
+            --jq '.check_runs[] | select(.conclusion == "failure" or .conclusion == "timed_out" or .conclusion == "cancelled" or .conclusion == "action_required") | .name' >"$vermelhos"
+          gh api "repos/$REPO/commits/$SHA/status" \
+            --jq '.statuses[] | select(.state == "failure" or .state == "error") | .context' >>"$vermelhos"
+          obrigatorios="$(mktemp)"
+          gh api "repos/$REPO/rules/branches/$BASE" \
+            --jq '.[] | select(.type == "required_status_checks") | .parameters.required_status_checks[].context' >"$obrigatorios" 2>/dev/null || true
+          nota="Sem regra de checks obrigatórios legível na branch base: todo check vermelho foi listado."
+          if [ -s "$obrigatorios" ]; then
+            filtrados="$(mktemp)"
+            grep -Fxf "$obrigatorios" "$vermelhos" >"$filtrados" || true
+            mv "$filtrados" "$vermelhos"
+            nota="Lista filtrada pelos checks obrigatórios da branch base."
+          fi
+          if [ ! -s "$vermelhos" ]; then
+            echo "Nenhum check vermelho obrigatório: nada a auditar."
+            exit 0
+          fi
+          corpo="$(mktemp)"
+          {
+            printf 'PR: %s\nMerge feito por: @%s\n\nChecks vermelhos:\n\n' "$URL_PR" "$AUTOR_MERGE"
+            sort -u "$vermelhos" | sed 's/^/- /'
+            printf '\n%s\n' "$nota"
+          } >"$corpo"
+          gh issue create --repo "$REPO" --title "$TITULO" --body-file "$corpo"

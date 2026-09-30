@@ -1,0 +1,56 @@
+# Gerado pelo cockpit. Abre ou atualiza o PR de promoção da branch de integração para a de produção.
+# Segredo opcional TOKEN_AUTOMACAO (PAT ou token de App); sem ele usa o GITHUB_TOKEN, que exige
+# "Allow GitHub Actions to create and approve pull requests" ligado e deixa os checks do PR
+# aguardando aprovação de execução.
+name: promotion-pr
+
+on:
+  push:
+    branches:
+      - |-
+        {{BRANCH_INTEGRACAO}}
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  promover:
+    name: promover
+    runs-on: ubuntu-latest
+    steps:
+      - name: Abrir ou atualizar o PR de promoção
+        env:
+          INTEGRACAO: |-
+            {{BRANCH_INTEGRACAO}}
+          PRODUCAO: |-
+            {{BRANCH_PRODUCAO}}
+          TOKEN_AUTOMACAO: ${{ secrets.TOKEN_AUTOMACAO }}
+          TOKEN_PADRAO: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          if [ "$INTEGRACAO" = "$PRODUCAO" ]; then
+            echo "Integração e produção são a mesma branch: nada a promover."
+            exit 0
+          fi
+          export GH_TOKEN="${TOKEN_AUTOMACAO:-$TOKEN_PADRAO}"
+          adiante="$(gh api "repos/$REPO/compare/$PRODUCAO...$INTEGRACAO" --jq '.ahead_by')"
+          if [ "$adiante" = "0" ]; then
+            echo "A produção já contém a integração: nada a promover."
+            exit 0
+          fi
+          corpo="$(mktemp)"
+          {
+            printf 'Promoção de `%s` para `%s`.\n\nCommits:\n\n' "$INTEGRACAO" "$PRODUCAO"
+            gh api "repos/$REPO/compare/$PRODUCAO...$INTEGRACAO" \
+              --jq '.commits[:50][] | "- " + .sha[0:7] + " " + (.commit.message | split("\n")[0])'
+          } >"$corpo"
+          existente="$(gh pr list --repo "$REPO" --base "$PRODUCAO" --head "$INTEGRACAO" --state open --json number --jq '.[0].number // empty')"
+          if [ -n "$existente" ]; then
+            gh pr edit "$existente" --repo "$REPO" --body-file "$corpo"
+            echo "PR de promoção #$existente atualizado."
+          else
+            gh pr create --repo "$REPO" --base "$PRODUCAO" --head "$INTEGRACAO" \
+              --title "chore(release): promover $INTEGRACAO para $PRODUCAO" --body-file "$corpo"
+          fi

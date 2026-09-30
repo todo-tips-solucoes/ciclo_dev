@@ -57,8 +57,14 @@ URL_AMBIENTE_PRODUCAO='https://meu-projeto.example.com'
 
 IDENTIDADES='Maria Exemplo:1000+maria-exemplo@users.noreply.github.com;Jose Exemplo:2000+jose-exemplo@users.noreply.github.com'
 
+# --- Donos do CODEOWNERS (obrigatória para o configurar.sh) ------------------
+# Um ou mais `@usuario` separados por espaço (usuários individuais; times
+# `@org/time` não são aceitos). Precisam de permissão de escrita no repositório.
+
+DONOS_CODEOWNERS='@maria-exemplo @jose-exemplo'
+
 # --- Board (obrigatória para o configurar.sh; pode ficar vazia) --------------
-# Vazio = projeto sem board; senão o identificador do board, em texto livre.
+# Vazio = projeto sem board; senão `dono/número` do projeto (GitHub Projects).
 
 BOARD=''
 
