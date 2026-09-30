@@ -11,7 +11,8 @@
 ## Core Principles
 
 > Os princípios do ciclo. O título fica em inglês porque o `/feature-00c` procura exatamente essa
-> seção.
+> seção. A numeração começa em II porque o Princípio I (agnosticismo) é do próprio cockpit, não
+> do projeto.
 
 ### II. Toda mudança percorre uma trilha
 
@@ -119,13 +120,14 @@ e só escreve onde foi mandado.
 
 ### VIII. Parametrização de agentes fica fora do rito de código
 
-Prompts, kits e configurações de agentes em plataformas de agentes são parametrização, não código
-do projeto, e não percorrem o rito de código.
+Prompts, kits e configurações de agentes mantidos em plataforma externa são parametrização, não
+código do projeto, e não percorrem o rito de código. Prompts e configurações versionados no próprio
+repositório são código como qualquer outro.
 
 **MUST:**
 
-- Parametrização de agentes MUST NOT ser tratada como mudança de código: não abre frente, não
-  exige `/feature-00c` e não entra no diff de uma PR do projeto.
+- Parametrização de agentes em plataforma externa MUST NOT ser tratada como mudança de código:
+  não abre frente, não exige `/feature-00c` e não entra no diff de uma PR do projeto.
 - Pedido para construir, corrigir ou refatorar código que vá para uma PR MUST seguir o rito e a
   trilha do Princípio II.
 - Exploração descartável (prova de conceito) MUST NOT entrar no diff de uma PR.
