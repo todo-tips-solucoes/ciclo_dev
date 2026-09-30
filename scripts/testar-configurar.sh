@@ -568,7 +568,9 @@ for ferr in actionlint shellcheck; do
   printf '  (%s ausente nesta máquina — checado no CI)\n' "$ferr"
 done
 if command -v actionlint >/dev/null 2>&1; then
-  (cd "$T" && actionlint .github/workflows/*.yml) || falha "actionlint com findings"
+  # $T carrega o CMD_LINT com caracteres especiais de propósito: é valor do projeto, não do
+  # template, então o shellcheck embutido fica desligado aqui; $T3 (valores do exemplo) o roda.
+  (cd "$T" && actionlint -shellcheck= .github/workflows/*.yml) || falha "actionlint com findings"
   (cd "$T3" && actionlint .github/workflows/*.yml) || falha "actionlint com findings (branches iguais)"
 fi
 if command -v shellcheck >/dev/null 2>&1; then
