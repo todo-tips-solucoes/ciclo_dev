@@ -577,6 +577,77 @@ if command -v shellcheck >/dev/null 2>&1; then
   shellcheck "$T/.claude/scripts/task.sh" || falha "shellcheck com findings no task.sh renderizado"
 fi
 
+# --------------------------------------------------------------- 17 ---
+cenario "17: modo semente"
+SEM="CLAUDE.md docs/constitution.md docs/project-context.md"
+# 1: semente nova é gravada e entra no manifesto
+T="$(novo_repo)"
+rodar "$CONF" --projeto "$T" --respostas "$EXEMPLO" >/dev/null 2>&1 || falha "caso 1: exit diferente de 0"
+for f in $SEM; do
+  [ -f "$T/$f" ] || falha "caso 1: $f não gravado"
+  grep -q "  $f\$" "$T/.cockpit/manifesto.sha256" || falha "caso 1: $f fora do manifesto"
+done
+# 2: semente existente fica intacta, com aviso e sem entrada no manifesto
+T="$(novo_repo)"; printf 'meu claude\n' >"$T/CLAUDE.md"
+rc="$(codigo rodar "$CONF" --projeto "$T" --respostas "$EXEMPLO")"
+[ "$rc" = 0 ] || falha "caso 2: exit $rc"
+[ "$(cat "$T/CLAUDE.md")" = "meu claude" ] || falha "caso 2: CLAUDE.md alterado"
+grep -q '^  mantido (semente): CLAUDE.md$' "$TMP/out" || falha "caso 2: sem aviso de semente mantida"
+grep -q '1 mantido(s) (semente)' "$TMP/out" || falha "caso 2: contagem sem mantido(s)"
+[ -f "$T/docs/constitution.md" ] || falha "caso 2: demais não gravados"
+! grep -q '  CLAUDE.md$' "$T/.cockpit/manifesto.sha256" || falha "caso 2: CLAUDE.md entrou no manifesto"
+# 3: --forcar não toca a semente, mas re-renderiza o não semente
+sed "s/^PROJETO_NOME=.*/PROJETO_NOME='forcado'/" "$EXEMPLO" >"$TMP/resp17"
+rc="$(codigo rodar "$CONF" --projeto "$T" --respostas "$TMP/resp17" --forcar)"
+[ "$rc" = 0 ] || falha "caso 3: exit $rc"
+[ "$(cat "$T/CLAUDE.md")" = "meu claude" ] || falha "caso 3: --forcar tocou a semente"
+grep -q 'forcado' "$T/.cockpit/LEIAME.md" || falha "caso 3: não semente não re-renderizado"
+# 4: conflito de não semente recusa o lote sem citar semente
+echo editado >>"$T/.cockpit/LEIAME.md"
+sed "s/^PROJETO_NOME=.*/PROJETO_NOME='outro17'/" "$EXEMPLO" >"$TMP/resp17b"
+rc="$(codigo rodar "$CONF" --projeto "$T" --respostas "$TMP/resp17b")"
+[ "$rc" = 2 ] || falha "caso 4: exit $rc (esperado 2)"
+grep -q '.cockpit/LEIAME.md' "$TMP/err" || falha "caso 4: stderr não cita LEIAME.md"
+! grep -q 'CLAUDE.md' "$TMP/err" || falha "caso 4: stderr cita a semente"
+# 5: --atualizar após editar a constituição
+T="$(novo_repo)"
+rodar "$CONF" --projeto "$T" --respostas "$EXEMPLO" >/dev/null 2>&1 || falha "caso 5: setup"
+cp "$T/.cockpit/manifesto.sha256" "$TMP/man5"
+echo "principio proprio" >>"$T/docs/constitution.md"; cp "$T/docs/constitution.md" "$TMP/const5"
+rc="$(codigo rodar "$CONF" --projeto "$T" --atualizar </dev/null)"
+[ "$rc" = 0 ] || falha "caso 5: --atualizar saiu com $rc"
+cmp -s "$T/docs/constitution.md" "$TMP/const5" || falha "caso 5: constituição alterada"
+cmp -s "$T/.cockpit/manifesto.sha256" "$TMP/man5" || falha "caso 5: manifesto mudou"
+# 6: colisão X.tmpl x X.semente.tmpl
+C="$(cockpit_copia)"; T="$(novo_repo)"; printf 'x\n' >"$C/templates/CLAUDE.md.tmpl"
+rc="$(codigo rodar "$C/configurar.sh" --projeto "$T" --respostas "$EXEMPLO")"
+[ "$rc" = 1 ] || falha "caso 6: exit $rc (esperado 1)"
+grep -q 'Templates com o mesmo destino' "$TMP/err" || falha "caso 6: mensagem de colisão ausente"
+# 7: residual só conta se a semente for gravada
+C="$(cockpit_copia)"; printf '{{CHAVE_INEXISTENTE}}\n' >"$C/templates/extra.md.semente.tmpl"
+T="$(novo_repo)"; printf 'ja existe\n' >"$T/extra.md"
+rc="$(codigo rodar "$C/configurar.sh" --projeto "$T" --respostas "$EXEMPLO")"
+[ "$rc" = 0 ] || falha "caso 7: semente pulada saiu com $rc"
+T="$(novo_repo)"
+rc="$(codigo rodar "$C/configurar.sh" --projeto "$T" --respostas "$EXEMPLO")"
+[ "$rc" = 2 ] || falha "caso 7: semente a gravar saiu com $rc (esperado 2)"
+grep -q 'Placeholder sem valor' "$TMP/err" || falha "caso 7: sem mensagem de placeholder"
+# 8: destino diretório ou link quebrado
+T="$(novo_repo)"; mkdir "$T/CLAUDE.md"
+rc="$(codigo rodar "$CONF" --projeto "$T" --respostas "$EXEMPLO")"
+[ "$rc" = 0 ] && [ -d "$T/CLAUDE.md" ] || falha "caso 8: destino diretório (exit $rc)"
+T="$(novo_repo)"; ln -s nao-existe "$T/CLAUDE.md"
+rc="$(codigo rodar "$CONF" --projeto "$T" --respostas "$EXEMPLO")"
+[ "$rc" = 0 ] && [ -L "$T/CLAUDE.md" ] && [ ! -e "$T/CLAUDE.md" ] || falha "caso 8: link quebrado (exit $rc)"
+# 9: pai inexistente é criado; pai que é arquivo falha
+C="$(cockpit_copia)"; mkdir -p "$C/templates/sub"; printf 'ok\n' >"$C/templates/sub/x.md.semente.tmpl"
+T="$(novo_repo)"
+rc="$(codigo rodar "$C/configurar.sh" --projeto "$T" --respostas "$EXEMPLO")"
+[ "$rc" = 0 ] && [ -f "$T/sub/x.md" ] || falha "caso 9: pai inexistente (exit $rc)"
+T="$(novo_repo)"; printf 'arquivo\n' >"$T/sub"
+rc="$(codigo rodar "$C/configurar.sh" --projeto "$T" --respostas "$EXEMPLO")"
+[ "$rc" = 1 ] || falha "caso 9: pai arquivo saiu com $rc (esperado 1)"
+
 # --------------------------------------------------------------- 11 ---
 cenario "11: qualidade estática"
 if command -v shellcheck >/dev/null 2>&1; then

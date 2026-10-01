@@ -21,7 +21,7 @@ Sync Impact Report
 # cockpit-dev Constitution
 
 > Governança **deste repositório** — como o cockpit é desenvolvido. Não confundir com o template
-> de constituição que o cockpit entrega aos projetos-alvo (`templates/docs/constitution.md.tmpl`).
+> de constituição que o cockpit entrega aos projetos-alvo (`templates/docs/constitution.md.semente.tmpl`).
 
 ## Core Principles
 

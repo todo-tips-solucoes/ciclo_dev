@@ -20,7 +20,7 @@ Roda a partir do clone do cockpit (lê `templates/`, `versoes.env` e
 | `--projeto DIR` | diretório corrente | raiz do projeto-alvo; MUST ser o topo de um repositório git |
 | `--respostas ARQ` | — | modo não interativo: todos os valores vêm de `ARQ` (formato `CHAVE=valor`); nenhuma pergunta |
 | `--atualizar` | — | não pergunta nada; re-renderiza a partir do `cockpit.config` existente |
-| `--forcar` | — | sobrescreve arquivos editados à mão sem confirmação |
+| `--forcar` | — | sobrescreve arquivos editados à mão sem confirmação, exceto sementes, que nunca são sobrescritas |
 | `--ajuda` | — | imprime o uso e sai com 0 |
 
 `--atualizar` e `--respostas` juntos: erro de uso. Sem `--respostas`, sem
@@ -39,6 +39,17 @@ entrada que não virá).
 5. Renderiza todos os templates para temporários; residual → erro; conflito
    de edição → confirmação/`--forcar`; então move tudo e grava o manifesto.
 6. Checa o `cstk` e roda `cstk hooks install --project-path <raiz>`.
+
+### Sementes (`*.semente.tmpl`)
+
+- `templates/<caminho>.semente.tmpl` gera `<caminho>`. Colisão com `<caminho>.tmpl`:
+  `Templates com o mesmo destino (<caminho>): ...`, exit 1.
+- Destino inexistente (`! -e` e `! -L`): renderiza e grava como os demais; hash novo no manifesto.
+- Destino existente (qualquer tipo): intacto, sem leitura, sem prompt, ignora `--forcar`;
+  linha anterior do manifesto mantida (ou nenhuma). Nunca causa exit 2.
+- Semente a gravar com placeholder sem valor: exit 2, mesma mensagem do não semente.
+- Saída: `  mantido (semente): <rel>` por semente pulada; a contagem final ganha
+  `, K mantido(s) (semente)` só com K > 0. Só sementes mantidas: exit 0.
 
 ### Saída
 
