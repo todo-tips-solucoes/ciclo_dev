@@ -7,6 +7,9 @@
 # provisiona os guard hooks com `cstk hooks install`. Nunca instala nem
 # atualiza terceiro (Princípio IV): só usa o `cstk` que a pessoa já instalou.
 #
+# Semente: template `X.semente.tmpl` gera `X` só se o destino não existe; existindo
+# (qualquer tipo), fica intacto, mesmo com --forcar, e não entra no manifesto.
+#
 # Uso: ./configurar.sh [--projeto DIR] [--respostas ARQ] [--atualizar]
 #                      [--forcar] [--ajuda]
 #
@@ -64,6 +67,8 @@ COMENTARIOS_PERDIDOS=false
 MOTIVO=""
 TPL_ORIG=()
 DEST_REL=()
+SEMENTE=() # 1 = template .semente.tmpl
+PULAR=()   # 1 = semente cujo destino já existe
 
 # Variáveis de ambiente não são fonte de valor: garante que CFG_* do ambiente
 # do usuário nunca alimente o render.
@@ -94,7 +99,7 @@ renderiza os templates e provisiona os guard hooks.
                    --projeto é obrigatório)
   --respostas ARQ  modo não interativo: valores lidos de ARQ (CHAVE=valor)
   --atualizar      sem perguntas: re-renderiza a partir do cockpit.config
-  --forcar         sobrescreve arquivos editados à mão sem confirmação
+  --forcar         sobrescreve arquivos editados à mão sem confirmação (exceto sementes, nunca sobrescritas)
   --ajuda          mostra este texto
 EOF
 }
@@ -546,10 +551,11 @@ gravar_config() {
 # ------------------------------------------------------------------ templates
 
 preparar_templates() {
-  local tdir="$COCKPIT_DIR/templates" f rel d dl i
+  local tdir="$COCKPIT_DIR/templates" f rel d dl i s
   local -a dests_min=()
   TPL_ORIG=()
   DEST_REL=()
+  SEMENTE=()
   if [ ! -d "$tdir" ]; then
     aviso "templates/ não encontrado em $COCKPIT_DIR."
     return 0
@@ -557,7 +563,11 @@ preparar_templates() {
   while IFS= read -r f; do
     rel="${f#"$tdir"/}"
     case "/$rel/" in */../*) falhar "Caminho de template recusado: $rel" ;; esac
-    d="${rel%.tmpl}"
+    case "$rel" in
+      *.semente.tmpl) d="${rel%.semente.tmpl}"; s=1 ;;
+      *) d="${rel%.tmpl}"; s=0 ;;
+    esac
+    case "$d" in "" | */) falhar "Template recusado (destino vazio): $rel" ;; esac
     # Comparação sem diferenciar maiúsculas: em sistema de arquivos que não
     # diferencia (macOS), .GIT e .git são o mesmo diretório.
     dl="$(printf '%s' "$d" | tr '[:upper:]' '[:lower:]')"
@@ -571,8 +581,22 @@ preparar_templates() {
     done
     TPL_ORIG+=("$f")
     DEST_REL+=("$d")
+    SEMENTE+=("$s")
     dests_min+=("$dl")
   done < <(find "$tdir" -type f | sort)
+}
+
+# marcar_sementes — semente cujo destino já existe (qualquer tipo, inclusive
+# link quebrado) é pulada por inteiro: sem leitura, render, conflito ou hash.
+marcar_sementes() {
+  local i
+  PULAR=()
+  for ((i = 0; i < ${#DEST_REL[@]}; i++)); do
+    PULAR[i]=0
+    if [ "${SEMENTE[i]}" = 1 ] && { [ -e "$RAIZ/${DEST_REL[i]}" ] || [ -L "$RAIZ/${DEST_REL[i]}" ]; }; then
+      PULAR[i]=1
+    fi
+  done
 }
 
 # renderizar TEMPLATE SAIDA RESIDUAIS — substituição literal de {{CHAVE}} em
@@ -648,7 +672,7 @@ herdar_modo() {
 # função é chamada sob `||`, onde o set -e não vale.
 aplicar_templates() {
   local i n="${#TPL_ORIG[@]}" rel nome resp
-  local -a conflitos=() gravados=() inalterados=()
+  local -a conflitos=() gravados=() inalterados=() mantidos=()
   local h_atual h_man dest
   if [ "$n" -eq 0 ]; then
     [ ! -d "$COCKPIT_DIR/templates" ] || log "Nenhum template em templates/: nada havia a renderizar."
@@ -657,6 +681,7 @@ aplicar_templates() {
   fi
   : >"$STG/residuais" || falhar "Falha ao escrever em $STG."
   for ((i = 0; i < n; i++)); do
+    [ "${PULAR[i]}" != 1 ] || continue
     rel="${TPL_ORIG[i]#"$COCKPIT_DIR/templates/"}"
     : >"$STG/res" || falhar "Falha ao escrever em $STG."
     renderizar "${TPL_ORIG[i]}" "$STG/r$i" "$STG/res" || falhar "Falha ao renderizar $rel."
@@ -672,6 +697,7 @@ aplicar_templates() {
     return 2
   fi
   for ((i = 0; i < n; i++)); do
+    [ "${PULAR[i]}" != 1 ] || continue
     dest="$RAIZ/${DEST_REL[i]}"
     [ -e "$dest" ] || continue
     cmp -s "$STG/r$i" "$dest" && continue
@@ -695,6 +721,7 @@ aplicar_templates() {
     return 2
   fi
   for ((i = 0; i < n; i++)); do
+    if [ "${PULAR[i]}" = 1 ]; then mantidos+=("${DEST_REL[i]}"); continue; fi
     dest="$RAIZ/${DEST_REL[i]}"
     exigir_contido "$dest" "${DEST_REL[i]}"
     if [ -f "$dest" ] && cmp -s "$STG/r$i" "$dest"; then
@@ -712,7 +739,10 @@ aplicar_templates() {
   gravar_manifesto
   for rel in ${gravados[@]+"${gravados[@]}"}; do log "  gravado: $rel"; done
   for rel in ${inalterados[@]+"${inalterados[@]}"}; do log "  inalterado: $rel"; done
-  log "Templates: ${#gravados[@]} gravado(s), ${#inalterados[@]} inalterado(s)."
+  for rel in ${mantidos[@]+"${mantidos[@]}"}; do log "  mantido (semente): $rel"; done
+  local suf=""
+  [ "${#mantidos[@]}" -eq 0 ] || suf=", ${#mantidos[@]} mantido(s) (semente)"
+  log "Templates: ${#gravados[@]} gravado(s), ${#inalterados[@]} inalterado(s)$suf."
   return 0
 }
 
@@ -739,6 +769,11 @@ gravar_manifesto() {
   : >"$STG/manifesto" || falhar "Falha ao escrever em $STG."
   ord="$({
     for ((i = 0; i < n; i++)); do
+      if [ "${PULAR[i]}" = 1 ]; then
+        h="$(manifesto_hash "${DEST_REL[i]}")"
+        [ -z "$h" ] || printf '%s  %s\n' "$h" "${DEST_REL[i]}"
+        continue
+      fi
       h="$(hash_arquivo "$RAIZ/${DEST_REL[i]}")" || exit 1
       printf '%s  %s\n' "$h" "${DEST_REL[i]}"
     done
@@ -908,8 +943,10 @@ main() {
   fi
 
   preparar_templates
+  marcar_sementes
   local i
   for ((i = 0; i < ${#DEST_REL[@]}; i++)); do
+    [ "${PULAR[i]}" != 1 ] || continue
     exigir_contido "$RAIZ/${DEST_REL[i]}" "${DEST_REL[i]}"
   done
   exigir_contido "$RAIZ/$MANIFESTO_REL" "$MANIFESTO_REL"

@@ -75,6 +75,8 @@ Quem mantém o cockpit marca um template como semente só pelo nome do arquivo.
   nem em modo interativo (sem prompt de sobrescrita).
 - **FR-004**: placeholder sem valor numa semente é tratado como nos demais templates, mas só
   quando a semente será de fato gravada; semente pulada não renderiza nem acusa residual.
+  Semente a gravar com placeholder sem valor termina com exit 2, mensagem
+  `Placeholder sem valor: {{NOME}} em <template>` e nenhum template gravado (idêntico ao não semente).
 - **FR-005**: destinos de semente passam pelas mesmas guardas de caminho dos demais (destino
   reservado, `..`, contenção na raiz do projeto, destinos duplicados incluindo a colisão
   `X.tmpl` x `X.semente.tmpl`).
@@ -91,6 +93,9 @@ Quem mantém o cockpit marca um template como semente só pelo nome do arquivo.
 
 ## Edge Cases
 
+- Semente a gravar cujo diretório-pai não existe: o pai é criado (`mkdir -p`), como no não semente.
+  Pai que é arquivo: recusa com exit 1 (`Destino recusado`/`Falha ao criar o diretório`), nada
+  gravado além do já movido, como no não semente.
 - Semente existente como diretório ou link quebrado: tratada como "existe", pulada (a guarda de
   contenção continua valendo só para o que será gravado).
 - Duas passagens seguidas: a 1a grava, a 2a mantém — idempotente.

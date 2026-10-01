@@ -21,17 +21,17 @@ Escopo: implementar o modo semente (`*.semente.tmpl`) em `configurar.sh`, conver
 
 Ref: checklists/requirements.md CHK015; spec.md FR-004
 
-- [ ] 1.1.1 Confirmar no codigo de `configurar.sh` o exit e a mensagem atuais de "Placeholder sem valor" para template nao semente
-- [ ] 1.1.2 Registrar na spec.md (FR-004) e em contracts/cli.md que semente a gravar com placeholder sem valor termina com o mesmo exit 2 e a mesma mensagem
-- [ ] 1.1.3 Marcar CHK015 como `[x]` no checklist citando a secao atualizada
+- [x] 1.1.1 Confirmar no codigo de `configurar.sh` o exit e a mensagem atuais de "Placeholder sem valor" para template nao semente
+- [x] 1.1.2 Registrar na spec.md (FR-004) e em contracts/cli.md que semente a gravar com placeholder sem valor termina com o mesmo exit 2 e a mesma mensagem
+- [x] 1.1.3 Marcar CHK015 como `[x]` no checklist citando a secao atualizada
 
 ### 1.2 Resolver CHK016 - destino cujo diretorio-pai nao existe ou e arquivo `[A]`
 
 Ref: checklists/requirements.md CHK016; spec.md FR-002, FR-005
 
-- [ ] 1.2.1 Verificar o comportamento atual de gravacao para nao semente quando o pai nao existe (criado) ou e arquivo (falha)
-- [ ] 1.2.2 Registrar na spec.md (Edge Cases) o comportamento esperado para semente nos dois casos, alinhado ao nao semente
-- [ ] 1.2.3 Acrescentar o caso ao quickstart.md (cenario 17) e marcar CHK016 como `[x]` no checklist
+- [x] 1.2.1 Verificar o comportamento atual de gravacao para nao semente quando o pai nao existe (criado) ou e arquivo (falha)
+- [x] 1.2.2 Registrar na spec.md (Edge Cases) o comportamento esperado para semente nos dois casos, alinhado ao nao semente
+- [x] 1.2.3 Acrescentar o caso ao quickstart.md (cenario 17) e marcar CHK016 como `[x]` no checklist
 
 ---
 
@@ -41,37 +41,37 @@ Ref: checklists/requirements.md CHK016; spec.md FR-002, FR-005
 
 Ref: spec.md FR-001, FR-002, FR-005; plan.md Design 1-3
 
-- [ ] 2.1.1 Em `preparar_templates()`, derivar destino por `case` (`*.semente.tmpl` sai inteiro) e preencher `SEMENTE[i]`
-- [ ] 2.1.2 Recusar destino vazio ou terminado em `/` e manter a checagem de reservado e duplicados (colisao `X.tmpl` x `X.semente.tmpl`)
-- [ ] 2.1.3 Criar `marcar_sementes()` (`PULAR[i]=1` se semente e `-e` ou `-L`) e chama-la em `main` apos `preparar_templates`
-- [ ] 2.1.4 Em `main`, pular `PULAR[i]=1` no laco `exigir_contido`
-- [ ] 2.1.5 Testar manualmente nome, colisao e destino diretorio/link quebrado
+- [x] 2.1.1 Em `preparar_templates()`, derivar destino por `case` (`*.semente.tmpl` sai inteiro) e preencher `SEMENTE[i]`
+- [x] 2.1.2 Recusar destino vazio ou terminado em `/` e manter a checagem de reservado e duplicados (colisao `X.tmpl` x `X.semente.tmpl`)
+- [x] 2.1.3 Criar `marcar_sementes()` (`PULAR[i]=1` se semente e `-e` ou `-L`) e chama-la em `main` apos `preparar_templates`
+- [x] 2.1.4 Em `main`, pular `PULAR[i]=1` no laco `exigir_contido`
+- [x] 2.1.5 Testar manualmente nome, colisao e destino diretorio/link quebrado
 
 ### 2.2 Pular sementes em aplicar_templates e relatorio `[A]`
 
 Ref: spec.md FR-003, FR-004, FR-007, FR-009; plan.md Design 4
 
-- [ ] 2.2.1 Laco de render: `PULAR` faz `continue` sem render nem residual
-- [ ] 2.2.2 Laco de conflito: `PULAR` faz `continue` (sem prompt, ignora `--forcar`)
-- [ ] 2.2.3 Laco de gravacao: `PULAR` acumula em `mantidos` e segue
-- [ ] 2.2.4 Relatorio: linha `  mantido (semente): <rel>` e sufixo `, K mantido(s) (semente)` apenas com K > 0
-- [ ] 2.2.5 Confirmar que a saida sem sementes puladas e identica a atual (FR-009)
+- [x] 2.2.1 Laco de render: `PULAR` faz `continue` sem render nem residual
+- [x] 2.2.2 Laco de conflito: `PULAR` faz `continue` (sem prompt, ignora `--forcar`)
+- [x] 2.2.3 Laco de gravacao: `PULAR` acumula em `mantidos` e segue
+- [x] 2.2.4 Relatorio: linha `  mantido (semente): <rel>` e sufixo `, K mantido(s) (semente)` apenas com K > 0
+- [x] 2.2.5 Confirmar que a saida sem sementes puladas e identica a atual (FR-009)
 
 ### 2.3 Manifesto preserva entrada de semente pulada `[A]`
 
 Ref: spec.md FR-006; plan.md Design 5, Riscos
 
-- [ ] 2.3.1 Em `gravar_manifesto()`, para `PULAR[i]=1` reemitir o `manifesto_hash` anterior se nao vazio, senao nada
-- [ ] 2.3.2 Verificar que semente gravada recebe hash novo como os demais
-- [ ] 2.3.3 Verificar `--atualizar` com semente editada: exit 0 e linha do manifesto inalterada
+- [x] 2.3.1 Em `gravar_manifesto()`, para `PULAR[i]=1` reemitir o `manifesto_hash` anterior se nao vazio, senao nada
+- [x] 2.3.2 Verificar que semente gravada recebe hash novo como os demais
+- [x] 2.3.3 Verificar `--atualizar` com semente editada: exit 0 e linha do manifesto inalterada
 
 ### 2.4 Ajustar `uso()` e cabecalho `[M]`
 
 Ref: spec.md FR-008; plan.md Design 6
 
-- [ ] 2.4.1 Atualizar a linha do `--forcar` em `uso()` ("exceto sementes, nunca sobrescritas")
-- [ ] 2.4.2 Atualizar o cabecalho de `configurar.sh` com a regra de semente
-- [ ] 2.4.3 Conferir `--ajuda` manualmente
+- [x] 2.4.1 Atualizar a linha do `--forcar` em `uso()` ("exceto sementes, nunca sobrescritas")
+- [x] 2.4.2 Atualizar o cabecalho de `configurar.sh` com a regra de semente
+- [x] 2.4.3 Conferir `--ajuda` manualmente
 
 ---
 
@@ -81,18 +81,18 @@ Ref: spec.md FR-008; plan.md Design 6
 
 Ref: spec.md FR-008; plan.md Templates
 
-- [ ] 3.1.1 `git mv` de `templates/CLAUDE.md.tmpl` para `templates/CLAUDE.md.semente.tmpl`
-- [ ] 3.1.2 `git mv` de `templates/docs/constitution.md.tmpl` e `templates/docs/project-context.md.tmpl` para `*.semente.tmpl`
-- [ ] 3.1.3 Trocar nos tres o paragrafo que manda usar `--forcar` por "gerado uma vez pelo configurador; depois disso e do projeto e nunca mais e alterado"
-- [ ] 3.1.4 Verificar que nenhum outro arquivo referencia os nomes antigos dos templates
+- [x] 3.1.1 `git mv` de `templates/CLAUDE.md.tmpl` para `templates/CLAUDE.md.semente.tmpl`
+- [x] 3.1.2 `git mv` de `templates/docs/constitution.md.tmpl` e `templates/docs/project-context.md.tmpl` para `*.semente.tmpl`
+- [x] 3.1.3 Trocar nos tres o paragrafo que manda usar `--forcar` por "gerado uma vez pelo configurador; depois disso e do projeto e nunca mais e alterado"
+- [x] 3.1.4 Verificar que nenhum outro arquivo referencia os nomes antigos dos templates
 
 ### 3.2 Contrato e documentacao `[M]`
 
 Ref: spec.md FR-008; plan.md Documentacao; contracts/cli.md
 
-- [ ] 3.2.1 Incorporar o delta de contracts/cli.md em `docs/specs/configurar/contracts/cli.md`
-- [ ] 3.2.2 Buscar em README, `.cockpit/LEIAME.md.tmpl` e usage mencoes de `--forcar` como recuperacao desses arquivos e corrigir se houver
-- [ ] 3.2.3 Remover a marca `[PROPOSTA]` do delta apos validar contra a implementacao
+- [x] 3.2.1 Incorporar o delta de contracts/cli.md em `docs/specs/configurar/contracts/cli.md`
+- [x] 3.2.2 Buscar em README, `.cockpit/LEIAME.md.tmpl` e usage mencoes de `--forcar` como recuperacao desses arquivos e corrigir se houver
+- [x] 3.2.3 Remover a marca `[PROPOSTA]` do delta apos validar contra a implementacao
 
 ---
 
@@ -102,18 +102,18 @@ Ref: spec.md FR-008; plan.md Documentacao; contracts/cli.md
 
 Ref: spec.md SC-001; quickstart.md casos 1-8
 
-- [ ] 4.1.1 Casos 1-3 (semente nova gravada, existente intacta, `--forcar` nao toca)
-- [ ] 4.1.2 Casos 4-5 (nao semente editada recusa sem citar semente; `--atualizar` apos editar constituicao)
-- [ ] 4.1.3 Casos 6-8 (colisao exit 1, residual so se gravada, destino diretorio/link quebrado)
-- [ ] 4.1.4 Casos derivados de CHK015/CHK016 (placeholder em semente a gravar; pai inexistente ou arquivo)
+- [x] 4.1.1 Casos 1-3 (semente nova gravada, existente intacta, `--forcar` nao toca)
+- [x] 4.1.2 Casos 4-5 (nao semente editada recusa sem citar semente; `--atualizar` apos editar constituicao)
+- [x] 4.1.3 Casos 6-8 (colisao exit 1, residual so se gravada, destino diretorio/link quebrado)
+- [x] 4.1.4 Casos derivados de CHK015/CHK016 (placeholder em semente a gravar; pai inexistente ou arquivo)
 
 ### 4.2 Regressao e gates `[A]`
 
 Ref: spec.md FR-009, SC-001, SC-002; plan.md Teste
 
-- [ ] 4.2.1 Rodar `scripts/testar-configurar.sh` inteiro e confirmar cenarios 1-16 verdes sem alteracao
-- [ ] 4.2.2 Rodar shellcheck (cenario 11) e `verificar-agnostico.sh`
-- [ ] 4.2.3 Validar SC-002 reconfigurando projeto temporario com os 3 arquivos editados sem `--forcar`
+- [x] 4.2.1 Rodar `scripts/testar-configurar.sh` inteiro e confirmar cenarios 1-16 verdes sem alteracao
+- [x] 4.2.2 Rodar shellcheck (cenario 11) e `verificar-agnostico.sh`
+- [x] 4.2.3 Validar SC-002 reconfigurando projeto temporario com os 3 arquivos editados sem `--forcar`
 
 ---
 

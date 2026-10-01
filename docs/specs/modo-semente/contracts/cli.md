@@ -1,4 +1,4 @@
-# Contrato (delta): configurar.sh com sementes [PROPOSTA — a validar na implementacao]
+# Contrato (delta): configurar.sh com sementes
 
 **Base**: [`docs/specs/configurar/contracts/cli.md`](../../configurar/contracts/cli.md). Só o que
 muda está aqui; o resto do contrato vale igual (FR-009).
@@ -14,6 +14,9 @@ muda está aqui; o resto do contrato vale igual (FR-009).
 |--------------------|--------|-----------|
 | não existe (`! -e` e `! -L`) | renderiza e grava como os demais | hash novo |
 | existe (qualquer tipo) | intacto, sem leitura, sem prompt, ignora `--forcar` | linha anterior mantida (ou nenhuma) |
+
+Semente a gravar com placeholder sem valor: exit 2, `Placeholder sem valor: {{NOME}} em <template>`
+(igual ao não semente).
 
 ## Saída (stdout)
 

@@ -29,8 +29,8 @@
 
 - [x] CHK013 - Idempotencia (duas passagens) e template semente removido apos gravado estao cobertos? [Cobertura, Spec §Edge Cases] {auto}
 - [x] CHK014 - A colisao `X.tmpl` x `X.semente.tmpl` tem comportamento definido (erro, exit 1)? [Cobertura, Spec §FR-005; Plan contracts/cli.md] {auto}
-- [ ] CHK015 - Semente com placeholder sem valor e destino inexistente: o exit/mensagem esperado esta explicito alem de "como nos demais templates"? [Ambiguity, Spec §FR-004] {auto}
-- [ ] CHK016 - Esta definido o comportamento de semente cujo diretorio-pai nao existe ou e arquivo (destino nao existe, mas gravar falha)? [Gap, Spec §FR-002] {auto}
+- [x] CHK015 - Semente com placeholder sem valor e destino inexistente: o exit/mensagem esperado esta explicito alem de "como nos demais templates"? [Ambiguity, Spec §FR-004] {auto} <!-- resolvido: spec.md FR-004 -->
+- [x] CHK016 - Esta definido o comportamento de semente cujo diretorio-pai nao existe ou e arquivo (destino nao existe, mas gravar falha)? [Gap, Spec §FR-002] {auto} <!-- resolvido: spec.md Edge Cases -->
 
 ## Dependencias e premissas
 

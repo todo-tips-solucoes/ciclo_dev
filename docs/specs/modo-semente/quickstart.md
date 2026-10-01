@@ -45,6 +45,11 @@ Cenários a automatizar como `cenario "17: modo semente"` em `scripts/testar-con
 1. `CLAUDE.md` como diretório; depois como link quebrado
 2. **Expected**: exit 0 nos dois; nada alterado.
 
+## 8b. Semente a gravar com pai inexistente ou arquivo (CHK016)
+
+1. `cockpit_copia`; semente `templates/sub/dir/x.md.semente.tmpl`; destino com pai ausente → **Expected**: exit 0, pai criado.
+2. `sub` como arquivo → **Expected**: exit 1, nada gravado para essa semente.
+
 ## 9. Idempotência
 
 Coberta pelos cenários 2/3/15 existentes (segunda execução não altera nada), que continuam
