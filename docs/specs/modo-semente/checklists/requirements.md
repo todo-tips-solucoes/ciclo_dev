@@ -35,11 +35,11 @@
 ## Dependencias e premissas
 
 - [x] CHK017 - A premissa "recusa de lote e manifesto de orfas ja existentes" esta referenciada ao contrato base? [Assumption, Plan contracts/cli.md Base] {auto}
-- [ ] CHK018 - Deve a ausencia de migracao para projetos pre-cockpit (semente existente sem entrada no manifesto nunca ganhar entrada) ser aceita como definitiva pelo dono do produto? [Assumption, Spec §Clarifications] {humano}
-- [ ] CHK019 - O escopo "fora de escopo" (sem merge de semente existente) reflete o apetite do produto, dado que o dono perde atualizacoes futuras dos templates? [Risco, Spec §Fora de escopo] {humano}
+- [x] CHK018 - Deve a ausencia de migracao para projetos pre-cockpit (semente existente sem entrada no manifesto nunca ganhar entrada) ser aceita como definitiva pelo dono do produto? [Assumption, Spec §Clarifications] {humano} <!-- aceito pelo owner em 2026-10-01 -->
+- [x] CHK019 - O escopo "fora de escopo" (sem merge de semente existente) reflete o apetite do produto, dado que o dono perde atualizacoes futuras dos templates? [Risco, Spec §Fora de escopo] {humano} <!-- aceito pelo owner em 2026-10-01 -->
 
 ## Notes
 
 - {auto} resolvidos [x] com citacao; CHK015/CHK016 sao gaps (viram tarefas de requisito/teste em create-tasks).
 - Gate requirement-coverage: requirements=9 covered=9 errors=0.
-- {humano} CHK018/CHK019 aguardam o dono do produto (nao bloqueiam).
+- {humano} CHK018/CHK019 aceitos pelo owner em 2026-10-01, como estao na spec.
