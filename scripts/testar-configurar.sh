@@ -227,6 +227,30 @@ done
 sed "s#^BOARD=.*#BOARD='   '#" "$EXEMPLO" >"$TMP/r"
 rc="$(codigo rodar "$CONF" --projeto "$T" --respostas "$TMP/r")"
 [ "$rc" = 1 ] && grep -q BOARD "$TMP/err" || falha "BOARD só com espaços não recusado"
+for b in 'x y' 'org/0' 'org/007' 'org'; do
+  sed "s#^BOARD=.*#BOARD='$b'#" "$EXEMPLO" >"$TMP/r"
+  rc="$(codigo rodar "$CONF" --projeto "$T" --respostas "$TMP/r")"
+  [ "$rc" = 1 ] && grep -q BOARD "$TMP/err" || falha "BOARD '$b' não recusado"
+done
+sed "s#^BOARD=.*#BOARD='org-exemplo/7'#" "$EXEMPLO" >"$TMP/r"
+rc="$(codigo rodar "$CONF" --projeto "$T" --respostas "$TMP/r")"
+[ "$rc" = 0 ] || falha "BOARD org-exemplo/7 recusado"
+for d in '' '@org-exemplo/time' 'maria' '@maria_x'; do
+  sed "s#^DONOS_CODEOWNERS=.*#DONOS_CODEOWNERS='$d'#" "$EXEMPLO" >"$TMP/r"
+  rc="$(codigo rodar "$CONF" --projeto "$T" --respostas "$TMP/r")"
+  [ "$rc" = 1 ] && grep -q DONOS_CODEOWNERS "$TMP/err" || falha "DONOS_CODEOWNERS '$d' não recusado"
+done
+sed "s#^DONOS_CODEOWNERS=.*#DONOS_CODEOWNERS='@org-exemplo/time'#" "$EXEMPLO" >"$TMP/r"
+codigo rodar "$CONF" --projeto "$T" --respostas "$TMP/r" >/dev/null
+grep -q 'times' "$TMP/err" || falha "recusa de @org/time não cita times"
+grep -v '^DONOS_CODEOWNERS=' "$EXEMPLO" >"$TMP/r"
+rc="$(codigo rodar "$CONF" --projeto "$T" --respostas "$TMP/r")"
+[ "$rc" = 1 ] && grep -q 'DONOS_CODEOWNERS' "$TMP/err" || falha "DONOS_CODEOWNERS ausente deveria falhar"
+T9="$(novo_repo)"
+rodar "$CONF" --projeto "$T9" --respostas "$EXEMPLO" >/dev/null 2>&1
+grep -v '^DONOS_CODEOWNERS=' "$T9/cockpit.config" >"$TMP/c9"; cp "$TMP/c9" "$T9/cockpit.config"
+rc="$(codigo rodar "$CONF" --projeto "$T9" --atualizar)"
+[ "$rc" = 1 ] && grep -q 'DONOS_CODEOWNERS' "$TMP/err" || falha "--atualizar com config sem DONOS_CODEOWNERS deveria falhar"
 grep -v '^PRINCIPIO_III=' "$EXEMPLO" >"$TMP/r"
 rc="$(codigo rodar "$CONF" --projeto "$T" --respostas "$TMP/r")"
 [ "$rc" = 1 ] && grep -q 'PRINCIPIO_III' "$TMP/err" || falha "PRINCIPIO_III ausente deveria falhar (FR-016)"
@@ -407,28 +431,28 @@ if command -v script >/dev/null 2>&1 && script -qec true /dev/null >/dev/null 2>
   T="$(novo_repo)"
   # 12 chaves, depois nome/e-mail de duas identidades, nome vazio encerra,
   # board e Enter no Princípio III (sugere ligado).
-  interativo 'proj\norg/repo\ndev\nmain\nnpm\nnpm run tc\nnpm run lint\nnpm run build\nnpm run d:i\nnpm run d:p\n-\n-\nAna Silva\n1+ana@users.noreply.github.com\nBeto\n2+beto@users.noreply.github.com\n\nmeu-board\n\n' --projeto "$T" \
+  interativo 'proj\norg/repo\ndev\nmain\nnpm\nnpm run tc\nnpm run lint\nnpm run build\nnpm run d:i\nnpm run d:p\n-\n-\nAna Silva\n1+ana@users.noreply.github.com\nBeto\n2+beto@users.noreply.github.com\n\n@ana-exemplo\norg-exemplo/9\n\n' --projeto "$T" \
     || falha "configuração interativa falhou: $(tail -3 "$TMP/tty")"
   grep -q "^IDENTIDADES='Ana Silva:1+ana@users.noreply.github.com;Beto:2+beto@users.noreply.github.com'\$" "$T/cockpit.config" \
     || falha "nome e e-mail separados não gravados como nome:email"
   grep -q "^PRINCIPIO_III='ligado'\$" "$T/cockpit.config" || falha "Enter no Princípio III não aceitou o sugerido"
-  # SC-001: configuração mínima (uma identidade) com exatamente 17 respostas.
-  MINIMO='proj\norg/repo\ndev\nmain\nnpm\nnpm run tc\nnpm run lint\nnpm run build\nnpm run d:i\nnpm run d:p\n-\n-\nAna\n1+ana@users.noreply.github.com\n\n-\n\n'
-  [ "$(printf '%b' "$MINIMO" | wc -l | tr -d ' ')" = 17 ] || falha "entrada mínima não tem 17 respostas"
+  # SC-001: configuração mínima (uma identidade) com exatamente 18 respostas (17 + DONOS_CODEOWNERS).
+  MINIMO='proj\norg/repo\ndev\nmain\nnpm\nnpm run tc\nnpm run lint\nnpm run build\nnpm run d:i\nnpm run d:p\n-\n-\nAna\n1+ana@users.noreply.github.com\n\n@ana-exemplo\n-\n\n'
+  [ "$(printf '%b' "$MINIMO" | wc -l | tr -d ' ')" = 18 ] || falha "entrada mínima não tem 18 respostas"
   T3="$(novo_repo)"
-  interativo "$MINIMO" --projeto "$T3" || falha "configuração mínima com 17 respostas falhou: $(tail -3 "$TMP/tty")"
+  interativo "$MINIMO" --projeto "$T3" || falha "configuração mínima com 18 respostas falhou: $(tail -3 "$TMP/tty")"
   [ -f "$T3/cockpit.config" ] && [ -f "$T3/.cockpit/LEIAME.md" ] || falha "configuração mínima não gravou config e templates"
   T3="$(novo_repo)"
-  ! interativo "$(printf '%b' "$MINIMO" | head -16 | sed 's/$/\\n/' | tr -d '\n')" --projeto "$T3" \
-    || falha "configuração concluiu com 16 respostas; SC-001 fixa 17"
+  ! interativo "$(printf '%b' "$MINIMO" | head -17 | sed 's/$/\\n/' | tr -d '\n')" --projeto "$T3" \
+    || falha "configuração concluiu com 17 respostas; SC-001 fixa 18"
   # Config incompleto: só a chave ausente é perguntada.
   grep -v '^BOARD=' "$T/cockpit.config" >"$TMP/c14"; cp "$TMP/c14" "$T/cockpit.config"
-  interativo 'outro-board\n-\n-\n' --projeto "$T" || falha "interativo com config incompleto falhou: $(tail -3 "$TMP/tty")"
+  interativo 'org-exemplo/3\n-\n-\n' --projeto "$T" || falha "interativo com config incompleto falhou: $(tail -3 "$TMP/tty")"
   grep -q 'ausente(s) no cockpit.config: BOARD' "$TMP/tty" || falha "chave ausente não foi reportada"
   ! grep -q 'Nome do projeto' "$TMP/tty" || falha "config incompleto perguntou chave já definida"
-  grep -q "^BOARD='outro-board'\$" "$T/cockpit.config" || falha "chave ausente não foi gravada"
+  grep -q "^BOARD='org-exemplo/3'\$" "$T/cockpit.config" || falha "chave ausente não foi gravada"
   # Nome com ':' é recusado e perguntado de novo; vazio depois mantém as atuais.
-  interativo '\n\n\n\n\n\n\n\n\n\n\n\nA:B\n\n\n\n' --projeto "$T" || falha "reentrada de identidade falhou: $(tail -3 "$TMP/tty")"
+  interativo '\n\n\n\n\n\n\n\n\n\n\n\nA:B\n\n\n\n\n' --projeto "$T" || falha "reentrada de identidade falhou: $(tail -3 "$TMP/tty")"
   grep -q "não pode conter ':'" "$TMP/tty" || falha "nome com ':' não recusado"
   grep -q "^IDENTIDADES='Ana Silva:" "$T/cockpit.config" || falha "identidades atuais não mantidas"
 else
@@ -479,6 +503,79 @@ rc="$(codigo rodar "$CONF" --projeto "$T" --respostas "$TMP/variacao15.config")"
 grep -q 'Valor configurado neste projeto: \*\*desligado\*\*' "$T/docs/constitution.md" || falha "Princípio III não mostra desligado"
 grep -q 'esta fase é \*\*no-op\*\*' "$T/docs/rito-dev.md" || falha "rito sem o no-op da promoção"
 ! grep -rq '{{' "$T/docs" "$T/CLAUDE.md" || falha "placeholder residual na variação"
+
+# --------------------------------------------------------------- 16 ---
+cenario "16: templates de automação (fluxos, CODEOWNERS, releaserc, task.sh)"
+AUTOMACAO=".github/workflows/ci.yml .github/workflows/commitlint.yml .github/workflows/require-codeowner-approval.yml .github/workflows/promotion-pr.yml .github/workflows/audit-merge-vermelho.yml .github/workflows/release.yml .github/CODEOWNERS .releaserc.json .claude/scripts/task.sh"
+# CMD_LINT com caracteres especiais (quickstart Cenário 4) e BOARD preenchido (Cenário 6).
+LINT_ESPECIAL='npm run lint -- --fix | tee "$X" && echo `ok`'
+grep -v -e '^CMD_LINT=' -e '^BOARD=' "$EXEMPLO" >"$TMP/auto.config"
+printf "CMD_LINT='%s'\nBOARD='org-exemplo/7'\n" "$LINT_ESPECIAL" >>"$TMP/auto.config"
+T="$(novo_repo)"
+rodar "$CONF" --projeto "$T" --respostas "$TMP/auto.config" >/dev/null 2>&1 || falha "render da automação falhou"
+n=0
+for f in $AUTOMACAO; do
+  [ -f "$T/$f" ] || falha "arquivo de automação ausente: $f"
+  n=$((n + 1))
+  ! grep -qE '\{\{[A-Z][A-Z0-9_]*\}\}' "$T/$f" || falha "placeholder residual em $f"
+  # FR-017: cada expressão ${{ ... }} do template atravessa a renderização intacta.
+  [ -f "$RAIZ_COCKPIT/templates/$f.tmpl" ] || falha "template ausente: $f.tmpl"
+  [ "$(grep -o '\${{[^}]*}}' "$RAIZ_COCKPIT/templates/$f.tmpl" | sort)" = "$(grep -o '\${{[^}]*}}' "$T/$f" | sort)" ] \
+    || falha "expressão \${{ }} alterada em $f"
+done
+[ "$n" = 9 ] || falha "esperados 9 arquivos de automação, contei $n"
+[ -x "$T/.claude/scripts/task.sh" ] || falha "task.sh sem bit de execução"
+grep -qF "          $LINT_ESPECIAL" "$T/.github/workflows/ci.yml" || falha "CMD_LINT não chegou byte a byte ao ci.yml"
+grep -q '^\* @maria-exemplo @jose-exemplo$' "$T/.github/CODEOWNERS" || falha "CODEOWNERS sem os donos do exemplo"
+python3 -m json.tool "$T/.releaserc.json" >/dev/null || falha ".releaserc.json inválido"
+grep -q '"branches": \["main"\]' "$T/.releaserc.json" || falha ".releaserc.json sem a branch de produção"
+bash -n "$T/.claude/scripts/task.sh" || falha "task.sh com erro de sintaxe"
+# task.sh: BOARD vazio sai 3; BOARD preenchido sem gh sai 4 (FR-013).
+sed "s#^BOARD=.*#BOARD=''#" "$EXEMPLO" >"$TMP/semboard.config"
+T2="$(novo_repo)"
+rodar "$CONF" --projeto "$T2" --respostas "$TMP/semboard.config" >/dev/null 2>&1 || falha "render sem board falhou"
+rc="$(codigo "$T2/.claude/scripts/task.sh" list)"
+[ "$rc" = 3 ] && grep -q 'não tem board' "$TMP/err" || falha "task.sh com BOARD vazio deveria sair 3 (saiu $rc)"
+mkdir -p "$TMP/semgh"; for b in bash env cat; do ln -sf "$(command -v "$b")" "$TMP/semgh/$b"; done
+rc="$(codigo env PATH="$TMP/semgh" "$T/.claude/scripts/task.sh" discover)"
+[ "$rc" = 4 ] || falha "task.sh sem gh deveria sair 4 (saiu $rc)"
+rc="$(codigo "$T/.claude/scripts/task.sh" --help)"
+[ "$rc" = 0 ] || falha "task.sh --help deveria sair 0"
+# promotion-pr: com integração = produção o passo sai 0 sem chamar o gh (SC-005).
+T3="$(novo_repo)"
+sed -e "s/^BRANCH_PRODUCAO=.*/$(grep '^BRANCH_INTEGRACAO=' "$EXEMPLO" | sed 's/INTEGRACAO/PRODUCAO/')/" "$EXEMPLO" >"$TMP/igual.config"
+rodar "$CONF" --projeto "$T3" --respostas "$TMP/igual.config" >/dev/null 2>&1 || falha "render com branches iguais falhou"
+awk '/^          TOKEN_PADRAO/ {d=1} d && /run: \|/ {r=1; next} r {sub(/^          /, ""); print}' \
+  "$T3/.github/workflows/promotion-pr.yml" >"$TMP/promocao.sh"
+[ -s "$TMP/promocao.sh" ] || falha "não extraí o passo do promotion-pr"
+mkdir -p "$TMP/ghfalso"; printf '#!/bin/sh\necho chamado >"%s/gh-chamado"\nexit 99\n' "$TMP" >"$TMP/ghfalso/gh"; chmod +x "$TMP/ghfalso/gh"
+rm -f "$TMP/gh-chamado"
+branch_unica="$(sed -n "s/^BRANCH_INTEGRACAO='\(.*\)'\$/\1/p" "$EXEMPLO")"
+rc="$(codigo env PATH="$TMP/ghfalso:$PATH" INTEGRACAO="$branch_unica" PRODUCAO="$branch_unica" bash "$TMP/promocao.sh")"
+[ "$rc" = 0 ] && [ ! -f "$TMP/gh-chamado" ] || falha "promotion-pr com branches iguais deveria sair 0 sem chamar gh (saiu $rc)"
+grep -q 'nada a promover' "$TMP/out" || falha "promotion-pr sem a mensagem de no-op"
+# Idempotência (SC-004): segunda execução e --atualizar não alteram conteúdo nem modo.
+modos() { (cd "$1" && for f in $AUTOMACAO; do printf '%s %s\n' "$(stat -c '%a' "$f")" "$(sha256sum <"$f")"; done); }
+antes="$(modos "$T")"
+rodar "$CONF" --projeto "$T" --respostas "$TMP/auto.config" >/dev/null 2>&1 || falha "segunda execução da automação falhou"
+[ "$(modos "$T")" = "$antes" ] || falha "segunda execução alterou a automação"
+rc="$(codigo rodar "$CONF" --projeto "$T" --atualizar </dev/null)"
+[ "$rc" = 0 ] && [ "$(modos "$T")" = "$antes" ] || falha "--atualizar alterou a automação"
+# Ferramentas estáticas: no CI (COCKPIT_EXIGIR_FERRAMENTAS=1) a ausência é falha.
+for ferr in actionlint shellcheck; do
+  command -v "$ferr" >/dev/null 2>&1 && continue
+  [ "${COCKPIT_EXIGIR_FERRAMENTAS:-}" != 1 ] || falha "$ferr ausente no CI"
+  printf '  (%s ausente nesta máquina — checado no CI)\n' "$ferr"
+done
+if command -v actionlint >/dev/null 2>&1; then
+  # $T carrega o CMD_LINT com caracteres especiais de propósito: é valor do projeto, não do
+  # template, então o shellcheck embutido fica desligado aqui; $T3 (valores do exemplo) o roda.
+  (cd "$T" && actionlint -shellcheck= .github/workflows/*.yml) || falha "actionlint com findings"
+  (cd "$T3" && actionlint .github/workflows/*.yml) || falha "actionlint com findings (branches iguais)"
+fi
+if command -v shellcheck >/dev/null 2>&1; then
+  shellcheck "$T/.claude/scripts/task.sh" || falha "shellcheck com findings no task.sh renderizado"
+fi
 
 # --------------------------------------------------------------- 11 ---
 cenario "11: qualidade estática"

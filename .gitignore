@@ -1,7 +1,8 @@
 # .claude/ inteiro é local à máquina: guard hooks e settings são provisionados
 # pelo `cstk hooks install` (Princípio IV), o estado do feature-00c é por worktree.
 # As skills do cockpit vivem em skills/ na raiz — são produto, não configuração.
-.claude/
+# Ancorado na raiz: templates/.claude/ é produto (template do task.sh) e precisa ser rastreado.
+/.claude/
 .cstk-00c.lock/
 
 # Saída de render local dos templates (teste)

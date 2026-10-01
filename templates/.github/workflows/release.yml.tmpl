@@ -1,0 +1,42 @@
+# Gerado pelo cockpit. Publica versão (tag e release) a partir da branch de produção com semantic-release.
+# Segredo opcional TOKEN_AUTOMACAO (PAT ou token de App); sem ele usa o GITHUB_TOKEN, cuja tag e
+# release não disparam outros fluxos.
+name: release
+
+on:
+  push:
+    branches:
+      - |-
+        {{BRANCH_PRODUCAO}}
+
+permissions:
+  contents: read
+
+jobs:
+  release:
+    name: release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      issues: write
+      pull-requests: write
+    steps:
+      - name: Baixar o código
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Preparar o Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '22'
+
+      - name: Publicar versão
+        env:
+          TOKEN_AUTOMACAO: ${{ secrets.TOKEN_AUTOMACAO }}
+          TOKEN_PADRAO: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          export GITHUB_TOKEN="${TOKEN_AUTOMACAO:-$TOKEN_PADRAO}"
+          npx --yes semantic-release@25.0.9

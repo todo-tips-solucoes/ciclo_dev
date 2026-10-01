@@ -39,7 +39,7 @@ REPO_ROOT="$COCKPIT_DIR"
 }
 
 # Ordem fixa de gravação (data-model.md). URLs são as únicas opcionais.
-CHAVES_ORDEM="PROJETO_NOME REPO_REMOTO BRANCH_INTEGRACAO BRANCH_PRODUCAO GERENCIADOR_PACOTES CMD_TYPECHECK CMD_LINT CMD_BUILD CMD_DEPLOY_INTEGRACAO CMD_DEPLOY_PRODUCAO URL_AMBIENTE_INTEGRACAO URL_AMBIENTE_PRODUCAO IDENTIDADES BOARD PRINCIPIO_III"
+CHAVES_ORDEM="PROJETO_NOME REPO_REMOTO BRANCH_INTEGRACAO BRANCH_PRODUCAO GERENCIADOR_PACOTES CMD_TYPECHECK CMD_LINT CMD_BUILD CMD_DEPLOY_INTEGRACAO CMD_DEPLOY_PRODUCAO URL_AMBIENTE_INTEGRACAO URL_AMBIENTE_PRODUCAO IDENTIDADES DONOS_CODEOWNERS BOARD PRINCIPIO_III"
 CHAVES_OPCIONAIS=" URL_AMBIENTE_INTEGRACAO URL_AMBIENTE_PRODUCAO "
 CABECALHO_1="# cockpit.config — gerado por configurar.sh; pode ser editado à mão."
 CABECALHO_2="# Rode ./configurar.sh --atualizar para re-renderizar os templates."
@@ -256,7 +256,7 @@ tem_controle() {
 # validar_chave CHAVE VALOR — 0 se válido; senão diz o motivo em stderr, cita
 # a chave e devolve 1. Avisos (nunca recusa) também saem em stderr.
 validar_chave() {
-  local chave="$1" v="$2" item nome email n=0 parte
+  local chave="$1" v="$2" item itens nome email n=0 parte
   if tem_controle "$v"; then
     erro "Valor inválido para $chave: contém quebra de linha, caractere de controle ou de direção de texto."
     return 1
@@ -281,6 +281,18 @@ validar_chave() {
       ;;
     BOARD)
       [ -z "$v" ] || [ -n "${v//[[:space:]]/}" ] || { erro "Valor inválido para BOARD: só espaços (deixe vazio para sem board)."; return 1; }
+      [ -z "$v" ] || [[ "$v" =~ ^[A-Za-z0-9-]+/[1-9][0-9]*$ ]] \
+        || { erro "Valor inválido para BOARD: esperado dono/número (número inteiro positivo) ou vazio."; return 1; }
+      ;;
+    DONOS_CODEOWNERS)
+      [ -n "${v//[[:space:]]/}" ] || { erro "Valor inválido para DONOS_CODEOWNERS: informe ao menos um dono (@usuario)."; return 1; }
+      read -ra itens <<<"$v" # sem expansão de glob
+      for item in "${itens[@]}"; do
+        case "$item" in
+          */*) erro "Valor inválido para DONOS_CODEOWNERS: times (@org/time) não são aceitos: informe usuários individuais."; return 1 ;;
+        esac
+        [[ "$item" =~ ^@[A-Za-z0-9-]+$ ]] || { erro "Valor inválido para DONOS_CODEOWNERS: item '$item' fora do formato @usuario."; return 1; }
+      done
       ;;
     PRINCIPIO_III)
       case "$v" in ligado | desligado) ;; *) erro "Valor inválido para PRINCIPIO_III: use ligado ou desligado."; return 1 ;; esac
@@ -426,7 +438,8 @@ perguntar_chave() {
     URL_AMBIENTE_INTEGRACAO) perguntar URL_AMBIENTE_INTEGRACAO "URL do ambiente de integração" ;;
     URL_AMBIENTE_PRODUCAO) perguntar URL_AMBIENTE_PRODUCAO "URL do ambiente de produção" ;;
     IDENTIDADES) perguntar_identidades ;;
-    BOARD) perguntar BOARD "Board do projeto" ;;
+    DONOS_CODEOWNERS) perguntar DONOS_CODEOWNERS "Donos do CODEOWNERS (@usuario separados por espaço)" ;;
+    BOARD) perguntar BOARD "Board do projeto (dono/número)" ;;
     PRINCIPIO_III)
       # Padrão sugerido só na pergunta interativa; no modo não interativo a
       # chave ausente é erro (FR-016).

@@ -1,0 +1,52 @@
+# Gerado pelo cockpit. Verificação EXTRA de aprovação de dono, para visibilidade no PR.
+# ATENÇÃO: este check é forjável por conteúdo do PR (o fluxo que roda é o do merge commit do
+# próprio PR). A garantia real é a regra nativa da branch: aprovações obrigatórias +
+# "Require review from Code Owners". Este fluxo nunca aprova nem mergeia nada.
+name: require-codeowner-approval
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+  pull_request_review:
+    types: [submitted, edited, dismissed]
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  aprovacao-de-dono:
+    name: aprovacao-de-dono
+    runs-on: ubuntu-latest
+    steps:
+      - name: Conferir aprovação de dono
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          PR: ${{ github.event.pull_request.number }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          set -euo pipefail
+          arquivo="$(mktemp)"
+          if ! gh api -H "Accept: application/vnd.github.raw+json" \
+            "repos/$REPO/contents/.github/CODEOWNERS?ref=$BASE_SHA" >"$arquivo" 2>/dev/null; then
+            echo "::error::Não há .github/CODEOWNERS na branch base; crie o arquivo (rode o configurador do cockpit)."
+            exit 1
+          fi
+          donos="$(mktemp)"
+          awk '$1 == "*" { for (i = 2; i <= NF; i++) if ($i ~ /^@/) print tolower(substr($i, 2)) }' "$arquivo" >"$donos"
+          if [ ! -s "$donos" ]; then
+            echo "::error::A linha '*' do .github/CODEOWNERS não lista nenhum dono (@usuario)."
+            exit 1
+          fi
+          aprovados="$(mktemp)"
+          gh api --paginate "repos/$REPO/pulls/$PR/reviews" \
+            --jq '.[] | select((.state | ascii_downcase) != "commented" and (.state | ascii_downcase) != "pending") | [.user.login, .state] | @tsv' \
+            | awk -F'\t' '{ u[tolower($1)] = tolower($2) } END { for (k in u) if (u[k] == "approved") print k }' >"$aprovados"
+          if grep -Fxqf "$donos" "$aprovados"; then
+            echo "Aprovado por um dono."
+            exit 0
+          fi
+          lista="$(sed 's/^/@/' "$donos" | paste -sd' ' -)"
+          echo "::error::Aprovação pendente. Podem aprovar: $lista"
+          exit 1

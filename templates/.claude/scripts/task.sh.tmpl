@@ -1,0 +1,113 @@
+#!/usr/bin/env bash
+# Gerado pelo cockpit. Move e consulta cartões do board (GitHub Projects) deste projeto.
+# Sem estado: cada execução resolve os identificadores de novo (veja o subcomando discover).
+# Requer o GitHub CLI (gh) autenticado com o escopo project: gh auth refresh -s project
+set -euo pipefail
+
+BOARD='{{BOARD}}'
+
+uso() {
+  cat <<'USO'
+Uso: task.sh <subcomando>
+  discover                        resolve e imprime os identificadores do board
+  list                            lista os itens: número, status e título
+  move <número-ou-url> "<status>" move o item para o status (nome da opção)
+  --help                          mostra este uso
+
+Códigos de saída: 0 ok; 1 erro; 2 uso incorreto; 3 projeto sem board;
+4 gh ausente, sem autenticação ou sem o escopo project.
+USO
+}
+
+falhar() {
+  printf '%s\n' "$2" >&2
+  exit "$1"
+}
+
+# Checa BOARD e gh antes de qualquer chamada que altere algo.
+preparar() {
+  [ -n "$BOARD" ] || falhar 3 "Este projeto não tem board configurado (BOARD vazio no cockpit.config)."
+  command -v gh >/dev/null 2>&1 || falhar 4 "gh não encontrado. Instale o GitHub CLI e rode: gh auth login"
+  gh auth status >/dev/null 2>&1 || falhar 4 "gh sem autenticação. Rode: gh auth login"
+  DONO="${BOARD%/*}"
+  NUMERO="${BOARD#*/}"
+}
+
+# Roda o gh e devolve o stdout; erro de escopo vira código 4, outro erro vira 1.
+chamar_gh() {
+  local saida erros
+  erros="$(mktemp)"
+  if saida="$(gh "$@" 2>"$erros")"; then
+    rm -f "$erros"
+    printf '%s' "$saida"
+    return 0
+  fi
+  if grep -qi 'scope' "$erros"; then
+    rm -f "$erros"
+    falhar 4 "O token do gh não tem o escopo project. Rode: gh auth refresh -s project"
+  fi
+  cat "$erros" >&2
+  rm -f "$erros"
+  exit 1
+}
+
+# Preenche PROJETO_ID, CAMPO_ID e OPCOES (linhas nome<TAB>id do campo Status).
+resolver() {
+  PROJETO_ID="$(chamar_gh project view "$NUMERO" --owner "$DONO" --format json --jq '.id')"
+  CAMPO_ID="$(chamar_gh project field-list "$NUMERO" --owner "$DONO" --format json \
+    --jq '.fields[] | select(.name == "Status") | .id')"
+  [ -n "$CAMPO_ID" ] || falhar 1 "O board $BOARD não tem o campo Status."
+  OPCOES="$(chamar_gh project field-list "$NUMERO" --owner "$DONO" --format json \
+    --jq '.fields[] | select(.name == "Status") | .options[] | [.name, .id] | @tsv')"
+}
+
+descobrir() {
+  resolver
+  printf 'Projeto: %s\n' "$PROJETO_ID"
+  printf 'Campo Status: %s\n' "$CAMPO_ID"
+  printf 'Opções (nome e id):\n%s\n' "$OPCOES"
+}
+
+listar() {
+  local itens
+  itens="$(chamar_gh project item-list "$NUMERO" --owner "$DONO" --format json --limit 1000 \
+    --jq '.items[] | [(.content.number // "-"), (.status // "-"), (.content.title // "-")] | @tsv')"
+  if [ -n "$itens" ]; then printf '%s\n' "$itens"; fi
+}
+
+mover() {
+  local alvo="$1" status="$2" nome id opcao_id="" nomes filtro item_id quantos
+  resolver
+  while IFS=$'\t' read -r nome id; do
+    if [ "$nome" = "$status" ]; then opcao_id="$id"; fi
+  done <<<"$OPCOES"
+  if [ -z "$opcao_id" ]; then
+    nomes="$(printf '%s\n' "$OPCOES" | cut -f1 | paste -sd',' - | sed 's/,/, /g')"
+    falhar 1 "Status \"$status\" não existe no board. Opções: $nomes"
+  fi
+  export ALVO="$alvo"
+  case "$alvo" in
+    http*) filtro='.items[] | select(.content.url == env.ALVO) | .id' ;;
+    '' | *[!0-9]*) falhar 2 "Item inválido: informe o número ou a URL do item." ;;
+    *) filtro='.items[] | select((.content.number | tostring) == env.ALVO) | .id' ;;
+  esac
+  item_id="$(chamar_gh project item-list "$NUMERO" --owner "$DONO" --format json --limit 1000 --jq "$filtro")"
+  quantos="$(printf '%s\n' "$item_id" | grep -c . || true)"
+  [ "$quantos" -ne 0 ] || falhar 1 "Item $alvo não está no board $BOARD."
+  [ "$quantos" -eq 1 ] || falhar 1 "O número $alvo casa com mais de um item do board; informe a URL do item."
+  chamar_gh project item-edit --id "$item_id" --project-id "$PROJETO_ID" \
+    --field-id "$CAMPO_ID" --single-select-option-id "$opcao_id" >/dev/null
+  printf 'Item %s movido para "%s".\n' "$alvo" "$status"
+}
+
+case "${1:-}" in
+  --help | -h) uso ;;
+  discover) preparar; descobrir ;;
+  list) preparar; listar ;;
+  move)
+    [ "$#" -eq 3 ] || { uso >&2; exit 2; }
+    preparar
+    mover "$2" "$3"
+    ;;
+  *) uso >&2; exit 2 ;;
+esac

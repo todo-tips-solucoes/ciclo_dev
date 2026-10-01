@@ -80,7 +80,32 @@ jobs:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
+      - name: Instalar shellcheck
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y shellcheck
+
+      # actionlint por versão e SHA256 fixados (mesmo padrão do gitleaks). Versão,
+      # asset e checksum: release v1.7.12 de rhysd/actionlint, lidos de
+      # https://api.github.com/repos/rhysd/actionlint/releases/latest e de
+      # actionlint_1.7.12_checksums.txt na própria release. Sobe junto com VERSAO.
+      - name: Baixar e conferir actionlint
+        run: |
+          set -euo pipefail
+          VERSAO="1.7.12"
+          SHA256="8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8"
+          TARBALL="actionlint_${VERSAO}_linux_amd64.tar.gz"
+          mkdir -p "$RUNNER_TEMP/bin"
+          cd "$RUNNER_TEMP"
+          curl -fsSLO "https://github.com/rhysd/actionlint/releases/download/v${VERSAO}/${TARBALL}"
+          echo "${SHA256}  ${TARBALL}" | sha256sum -c -
+          tar -xzf "${TARBALL}" -C "$RUNNER_TEMP/bin" actionlint
+          echo "$RUNNER_TEMP/bin" >> "$GITHUB_PATH"
+
       - name: Testar configurar.sh (cenários do quickstart)
+        env:
+          COCKPIT_EXIGIR_FERRAMENTAS: "1"
         run: ./scripts/testar-configurar.sh
 
   segredos:

@@ -1,0 +1,65 @@
+# Gerado pelo cockpit. Gate de typecheck, lint e build; nenhum deploy aqui (deploy é do rito).
+# Roda com o Princípio III ligado ou desligado: é o gate de qualquer modo.
+name: ci
+
+on:
+  pull_request:
+    branches:
+      - |-
+        {{BRANCH_INTEGRACAO}}
+      - |-
+        {{BRANCH_PRODUCAO}}
+  push:
+    branches:
+      - |-
+        {{BRANCH_INTEGRACAO}}
+      - |-
+        {{BRANCH_PRODUCAO}}
+
+permissions:
+  contents: read
+
+jobs:
+  ci:
+    name: ci
+    runs-on: ubuntu-latest
+    steps:
+      - name: Baixar o código
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Preparar o Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '22'
+
+      - name: Instalar dependências
+        env:
+          GERENCIADOR: |-
+            {{GERENCIADOR_PACOTES}}
+        run: |
+          set -euo pipefail
+          case "$GERENCIADOR" in
+            npm) npm ci ;;
+            pnpm) corepack enable && pnpm install --frozen-lockfile ;;
+            yarn)
+              if [ -f .yarnrc.yml ]; then corepack enable && yarn install --immutable; else yarn install --frozen-lockfile; fi ;;
+            bun) npm install --global bun && bun install --frozen-lockfile ;;
+            *) echo "::error::Gerenciador de pacotes '$GERENCIADOR' não suportado pelo template: edite este passo à mão."; exit 1 ;;
+          esac
+
+      - name: Typecheck
+        shell: bash
+        run: |
+          {{CMD_TYPECHECK}}
+
+      - name: Lint
+        shell: bash
+        run: |
+          {{CMD_LINT}}
+
+      - name: Build
+        shell: bash
+        run: |
+          {{CMD_BUILD}}
