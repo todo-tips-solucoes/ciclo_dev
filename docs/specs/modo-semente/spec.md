@@ -15,6 +15,15 @@ gravado) e só `--forcar` sobrescreve, perdendo a edição. Isso atinge arquivos
 é feito para editar: `docs/constitution.md` (princípios próprios), `docs/project-context.md`
 (seções "A preencher") e um `CLAUDE.md` que o projeto já tinha antes do cockpit.
 
+## Clarifications
+
+### Session 2026-10-01
+
+- Q: Semente pulada conta como "gravado" ou "inalterado" na contagem final? → A: nem um nem outro; contagem própria "mantidos (semente)" (FR-007).
+- Q: `--atualizar` com semente apagada pelo dono recria? → A: sim; destino inexistente = semente gerada de novo (FR-002).
+- Q: Semente existente sem entrada no manifesto (projeto pré-cockpit)? → A: segue pulada e não ganha entrada no manifesto (FR-002/FR-006).
+- Q: Exit code quando só há sementes mantidas? → A: 0 (aviso informativo, não erro).
+
 ## User Scenarios & Testing
 
 ### User Story 1 - Arquivo semente é criado uma vez e nunca mais tocado (Priority: P1)
@@ -54,6 +63,8 @@ Quem mantém o cockpit marca um template como semente só pelo nome do arquivo.
    `docs/constitution.md` (o sufixo `.semente.tmpl` sai inteiro).
 
 ## Requirements
+
+### Functional Requirements
 
 - **FR-001**: template cujo nome termina em `.semente.tmpl` é semente; o destino é o caminho
   sem esse sufixo.
