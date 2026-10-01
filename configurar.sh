@@ -8,7 +8,8 @@
 # atualiza terceiro (Princípio IV): só usa o `cstk` que a pessoa já instalou.
 #
 # Semente: template `X.semente.tmpl` gera `X` só se o destino não existe; existindo
-# (qualquer tipo), fica intacto, mesmo com --forcar, e não entra no manifesto.
+# (qualquer tipo), fica intacto, mesmo com --forcar; não entra nem sai do manifesto
+# (a linha anterior dela, se houver, é mantida — FR-006).
 #
 # Uso: ./configurar.sh [--projeto DIR] [--respostas ARQ] [--atualizar]
 #                      [--forcar] [--ajuda]

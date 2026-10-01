@@ -182,6 +182,6 @@ Ref: 2.4 · tipo: `contradicts` · severidade: `MEDIUM`
 
 O cabeçalho de `configurar.sh` (linha 11) diz que a semente pulada "não entra no manifesto". A spec (FR-006) e o código (`gravar_manifesto()`, ramo `PULAR[i]=1`) dizem outra coisa: a semente pulada não entra nem sai do manifesto, e a entrada anterior é reemitida. O comentário omite a preservação e induz o leitor a achar que a entrada é removida.
 
-- [ ] 5.1.1 Corrigir o cabeçalho de `configurar.sh` conforme FR-006 (ex.: "não entra nem sai do manifesto; entrada anterior é mantida"), sem mudar código
+- [x] 5.1.1 Corrigir o cabeçalho de `configurar.sh` conforme FR-006 (ex.: "não entra nem sai do manifesto; entrada anterior é mantida"), sem mudar código
 
 <!-- converge-key: 7da4ca7d60fe -->
