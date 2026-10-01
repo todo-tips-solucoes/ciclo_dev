@@ -161,3 +161,27 @@ flowchart TD
 | CHK019 | Sem merge de semente existente | Aceito pelo owner (dec-012); fora de escopo da spec |
 | Marcacao por lista/front-matter | Outras formas de marcar semente | Fora de escopo da spec |
 | Tier de entrega | Nao informado nos args | Backlog completo gerado |
+
+
+---
+
+## FASE 5 - Convergência
+
+> Fase gerada automaticamente pela skill `converge` (reconciliação
+> spec-vs-código). Cada tarefa abaixo corresponde a um achado (`Gap`)
+> entre o que `spec.md`/`plan.md`/`tasks.md` descreveram e o estado
+> presente do código. Tarefas sem o prefixo `[Revisar]` são acionáveis
+> (`missing`/`partial`/`contradicts`); tarefas com `[Revisar]` são item de
+> revisão (`unrequested`, FR-013) — nunca "implementar", o código já
+> existe. Append-only: esta fase nunca reescreve fases/tarefas anteriores
+> do arquivo (FR-009).
+
+### 5.1 Cabecalho de configurar.sh diverge de FR-006 sobre o manifesto `[A]`
+
+Ref: 2.4 · tipo: `contradicts` · severidade: `MEDIUM`
+
+O cabeçalho de `configurar.sh` (linha 11) diz que a semente pulada "não entra no manifesto". A spec (FR-006) e o código (`gravar_manifesto()`, ramo `PULAR[i]=1`) dizem outra coisa: a semente pulada não entra nem sai do manifesto, e a entrada anterior é reemitida. O comentário omite a preservação e induz o leitor a achar que a entrada é removida.
+
+- [ ] 5.1.1 Corrigir o cabeçalho de `configurar.sh` conforme FR-006 (ex.: "não entra nem sai do manifesto; entrada anterior é mantida"), sem mudar código
+
+<!-- converge-key: 7da4ca7d60fe -->
