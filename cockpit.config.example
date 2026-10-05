@@ -79,3 +79,11 @@ PRINCIPIO_III='ligado'
 # Exemplo: DESTINOS_DO_PROJETO='.github/workflows/ci.yml docs/rito-dev.md'
 
 DESTINOS_DO_PROJETO=''
+
+# --- Prefixos de branch de trabalho (opcional) -------------------------------
+# Cinco prefixos separados por espaço, na ordem feature, fix, chore, docs, hotfix.
+# Sem `/`, sem repetição, cada um formando nome de branch válido. Ausente ou vazia:
+# feature fix chore docs hotfix.
+# Exemplo: PREFIXOS_BRANCH='feat fix chore docs hotfix'
+
+PREFIXOS_BRANCH=''

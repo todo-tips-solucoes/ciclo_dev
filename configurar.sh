@@ -48,9 +48,12 @@ REPO_ROOT="$COCKPIT_DIR"
   exit 1
 }
 
-# Ordem fixa de gravação (data-model.md). URLs e DESTINOS_DO_PROJETO são as únicas opcionais.
-CHAVES_ORDEM="PROJETO_NOME REPO_REMOTO BRANCH_INTEGRACAO BRANCH_PRODUCAO GERENCIADOR_PACOTES CMD_TYPECHECK CMD_LINT CMD_BUILD CMD_DEPLOY_INTEGRACAO CMD_DEPLOY_PRODUCAO URL_AMBIENTE_INTEGRACAO URL_AMBIENTE_PRODUCAO IDENTIDADES DONOS_CODEOWNERS BOARD PRINCIPIO_III DESTINOS_DO_PROJETO"
-CHAVES_OPCIONAIS=" URL_AMBIENTE_INTEGRACAO URL_AMBIENTE_PRODUCAO DESTINOS_DO_PROJETO "
+# Ordem fixa de gravação (data-model.md). URLs, DESTINOS_DO_PROJETO e PREFIXOS_BRANCH são as únicas opcionais.
+CHAVES_ORDEM="PROJETO_NOME REPO_REMOTO BRANCH_INTEGRACAO BRANCH_PRODUCAO GERENCIADOR_PACOTES CMD_TYPECHECK CMD_LINT CMD_BUILD CMD_DEPLOY_INTEGRACAO CMD_DEPLOY_PRODUCAO URL_AMBIENTE_INTEGRACAO URL_AMBIENTE_PRODUCAO IDENTIDADES DONOS_CODEOWNERS BOARD PRINCIPIO_III DESTINOS_DO_PROJETO PREFIXOS_BRANCH"
+CHAVES_OPCIONAIS=" URL_AMBIENTE_INTEGRACAO URL_AMBIENTE_PRODUCAO DESTINOS_DO_PROJETO PREFIXOS_BRANCH "
+# Prefixos de branch (feature fix chore docs hotfix, nessa ordem) e os placeholders de render derivados deles.
+PREFIXOS_PADRAO="feature fix chore docs hotfix"
+DERIVADAS="PREFIXO_FEATURE PREFIXO_FIX PREFIXO_CHORE PREFIXO_DOCS PREFIXO_HOTFIX"
 CABECALHO_1="# cockpit.config — gerado por configurar.sh; pode ser editado à mão."
 CABECALHO_2="# Rode ./configurar.sh --atualizar para re-renderizar os templates."
 CABECALHO_EXTRAS="# Chaves não reconhecidas por configurar.sh, mantidas do arquivo anterior:"
@@ -308,6 +311,20 @@ validar_chave() {
         case "/$item/" in */../*) erro "Valor inválido para DESTINOS_DO_PROJETO: item '$item' contém '..'."; return 1 ;; esac
       done
       ;;
+    PREFIXOS_BRANCH)
+      read -ra itens <<<"$v" # sem expansão de glob
+      [ "${#itens[@]}" -eq 0 ] || [ "${#itens[@]}" -eq 5 ] \
+        || { erro "Valor inválido para PREFIXOS_BRANCH: esperados 5 prefixos ($PREFIXOS_PADRAO, nessa ordem), recebidos ${#itens[@]}."; return 1; }
+      local ant=" "
+      for item in ${itens[@]+"${itens[@]}"}; do
+        case "$item" in *"/"*) erro "Valor inválido para PREFIXOS_BRANCH: o prefixo '$item' contém '/'."; return 1 ;; esac
+        case "$item" in -* | *'@{'*) erro "Valor inválido para PREFIXOS_BRANCH: o prefixo '$item' não forma nome de branch válido."; return 1 ;; esac
+        git check-ref-format --branch "$item/x" >/dev/null 2>&1 \
+          || { erro "Valor inválido para PREFIXOS_BRANCH: o prefixo '$item' não forma nome de branch válido."; return 1; }
+        case "$ant" in *" $item "*) erro "Valor inválido para PREFIXOS_BRANCH: o prefixo '$item' está repetido."; return 1 ;; esac
+        ant="$ant$item "
+      done
+      ;;
     DONOS_CODEOWNERS)
       [ -n "${v//[[:space:]]/}" ] || { erro "Valor inválido para DONOS_CODEOWNERS: informe ao menos um dono (@usuario)."; return 1; }
       read -ra itens <<<"$v" # sem expansão de glob
@@ -376,7 +393,7 @@ validar_todos() {
     # a resolveria e o --atualizar seguinte daria residual (FR-006).
     if chave_opcional "$k" && definido "$k" && [ -z "$(valor "$k")" ]; then desetar "$k"; fi
     # Só espaços em DESTINOS_DO_PROJETO equivale a não declarada (TAB segue p/ validar_chave).
-    if [ "$k" = DESTINOS_DO_PROJETO ] && definido "$k"; then
+    if { [ "$k" = DESTINOS_DO_PROJETO ] || [ "$k" = PREFIXOS_BRANCH ]; } && definido "$k"; then
       v="$(valor "$k")"
       [ -n "${v// /}" ] || desetar "$k"
     fi
@@ -470,6 +487,7 @@ perguntar_chave() {
     DONOS_CODEOWNERS) perguntar DONOS_CODEOWNERS "Donos do CODEOWNERS (@usuario separados por espaço)" ;;
     BOARD) perguntar BOARD "Board do projeto (dono/número)" ;;
     DESTINOS_DO_PROJETO) perguntar DESTINOS_DO_PROJETO "Destinos mantidos pelo projeto (caminhos separados por espaço)" ;;
+    PREFIXOS_BRANCH) perguntar PREFIXOS_BRANCH "Prefixos de branch de feature, fix, chore, docs e hotfix, nessa ordem (padrão: $PREFIXOS_PADRAO)" ;;
     PRINCIPIO_III)
       # Padrão sugerido só na pergunta interativa; no modo não interativo a
       # chave ausente é erro (FR-016).
@@ -731,6 +749,15 @@ classificar_destinos() {
   done
 }
 
+# derivar_prefixos — define os cinco placeholders PREFIXO_* a partir de
+# PREFIXOS_BRANCH (ou do padrão). Não são chaves: nunca perguntados nem gravados.
+derivar_prefixos() {
+  local -a p
+  read -ra p <<<"$(definido PREFIXOS_BRANCH && valor PREFIXOS_BRANCH || printf '%s' "$PREFIXOS_PADRAO")"
+  local i=0 d
+  for d in $DERIVADAS; do setar "$d" "${p[i]}"; i=$((i + 1)); done
+}
+
 # renderizar TEMPLATE SAIDA RESIDUAIS — substituição literal de {{CHAVE}} em
 # awk: valores e o caminho de residuais entram por ENVIRON e o valor por
 # concatenação de substr(), nunca por gsub() nem -v, então &, \ e $ ficam
@@ -738,7 +765,7 @@ classificar_destinos() {
 # final na saída; o bit de execução segue o do template.
 renderizar() {
   local defs="" k sem_nl=""
-  for k in $CHAVES_ORDEM; do definido "$k" && defs="$defs $k"; done
+  for k in $CHAVES_ORDEM $DERIVADAS; do definido "$k" && defs="$defs $k"; done
   if [ -s "$1" ] && [ "$(tail -c 1 "$1" | od -An -tx1 | tr -d ' \n')" != 0a ]; then sem_nl=1; fi
   (
     for k in $defs; do export "CFG_$k"; done
@@ -1093,6 +1120,7 @@ main() {
       ;;
   esac
   validar_todos || exit 1
+  derivar_prefixos
 
   # Chaves desconhecidas do cockpit.config existente são mantidas na regravação;
   # comentários próprios da pessoa, não.

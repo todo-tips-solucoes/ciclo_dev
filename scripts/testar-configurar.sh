@@ -431,39 +431,46 @@ if command -v script >/dev/null 2>&1 && script -qec true /dev/null >/dev/null 2>
   T="$(novo_repo)"
   # 12 chaves, depois nome/e-mail de duas identidades, nome vazio encerra,
   # board, Enter no Princípio III (sugere ligado) e - nos destinos do projeto.
-  interativo 'proj\norg/repo\ndev\nmain\nnpm\nnpm run tc\nnpm run lint\nnpm run build\nnpm run d:i\nnpm run d:p\n-\n-\nAna Silva\n1+ana@users.noreply.github.com\nBeto\n2+beto@users.noreply.github.com\n\n@ana-exemplo\norg-exemplo/9\n\n-\n' --projeto "$T" \
+  interativo 'proj\norg/repo\ndev\nmain\nnpm\nnpm run tc\nnpm run lint\nnpm run build\nnpm run d:i\nnpm run d:p\n-\n-\nAna Silva\n1+ana@users.noreply.github.com\nBeto\n2+beto@users.noreply.github.com\n\n@ana-exemplo\norg-exemplo/9\n\n-\n-\n' --projeto "$T" \
     || falha "configuração interativa falhou: $(tail -3 "$TMP/tty")"
   grep -q "^IDENTIDADES='Ana Silva:1+ana@users.noreply.github.com;Beto:2+beto@users.noreply.github.com'\$" "$T/cockpit.config" \
     || falha "nome e e-mail separados não gravados como nome:email"
   grep -q "^PRINCIPIO_III='ligado'\$" "$T/cockpit.config" || falha "Enter no Princípio III não aceitou o sugerido"
   # SC-001 (ajustado por FR-007 da feature destinos-do-projeto): configuração mínima
-  # (uma identidade) com exatamente 19 respostas (18 + DESTINOS_DO_PROJETO).
+  # (uma identidade) com exatamente 20 respostas (18 + DESTINOS_DO_PROJETO + PREFIXOS_BRANCH).
   MINIMO18='proj\norg/repo\ndev\nmain\nnpm\nnpm run tc\nnpm run lint\nnpm run build\nnpm run d:i\nnpm run d:p\n-\n-\nAna\n1+ana@users.noreply.github.com\n\n@ana-exemplo\n-\n\n'
-  MINIMO="$MINIMO18-\n"
-  [ "$(printf '%b' "$MINIMO" | wc -l | tr -d ' ')" = 19 ] || falha "entrada mínima não tem 19 respostas"
+  MINIMO19="$MINIMO18-\n"
+  MINIMO="$MINIMO19-\n"
+  [ "$(printf '%b' "$MINIMO" | wc -l | tr -d ' ')" = 20 ] || falha "entrada mínima não tem 20 respostas"
   T3="$(novo_repo)"
-  interativo "$MINIMO" --projeto "$T3" || falha "configuração mínima com 19 respostas falhou: $(tail -3 "$TMP/tty")"
+  interativo "$MINIMO" --projeto "$T3" || falha "configuração mínima com 20 respostas falhou: $(tail -3 "$TMP/tty")"
   [ -f "$T3/cockpit.config" ] && [ -f "$T3/.cockpit/LEIAME.md" ] || falha "configuração mínima não gravou config e templates"
   ! grep -q '^DESTINOS_DO_PROJETO=' "$T3/cockpit.config" || falha "- nos destinos gravou a chave"
   T3="$(novo_repo)"
-  ! interativo "$MINIMO18" --projeto "$T3" \
-    || falha "configuração concluiu com 18 respostas; a mínima passou a 19"
+  ! interativo "$MINIMO19" --projeto "$T3" \
+    || falha "configuração concluiu com 19 respostas; a mínima passou a 20"
   # Config incompleto: só a chave ausente é perguntada.
   grep -v '^BOARD=' "$T/cockpit.config" >"$TMP/c14"; cp "$TMP/c14" "$T/cockpit.config"
-  interativo 'org-exemplo/3\n-\n-\n-\n' --projeto "$T" || falha "interativo com config incompleto falhou: $(tail -3 "$TMP/tty")"
+  interativo 'org-exemplo/3\n-\n-\n-\n-\n' --projeto "$T" || falha "interativo com config incompleto falhou: $(tail -3 "$TMP/tty")"
   grep -q 'ausente(s) no cockpit.config: BOARD' "$TMP/tty" || falha "chave ausente não foi reportada"
   ! grep -q 'Nome do projeto' "$TMP/tty" || falha "config incompleto perguntou chave já definida"
   grep -q "^BOARD='org-exemplo/3'\$" "$T/cockpit.config" || falha "chave ausente não foi gravada"
   # Nome com ':' é recusado e perguntado de novo; vazio depois mantém as atuais.
-  interativo '\n\n\n\n\n\n\n\n\n\n\n\nA:B\n\n\n\n\n\n' --projeto "$T" || falha "reentrada de identidade falhou: $(tail -3 "$TMP/tty")"
+  interativo '\n\n\n\n\n\n\n\n\n\n\n\nA:B\n\n\n\n\n\n\n' --projeto "$T" || falha "reentrada de identidade falhou: $(tail -3 "$TMP/tty")"
   grep -q "não pode conter ':'" "$TMP/tty" || falha "nome com ':' não recusado"
   grep -q "^IDENTIDADES='Ana Silva:" "$T/cockpit.config" || falha "identidades atuais não mantidas"
   # Pergunta nova (FR-007): texto, dica e gravação.
   T4="$(novo_repo)"
-  interativo "${MINIMO18}CLAUDE.md\n" --projeto "$T4" || falha "rodada com destinos falhou: $(tail -3 "$TMP/tty")"
+  interativo "${MINIMO18}CLAUDE.md\n-\n" --projeto "$T4" || falha "rodada com destinos falhou: $(tail -3 "$TMP/tty")"
   grep -q 'Destinos mantidos pelo projeto' "$TMP/tty" || falha "pergunta dos destinos ausente"
   grep -q 'Destinos mantidos pelo projeto (caminhos separados por espaço) (- para vazio)' "$TMP/tty" || falha "dica (- para vazio) ausente"
   grep -q "^DESTINOS_DO_PROJETO='CLAUDE.md'\$" "$T4/cockpit.config" || falha "DESTINOS_DO_PROJETO não gravado"
+  # Prefixos de branch (cenário 20, caso 5): dica, valor inválido repete a pergunta, segundo valor gravado.
+  T5="$(novo_repo)"
+  interativo "${MINIMO19}a/b c d e f\nfeat fix chore docs hotfix\n" --projeto "$T5" || falha "rodada com prefixos falhou: $(tail -3 "$TMP/tty")"
+  grep -q 'padrão: feature fix chore docs hotfix) (- para vazio)' "$TMP/tty" || falha "dica do padrão ausente"
+  grep -q "PREFIXOS_BRANCH: o prefixo 'a/b' contém '/'" "$TMP/tty" || falha "valor inválido não citou a chave"
+  grep -q "^PREFIXOS_BRANCH='feat fix chore docs hotfix'\$" "$T5/cockpit.config" || falha "segundo valor não gravado"
 else
   printf '  (script(1) ausente — cenário interativo pulado)\n'
 fi
@@ -482,6 +489,7 @@ done
 [ -d "$RAIZ_COCKPIT/templates" ] || falha "diretório templates/ ausente"
 ! grep -rq 'URL_AMBIENTE' "$RAIZ_COCKPIT/templates" || falha "template usa chave opcional URL_AMBIENTE_*"
 ! grep -rq 'DESTINOS_DO_PROJETO' "$RAIZ_COCKPIT/templates" || falha "template usa chave opcional DESTINOS_DO_PROJETO"
+! grep -rq 'PREFIXOS_BRANCH' "$RAIZ_COCKPIT/templates" || falha "template usa chave opcional PREFIXOS_BRANCH"
 # Princípios na ordem, seção de princípios próprios e o que o pre-flight do /feature-00c exige.
 ordem="$(grep -oE '^### [IVX]+(-bis)?\. ' "$T/docs/constitution.md" | tr -d '#. ' | tr '\n' ' ')"
 [ "$ordem" = "II II-bis III IV IV-bis V VI VII VIII " ] || falha "princípios fora de ordem: $ordem"
@@ -839,6 +847,41 @@ rm -rf "$M/docs"
 rc="$(codigo rodar "$CONF" --projeto "$M" --respostas "$EXEMPLO")"
 [ "$rc" = 0 ] && [ -f "$M/CLAUDE.md" ] || falha "caso 15: semente não renderizada (exit $rc)"
 grep -q '  CLAUDE.md$' "$M/.cockpit/manifesto.sha256" || falha "caso 15: semente fora do manifesto"
+
+# --------------------------------------------------------------- 20 ---
+cenario "20: prefixos de branch"
+resp20() { { grep -v '^PREFIXOS_BRANCH=' "$EXEMPLO"; [ -z "${1+x}" ] || printf "PREFIXOS_BRANCH='%s'\n" "$1"; } >"$2"; }
+# 1: chave ausente: render igual ao de hoje (padrão) e --atualizar sem pergunta
+T="$(novo_repo)"; resp20 "" "$TMP/r20"; sed -i '/^PREFIXOS_BRANCH=/d' "$TMP/r20"
+rodar "$CONF" --projeto "$T" --respostas "$TMP/r20" >/dev/null 2>&1 || falha "caso 1: setup"
+for f in docs/CICLO-GIT.md docs/rito-dev.md; do
+  grep -q 'feature/<slug>' "$T/$f" && grep -q 'hotfix/<slug>' "$T/$f" || falha "caso 1: padrão ausente em $f"
+done
+! grep -q 'PREFIXO' "$T/cockpit.config" || falha "caso 1: gravou PREFIXO"
+rc="$(codigo rodar "$CONF" --projeto "$T" --atualizar </dev/null)"
+[ "$rc" = 0 ] || falha "caso 1: --atualizar saiu com $rc: $(cat "$TMP/err")"
+# 2: chave válida refletida nos dois documentos; placeholders não gravados
+T="$(novo_repo)"; resp20 'feat fx ch dc hf' "$TMP/r20"
+rodar "$CONF" --projeto "$T" --respostas "$TMP/r20" >/dev/null 2>&1 || falha "caso 2: setup"
+for f in docs/CICLO-GIT.md docs/rito-dev.md; do
+  grep -q 'feat/<slug>' "$T/$f" && grep -q 'hf/<slug>' "$T/$f" || falha "caso 2: prefixos ausentes em $f"
+  ! grep -q 'feature/<slug>' "$T/$f" || falha "caso 2: prefixo padrão em $f"
+done
+grep -q "^PREFIXOS_BRANCH='feat fx ch dc hf'\$" "$T/cockpit.config" || falha "caso 2: chave não gravada"
+! grep -q '^PREFIXO_' "$T/cockpit.config" || falha "caso 2: placeholder gravado"
+# 3: só espaços equivale a ausente
+T="$(novo_repo)"; resp20 '   ' "$TMP/r20"
+rc="$(codigo rodar "$CONF" --projeto "$T" --respostas "$TMP/r20")"
+[ "$rc" = 0 ] && grep -q 'feature/<slug>' "$T/docs/CICLO-GIT.md" || falha "caso 3: só espaços (exit $rc)"
+# 4: inválidos: exit 1 citando a chave, sem cockpit.config
+for v in 'a b c d' 'a b c d e f' 'a/b c d e f' '-a b c d e' 'a@{b c d e f' 'a b c d a' 'a.lock b c d e' "$(printf 'a	b c d e f')"; do
+  T="$(novo_repo)"; resp20 "$v" "$TMP/r20"
+  rc="$(codigo rodar "$CONF" --projeto "$T" --respostas "$TMP/r20")"
+  [ "$rc" = 1 ] || falha "caso 4: '$v' saiu com $rc (esperado 1)"
+  grep -q 'PREFIXOS_BRANCH' "$TMP/err" || falha "caso 4: '$v' sem citar a chave"
+  [ ! -e "$T/cockpit.config" ] || falha "caso 4: '$v' criou cockpit.config"
+done
+# (caso 5, modo interativo, no cenário 14)
 
 # --------------------------------------------------------------- 11 ---
 cenario "11: qualidade estática"

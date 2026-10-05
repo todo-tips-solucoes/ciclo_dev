@@ -9,8 +9,8 @@ Repositório remoto: `{{REPO_REMOTO}}`.
 - Produção: `{{BRANCH_PRODUCAO}}`.
 - Quando as duas coincidem, o projeto usa branch única: a promoção para produção é no-op e o
   deploy da integração já é o de produção.
-- Nomes de branch de trabalho: `feature/<slug>`, `fix/<slug>`, `chore/<slug>`, `docs/<slug>`.
-  `hotfix/<slug>` sai da branch de produção e só existe com incidente real.
+- Nomes de branch de trabalho: `{{PREFIXO_FEATURE}}/<slug>`, `{{PREFIXO_FIX}}/<slug>`, `{{PREFIXO_CHORE}}/<slug>`, `{{PREFIXO_DOCS}}/<slug>`.
+  `{{PREFIXO_HOTFIX}}/<slug>` sai da branch de produção e só existe com incidente real.
 - Nunca push direto nas branches de integração e de produção, nem force-push.
 
 ## Commits

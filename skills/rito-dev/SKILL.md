@@ -24,7 +24,8 @@ Chaves consumidas por este rito (ver `cockpit.config.example` na raiz do cockpit
 | `PROJETO_NOME` | citada no relatório final de cada fase |
 | `REPO_REMOTO` | preparatória (`gh api repos/<REPO_REMOTO>/...`), Fase 6 (`gh pr view`) |
 | `BRANCH_INTEGRACAO` | Fase 1 (base padrão), Fase 4/7 (base da PR de feature), Fase 9 |
-| `BRANCH_PRODUCAO` | Fase 1 (base de `hotfix/`), Fase 9, Fase 10, Fase 11 |
+| `BRANCH_PRODUCAO` | Fase 1 (base do prefixo de hotfix), Fase 9, Fase 10, Fase 11 |
+| `PREFIXOS_BRANCH` (opcional) | Fase 1 — cinco prefixos (feature, fix, chore, docs, hotfix, nessa ordem); ausente ou em branco: `feature fix chore docs hotfix` |
 | `GERENCIADOR_PACOTES` | citado no relatório da Fase 2 (nunca invocado para instalar) |
 | `CMD_TYPECHECK` / `CMD_LINT` / `CMD_BUILD` | citados na Fase 5 (rodam no CI, nunca localmente) |
 | `CMD_DEPLOY_INTEGRACAO` | Fase 7 (relatório de deploy automático), Fase 8 |
@@ -72,9 +73,14 @@ estado stale.
 
 ## Fase 1 — Branch
 
-A partir de `origin/<BRANCH_INTEGRACAO>` conferido: `feature/<slug>` · `fix/<slug>` ·
-`chore/<slug>` · `docs/<slug>`. (`hotfix/<slug>` sai de `<BRANCH_PRODUCAO>` — só com
-incidente real em produção.)
+Leia `PREFIXOS_BRANCH` do `cockpit.config` agora; ausente ou em branco, vale
+`feature fix chore docs hotfix`. Com valor que não tenha exatamente cinco prefixos, ou com
+prefixo contendo `/`, PARE e nomeie a chave `PREFIXOS_BRANCH` ao dev.
+
+A partir de `origin/<BRANCH_INTEGRACAO>` conferido: `<prefixo de feature>/<slug>` ·
+`<prefixo de fix>/<slug>` · `<prefixo de chore>/<slug>` · `<prefixo de docs>/<slug>`
+(1º ao 4º prefixo da chave). `<prefixo de hotfix>/<slug>` (5º) sai de `<BRANCH_PRODUCAO>` —
+só com incidente real em produção.
 
 Nunca `git checkout -b` na árvore principal; a base vai explícita, senão o driver
 deriva do `HEAD` da árvore principal.
