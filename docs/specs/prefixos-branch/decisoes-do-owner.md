@@ -43,10 +43,47 @@ documentos em `DESTINOS_DO_PROJETO` (#14), e a skill continua citando `feature/`
   padrão de D2 quando ausente, e a chave entra na tabela de chaves consumidas.
 - Atualizar `cockpit.config.example` e o contrato `docs/specs/configurar/contracts/cli.md`.
 
+## Emendas após a primeira execução (2026-10-05)
+
+O owner decidiu D4 a D6 depois da primeira rodada do `/feature-00c` (review-task concluído), a
+partir dos achados do plan (`research.md`, gate de segurança) e do checklist (CHK021, CHK022).
+Elas são normativas na reabertura da frente e prevalecem sobre D1 e D3 onde as ampliam.
+
+### D4 — prefixo só com caracteres permitidos (amplia D1)
+
+- Cada prefixo MUST casar com `^[a-z0-9][a-z0-9._-]*$`: só minúsculas ASCII, dígitos, `.`, `_` e
+  `-`, começando por letra ou dígito. Fora disso, exit 1 citando `PREFIXOS_BRANCH` e o conjunto
+  aceito.
+- Motivo: `git check-ref-format` aceita metacaracteres de shell (`;`, `$()`, crase, `|`, `&`,
+  aspas), e a skill `rito-dev` compõe comandos git com o prefixo; maiúsculas colidem em sistemas
+  de arquivos que não diferenciam caixa (`Feat/x` e `feat/x`).
+- As checagens de D1 continuam (quantidade, repetição, `git check-ref-format --branch
+  '<prefixo>/x'`); a nova regra se soma a elas.
+- A Fase 1 de `skills/rito-dev/SKILL.md` aplica a mesma regra antes de compor qualquer comando:
+  cinco prefixos, cada um casando com o padrão, sem repetição; fora disso, PARA e nomeia a chave.
+  O `cockpit.config` é versionado e pode ser editado à mão sem passar pelo `configurar.sh`.
+- O padrão `feature fix chore docs hotfix` satisfaz a regra; projetos sem a chave não mudam.
+
+### D5 — o resíduo `hotfix/<slug>` entra no escopo (amplia D3, fecha CHK021)
+
+- `templates/docs/constitution.md.semente.tmpl` (linha 18) troca `hotfix/<slug>` por
+  `{{PREFIXO_HOTFIX}}/<slug>`.
+- Com a chave ausente, o `docs/constitution.md` semeado é byte a byte o de hoje.
+- Semente só é gerada quando o destino não existe: projetos já configurados mantêm a própria
+  constitution, e quem declarar `PREFIXOS_BRANCH` ajusta a sua à mão. Isso vai registrado em
+  `cockpit.config.example`, junto da chave.
+
+### D6 — os cinco tipos fixos ficam (fecha CHK022)
+
+- Mantidos os cinco tipos em ordem fixa de D1. Tipos novos (`refactor`, `release` etc.) ou formato
+  `tipo=prefixo` só quando houver demanda real.
+
 ## Fora de escopo
 
 - Os exemplos `fix/…` e `feat/…` de `skills/parallel-work/SKILL.md` (ilustração, não regra).
 - Tipos de branch além dos cinco, e renomear branches existentes.
+- Restringir os caracteres de `BRANCH_INTEGRACAO` e `BRANCH_PRODUCAO`: mesma exposição de D4, mas
+  com regra própria (aceitam `/`, como em `release/2026`); vai para issue separada.
 
 ## Restrições
 
@@ -57,5 +94,7 @@ documentos em `DESTINOS_DO_PROJETO` (#14), e a skill continua citando `feature/`
 - Testes em `scripts/testar-configurar.sh`, no estilo dos cenários existentes: um cenário novo
   (chave ausente com render idêntico, chave válida refletida nos dois documentos, valores
   inválidos com exit 1, modo interativo). O cenário 14 passa de 19 para 20 respostas mínimas,
-  pela pergunta nova.
+  pela pergunta nova. Pela D4, o cenário 20 ganha casos recusados com maiúscula e com
+  metacaractere de shell; pela D5, confere a constitution semeada (idêntica sem a chave, com o
+  prefixo de hotfix declarado quando presente).
 - Registro SDD em `docs/specs/prefixos-branch/`.
