@@ -10,7 +10,8 @@ textos existentes citados vêm de `configurar.sh` (commit `3599598`).
 ## Chave nova
 
 `DESTINOS_DO_PROJETO` (opcional): caminhos relativos à raiz, separados por espaço, iguais ao
-destino de algum template. Exemplo: `DESTINOS_DO_PROJETO='.github/workflows/ci.yml docs/rito-dev.md'`.
+destino de algum template depois de normalizados: `./` inicial, `/./` e `//` internos e `/` final
+não contam (code review, decisão do owner). Exemplo: `DESTINOS_DO_PROJETO='.github/workflows/ci.yml docs/rito-dev.md'`.
 
 - Modo interativo: última pergunta, `Destinos mantidos pelo projeto (caminhos separados por
   espaço) (- para vazio)`; Enter mantém o valor atual, `-` limpa.
@@ -39,7 +40,8 @@ Fora de worktree vinculada, ou com destino não ignorado, vale a regra atual.
   maior que zero, de `, K mantido(s) (semente)`, `, P mantido(s) (projeto)`,
   `, C copiado(s) da árvore principal`, `, G mantido(s) (ignorado pelo git)`, e `.` no fim.
 
-Sem nenhum destino listado, copiado ou ignorado, a saída é a de hoje, byte a byte.
+Sem nenhum destino listado, copiado ou ignorado, a saída é a de hoje, byte a byte, salvo a
+mensagem de conflito e o `--ajuda`, que passam a citar a chave.
 
 ## Saída (stderr)
 

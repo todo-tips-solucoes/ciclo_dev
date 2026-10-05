@@ -620,7 +620,7 @@ resolver_dir() { (cd "$RAIZ" && cd "$1" 2>/dev/null && pwd -P); }
 # sem controle, não bare e confirmado pelo git-dir dele igual ao git-common-dir.
 # Só leitura. Qualquer falha do git desliga a cópia, nunca a habilita.
 arvore_principal() {
-  local gd gc linha cand="" bare=false g2 why=""
+  local gd gc linha cand="" bare=false g2 top why=""
   VINCULADA=false
   PRINCIPAL=""
   gd="$(git -C "$RAIZ" rev-parse --git-dir 2>/dev/null)" || return 0
@@ -647,22 +647,40 @@ arvore_principal() {
       /*) g2="$(resolver_dir "$g2")" || g2="" ;;
       *) g2="$(resolver_dir "$cand/$g2")" || g2="" ;;
     esac
-    if [ -n "$g2" ] && [ "$g2" = "$gc" ]; then PRINCIPAL="$(resolver_dir "$cand")"; else why="não confirmada"; fi
+    # O git-dir também passa no teste acima (`--git-dir` dentro dele é `.`), como no
+    # primeiro registro de `--separate-git-dir` ou de submódulo: exigir árvore de trabalho.
+    top=""
+    if [ -n "$g2" ] && [ "$g2" = "$gc" ]; then
+      top="$(git -C "$cand" rev-parse --show-toplevel 2>/dev/null)" || top=""
+      [ -z "$top" ] || top="$(resolver_dir "$top")" || top=""
+    fi
+    if [ -n "$top" ] && [ "$top" = "$(resolver_dir "$cand")" ]; then PRINCIPAL="$top"; else why="não confirmada"; fi
   fi
   [ -z "$why" ] || aviso "árvore principal indisponível ($why); destinos ignorados pelo git não serão copiados."
   return 0
 }
 
-# origem_valida REL — a origem na árvore principal é arquivo regular, não é
-# link e tem pai físico igual ao lógico (sem link em nenhum componente). Só leitura.
+# origem_valida REL — a origem na árvore principal é arquivo regular legível, não
+# é link e tem pai físico igual ao lógico (sem link em nenhum componente). Só leitura.
 origem_valida() {
   local o="$PRINCIPAL/$1" lpai pai
   if [ -L "$o" ]; then aviso "origem recusada (link simbólico): $o"; return 1; fi
-  [ -f "$o" ] || return 1
+  [ -e "$o" ] || return 1
+  if [ ! -f "$o" ] || [ ! -r "$o" ]; then aviso "origem recusada (não é arquivo regular legível): $o"; return 1; fi
   lpai="$(dirname "$o")"
   pai="$(cd "$lpai" 2>/dev/null && pwd -P)" || return 1
   if [ "$pai" != "$lpai" ]; then aviso "origem recusada (link simbólico): $o"; return 1; fi
   return 0
+}
+
+# normalizar_rel REL — grafia canônica de um caminho relativo: sem `./` inicial,
+# sem `/./` nem `//` internos e sem `/` final, para comparar com o destino.
+normalizar_rel() {
+  local r="$1"
+  while [[ "$r" == ./* ]]; do r="${r#./}"; done
+  while [[ "$r" == *//* || "$r" == */./* ]]; do r="${r//\/\//\/}"; r="${r//\/.\//\/}"; done
+  r="${r%/}"
+  printf '%s' "$r"
 }
 
 # classificar_destinos — decide uma vez, antes de qualquer escrita, o motivo de
@@ -672,14 +690,16 @@ origem_valida() {
 # ignorado pelo git = copia (origem válida) ou ignorado. Pulado não é lido,
 # renderizado nem comparado.
 classificar_destinos() {
-  local i item rel listado casou arv=false
-  local -a itens=()
+  local i item norm rel listado casou arv=false
+  local -a brutos=() itens=()
   PULAR=()
   ORIGEM=()
-  ! definido DESTINOS_DO_PROJETO || read -ra itens <<<"$(valor DESTINOS_DO_PROJETO)"
-  for item in ${itens[@]+"${itens[@]}"}; do
+  ! definido DESTINOS_DO_PROJETO || read -ra brutos <<<"$(valor DESTINOS_DO_PROJETO)"
+  for item in ${brutos[@]+"${brutos[@]}"}; do
+    norm="$(normalizar_rel "$item")"
+    itens+=("$norm")
     casou=false
-    for rel in ${DEST_REL[@]+"${DEST_REL[@]}"}; do [ "$item" != "$rel" ] || { casou=true; break; }; done
+    for rel in ${DEST_REL[@]+"${DEST_REL[@]}"}; do [ "$norm" != "$rel" ] || { casou=true; break; }; done
     $casou || aviso "DESTINOS_DO_PROJETO: '$item' não é destino de nenhum template; ignorado."
   done
   for ((i = 0; i < ${#DEST_REL[@]}; i++)); do
@@ -693,9 +713,12 @@ classificar_destinos() {
     elif [ "${SEMENTE[i]}" = 1 ] && { [ -e "$RAIZ/$rel" ] || [ -L "$RAIZ/$rel" ]; }; then
       PULAR[i]=semente
     fi
-    if { $listado || [ "${SEMENTE[i]}" = 1 ]; } && [ ! -e "$RAIZ/$rel" ] && [ ! -L "$RAIZ/$rel" ]; then
+    # check-ignore antes de arvore_principal: o aviso de árvore indisponível só sai
+    # quando há destino ignorado a copiar.
+    if { $listado || [ "${SEMENTE[i]}" = 1 ]; } && [ ! -e "$RAIZ/$rel" ] && [ ! -L "$RAIZ/$rel" ] \
+      && git -C "$RAIZ" check-ignore -q -- "$rel" 2>/dev/null; then
       $arv || { arvore_principal; arv=true; }
-      if $VINCULADA && git -C "$RAIZ" check-ignore -q -- "$rel" 2>/dev/null; then
+      if $VINCULADA; then
         if [ -n "$PRINCIPAL" ] && origem_valida "$rel"; then
           PULAR[i]=copia
           ORIGEM[i]="$PRINCIPAL/$rel"
@@ -829,6 +852,14 @@ aplicar_templates() {
     log "Templates: 0 gravado(s); mantido(s) por edição local: ${conflitos[*]}"
     return 2
   fi
+  # Cópias da árvore principal vão para o staging antes de qualquer mv: falha de
+  # leitura recusa o lote sem deixar gravação parcial.
+  for ((i = 0; i < n; i++)); do
+    [ "${PULAR[i]}" = copia ] || continue
+    # Limite aceito (research, Riscos aceitos): a origem pode virar link entre
+    # origem_valida e este cp; a árvore principal é do próprio usuário.
+    cp -- "${ORIGEM[i]}" "$STG/c$i" || falhar "Falha ao copiar ${DEST_REL[i]} da árvore principal."
+  done
   for ((i = 0; i < n; i++)); do
     dest="$RAIZ/${DEST_REL[i]}"
     case "${PULAR[i]}" in
@@ -842,9 +873,6 @@ aplicar_templates() {
         exigir_contido "$dest" "${DEST_REL[i]}"
         mkdir -p "$(dirname "$dest")" || falhar "Falha ao criar o diretório de ${DEST_REL[i]}."
         exigir_contido "$dest" "${DEST_REL[i]}"
-        # Limite aceito (research, Riscos aceitos): a origem pode virar link entre
-        # origem_valida e este cp; a árvore principal é do próprio usuário.
-        cp -- "${ORIGEM[i]}" "$STG/c$i" || falhar "Falha ao copiar ${DEST_REL[i]} da árvore principal."
         mv -f "$STG/c$i" "$dest" || falhar "Falha ao gravar ${DEST_REL[i]}."
         copiados+=("${DEST_REL[i]}")
         continue ;;
@@ -902,6 +930,7 @@ gravar_manifesto() {
   ord="$({
     for ((i = 0; i < n; i++)); do
       if [ -n "${PULAR[i]}" ]; then
+        [ "${PULAR[i]}" != copia ] || continue # cópia não foi gerada por template (D3)
         h="$(manifesto_hash "${DEST_REL[i]}")"
         [ -z "$h" ] || printf '%s  %s\n' "$h" "${DEST_REL[i]}"
         continue

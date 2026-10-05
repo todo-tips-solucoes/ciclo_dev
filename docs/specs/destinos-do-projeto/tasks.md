@@ -242,3 +242,24 @@ flowchart TD
 | Conflito por arquivo | Tratar conflito por arquivo em vez de por lote | Recusado em D2 |
 | CHK025 | Reconfirmar item sem template como aviso | Julgamento do dono, ja fixado em D1 |
 | Fases de infraestrutura de producao | Deploy, escala, observabilidade | Script local sem producao; tier de entrega nao informado nos args, sem omissao aplicada alem desta |
+
+### Review Findings
+
+Code review adversarial (bmad-code-review, 2026-10-05) — camadas Blind Hunter, Edge Case Hunter e Acceptance Auditor sobre `git diff main..HEAD` restrito ao código (`configurar.sh`, `scripts/testar-configurar.sh`, `cockpit.config.example`, `docs/specs/configurar/`); artefatos da spec só como referência.
+
+- [x] [Review][Patch] (decidido: normalizar `./`, `/./`, `//` e `/` final antes de comparar; o que não casar segue como aviso de D1) Item de `DESTINOS_DO_PROJETO` com grafia não canônica perde a proteção — `./docs/rito-dev.md`, `docs//rito-dev.md` e `docs/rito-dev.md/` passam na validação, não casam com nenhum destino (comparação literal), geram só aviso e `--forcar` sobrescreve o arquivo mantido à mão com exit 0 (confirmado pelo Edge Case Hunter). D1 manda "item que não bate → aviso, não erro". Normalizar `./`, `//` e `/` final antes de comparar, recusar a grafia não canônica com exit 1, ou manter o literal de D1?
+- [x] [Review][Patch] Aviso "árvore principal indisponível" sai sem nenhum destino ignorado — `arvore_principal` roda antes do `check-ignore`; numa worktree de repositório bare toda primeira configuração avisa à toa e o stderr muda para quem não usa o recurso (FR-011) [configurar.sh:697]
+- [x] [Review][Patch] Cópia fora da fase de staging — `origem_valida` não checa `-r` e o `cp` roda dentro do laço que já move arquivos; origem ilegível aborta o lote no meio, sem manifesto e com semente gravada que nunca entra no manifesto (confirmado) [configurar.sh:847]
+- [x] [Review][Patch] Diretório git aceito como árvore principal — com `--separate-git-dir` ou submódulo o primeiro registro de `worktree list` é o git-dir e `rev-parse --git-dir` devolve `.`, então a confirmação passa; confirmar com `--show-toplevel` físico igual ao candidato (confirmado) [configurar.sh:650]
+- [x] [Review][Patch] Destino copiado herda a linha antiga do manifesto — `gravar_manifesto` preserva a linha de todo `PULAR` não vazio, inclusive `copia`, contra "não entra no manifesto" de D3 [configurar.sh:904]
+- [x] [Review][Patch] Origem existente mas não regular (FIFO, diretório) ou inacessível vira "esperado em <caminho>" sem aviso, embora o caminho exista (confirmado) [configurar.sh:661]
+- [x] [Review][Patch] Contrato afirma "sem a chave, a saída é a de antes", mas a mensagem de conflito e o `--ajuda` mudaram de propósito; ajustar a frase [docs/specs/configurar/contracts/cli.md:70]
+- [x] [Review][Patch] Teste ausente: modo interativo com destino listado e editado não pergunta sobrescrita (US1 cenário 2, D1) [scripts/testar-configurar.sh]
+- [x] [Review][Patch] Teste não pega a remoção do `check-ignore` — mutação sobreviveu; falta asserção de que semente não ignorada continua renderizada e no manifesto na worktree (FR-011, US4 cenário 3) [scripts/testar-configurar.sh:736]
+- [x] [Review][Patch] Teste de origem link usa link quebrado — mutação que só avisa sem recusar sobreviveu; usar link para arquivo regular existente fora da árvore e link em componente do caminho [scripts/testar-configurar.sh:753]
+- [x] [Review][Patch] Confirmação da árvore principal e checagem `-f` sem teste — mutações `g2==gc → true` e `-f → -e` sobreviveram [scripts/testar-configurar.sh]
+- [x] [Review][Patch] Caso 13 diz testar "criação do pai", mas `docs/` já existe quando a cópia roda; o `mkdir -p` do ramo `copia` nunca é exercido [scripts/testar-configurar.sh]
+- [x] [Review][Patch] Nenhum caso positivo com mais de um item na chave; regressão que só compare o primeiro item passaria [scripts/testar-configurar.sh]
+- [x] [Review][Patch] Asserções faltando: destino listado inexistente não é gerado (caso 8), saída `mantido (projeto)` do caso 3 e contagens de copiado/ignorado no resumo [scripts/testar-configurar.sh]
+- [x] [Review][Defer] Janela entre `origem_valida` e o `cp`: a origem pode virar link no intervalo [configurar.sh:845] — deferred, risco aceito e documentado na research
+- [x] [Review][Defer] Falha de `mv` no laço de gravação deixa estado parcial sem manifesto [configurar.sh:862] — deferred, pre-existing

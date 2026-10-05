@@ -682,6 +682,7 @@ grep -q '^  mantido (projeto): docs/rito-dev.md$' "$TMP/out" || falha "caso 2: s
 T="$(novo_repo)"; resp18 'CLAUDE.md' "$TMP/resp18"
 rc="$(codigo rodar "$CONF" --projeto "$T" --respostas "$TMP/resp18")"
 [ "$rc" = 0 ] && [ ! -e "$T/CLAUDE.md" ] || falha "caso 3: semente listada gerada (exit $rc)"
+grep -q '^  mantido (projeto): CLAUDE.md$' "$TMP/out" || falha "caso 3: sem 'mantido (projeto)'"
 # 4: conflito fora da lista recusa o lote, sugere a chave e não cita o listado
 T="$(novo_repo)"
 rodar "$CONF" --projeto "$T" --respostas "$EXEMPLO" >/dev/null 2>&1 || falha "caso 4: setup"
@@ -716,15 +717,38 @@ diff -r --exclude=.git "$TA" "$TC" >/dev/null || falha "caso 7: em branco difere
 ! grep -q '^DESTINOS_DO_PROJETO=' "$TC/cockpit.config" || falha "caso 7: em branco foi gravada"
 T="$(novo_repo)"; resp18 'docs/rito-dev.md' "$TMP/resp18"
 rodar "$CONF" --projeto "$T" --respostas "$TMP/resp18" >/dev/null 2>&1 || falha "caso 8: 1ª passagem"
+[ ! -e "$T/docs/rito-dev.md" ] || falha "caso 8: destino listado inexistente foi gerado"
 cp -R "$T" "$TMP/copia18"
 rodar "$CONF" --projeto "$T" --respostas "$TMP/resp18" >/dev/null 2>&1 || falha "caso 8: 2ª passagem"
 diff -r --exclude=.git "$T" "$TMP/copia18" >/dev/null || falha "caso 8: 2ª passagem alterou a árvore"
+# 9: vários itens, com espaços repetidos e grafia não canônica, protegem todos com --forcar
+T="$(novo_repo)"
+rodar "$CONF" --projeto "$T" --respostas "$EXEMPLO" >/dev/null 2>&1 || falha "caso 9: setup"
+echo "meu rito" >"$T/docs/rito-dev.md"; echo "meu leiame" >"$T/.cockpit/LEIAME.md"
+cp "$T/docs/rito-dev.md" "$TMP/rito18"; cp "$T/.cockpit/LEIAME.md" "$TMP/leiame18"
+resp18 '  ./docs/rito-dev.md   .cockpit//LEIAME.md/ ' "$TMP/resp18"
+rc="$(codigo rodar "$CONF" --projeto "$T" --respostas "$TMP/resp18" --forcar)"
+[ "$rc" = 0 ] || falha "caso 9: exit $rc: $(cat "$TMP/err")"
+cmp -s "$T/docs/rito-dev.md" "$TMP/rito18" && cmp -s "$T/.cockpit/LEIAME.md" "$TMP/leiame18" \
+  || falha "caso 9: item da lista sobrescrito com --forcar"
+grep -q '2 mantido(s) (projeto)' "$TMP/out" || falha "caso 9: contagem sem 2 mantido(s) (projeto)"
+! grep -q 'não é destino de nenhum template' "$TMP/err" || falha "caso 9: grafia equivalente tratada como sem template"
+# 10: modo interativo não pergunta sobrescrita de destino listado e editado
+if declare -F interativo >/dev/null; then
+  T="$(novo_repo)"; resp18 'docs/rito-dev.md' "$TMP/resp18"
+  rodar "$CONF" --projeto "$T" --respostas "$TMP/resp18" >/dev/null 2>&1 || falha "caso 10: setup"
+  echo "meu rito" >"$T/docs/rito-dev.md"; cp "$T/docs/rito-dev.md" "$TMP/rito18"
+  interativo "$(printf '\\n%.0s' {1..40})" --projeto "$T" || falha "caso 10: interativo falhou: $(tail -3 "$TMP/tty")"
+  ! grep -q 'Arquivo editado localmente: docs/rito-dev.md' "$TMP/tty" || falha "caso 10: perguntou sobrescrita do destino listado"
+  cmp -s "$T/docs/rito-dev.md" "$TMP/rito18" || falha "caso 10: destino listado alterado no interativo"
+  grep -q 'mantido (projeto): docs/rito-dev.md' "$TMP/tty" || falha "caso 10: sem 'mantido (projeto)'"
+fi
 
 # --------------------------------------------------------------- 19 ---
 cenario "19: worktree e destino ignorado"
 GIT_ID=(-c user.name=Teste -c user.email=teste@example.invalid -c commit.gpgsign=false)
 M="$(novo_repo)"
-printf 'CLAUDE.md\ndocs/rito-dev.md\n' >"$M/.gitignore"
+printf 'CLAUDE.md\ndocs/rito-dev.md\nsub/x.md\n' >"$M/.gitignore"
 git -C "$M" add .gitignore
 git -C "$M" "${GIT_ID[@]}" commit -q -m inicial
 MF="$(cd "$M" && pwd -P)"
@@ -738,7 +762,11 @@ rc="$(codigo rodar "$CONF" --projeto "$W" --respostas "$EXEMPLO")"
 [ "$rc" = 0 ] || falha "caso 9: exit $rc: $(cat "$TMP/err")"
 [ -f "$W/CLAUDE.md" ] && [ ! -L "$W/CLAUDE.md" ] && cmp -s "$W/CLAUDE.md" "$M/CLAUDE.md" || falha "caso 9: CLAUDE.md não copiado como arquivo regular"
 grep -q 'copiado da árvore principal: CLAUDE.md' "$TMP/out" || falha "caso 9: sem 'copiado da árvore principal'"
+grep -q '1 copiado(s) da árvore principal' "$TMP/out" || falha "caso 9: contagem sem copiado(s)"
 ! grep -q '  CLAUDE.md$' "$W/.cockpit/manifesto.sha256" || falha "caso 9: cópia entrou no manifesto"
+# semente não ignorada segue renderizada e no manifesto na worktree (FR-011)
+[ -f "$W/docs/constitution.md" ] && grep -q '  docs/constitution.md$' "$W/.cockpit/manifesto.sha256" \
+  || falha "caso 9: semente não ignorada não renderizada ou fora do manifesto"
 estado_m | cmp -s - "$TMP/est19" || falha "caso 9: árvore principal alterada"
 [ "$(cat "$M/CLAUDE.md")" = "meu claude" ] || falha "caso 9: origem alterada"
 rc="$(codigo rodar "$CONF" --projeto "$W" --respostas "$EXEMPLO")"
@@ -749,13 +777,21 @@ W="$(nova_wt b)"
 rc="$(codigo rodar "$CONF" --projeto "$W" --respostas "$EXEMPLO")"
 [ "$rc" = 0 ] && [ ! -e "$W/CLAUDE.md" ] || falha "caso 11: CLAUDE.md gerado ou exit $rc"
 grep -qF "mantido (ignorado pelo git): CLAUDE.md (esperado em $MF/CLAUDE.md)" "$TMP/out" || falha "caso 11: sem 'mantido (ignorado pelo git)' com o caminho esperado"
-# 12: origem que é link, e componente da origem que é link, são recusados
-ln -s "$TMP/alheio19" "$M/CLAUDE.md"
+grep -q '1 mantido(s) (ignorado pelo git)' "$TMP/out" || falha "caso 11: contagem sem mantido(s) (ignorado pelo git)"
+# 12: origem que é link (para arquivo regular existente fora da árvore), diretório, ou
+# com componente que é link, é recusada
+echo "conteúdo alheio" >"$TMP/alheio19"; ln -s "$TMP/alheio19" "$M/CLAUDE.md"
 W="$(nova_wt c)"
 rc="$(codigo rodar "$CONF" --projeto "$W" --respostas "$EXEMPLO")"
 [ "$rc" = 0 ] && [ ! -e "$W/CLAUDE.md" ] && [ ! -L "$W/CLAUDE.md" ] || falha "caso 12: origem link copiada (exit $rc)"
 grep -q 'link simbólico' "$TMP/err" || falha "caso 12: sem aviso de link simbólico"
-rm "$M/CLAUDE.md"; mkdir "$TMP/alvo19"; echo "rito alheio" >"$TMP/alvo19/rito-dev.md"; ln -s "$TMP/alvo19" "$M/docs"
+rm "$M/CLAUDE.md"; mkdir "$M/CLAUDE.md"
+W="$(nova_wt c2)"
+rc="$(codigo rodar "$CONF" --projeto "$W" --respostas "$EXEMPLO")"
+[ "$rc" = 0 ] && [ ! -e "$W/CLAUDE.md" ] || falha "caso 12: origem diretório copiada (exit $rc)"
+grep -q 'não é arquivo regular legível' "$TMP/err" || falha "caso 12: sem aviso de origem não regular"
+rmdir "$M/CLAUDE.md"
+mkdir "$TMP/alvo19"; echo "rito alheio" >"$TMP/alvo19/rito-dev.md"; ln -s "$TMP/alvo19" "$M/docs"
 W="$(nova_wt d)"; resp18 'docs/rito-dev.md' "$TMP/resp19"
 rc="$(codigo rodar "$CONF" --projeto "$W" --respostas "$TMP/resp19")"
 [ "$rc" = 0 ] && [ ! -e "$W/docs/rito-dev.md" ] || falha "caso 12: componente link copiado (exit $rc)"
@@ -767,6 +803,12 @@ rc="$(codigo rodar "$CONF" --projeto "$W" --respostas "$TMP/resp19")"
 [ "$rc" = 0 ] || falha "caso 13: exit $rc: $(cat "$TMP/err")"
 [ -f "$W/docs/rito-dev.md" ] && [ ! -L "$W/docs/rito-dev.md" ] && cmp -s "$W/docs/rito-dev.md" "$M/docs/rito-dev.md" || falha "caso 13: destino listado não copiado"
 grep -q 'copiado da árvore principal: docs/rito-dev.md' "$TMP/out" || falha "caso 13: sem 'copiado da árvore principal'"
+# o pai do destino copiado só existe se a cópia o criar (nenhum outro template em sub/)
+C="$(cockpit_copia)"; mkdir -p "$C/templates/sub" "$M/sub"
+printf 'ok\n' >"$C/templates/sub/x.md.semente.tmpl"; echo "x do projeto" >"$M/sub/x.md"
+W="$(nova_wt f)"
+rc="$(codigo rodar "$C/configurar.sh" --projeto "$W" --respostas "$EXEMPLO")"
+[ "$rc" = 0 ] && cmp -s "$W/sub/x.md" "$M/sub/x.md" || falha "caso 13: cópia sem pai não criou o diretório (exit $rc)"
 # 14: árvore principal bare, construída sem rede nem cópia de .git (gap CHK023)
 git init -q --bare "$TMP/bare19.git"
 git -C "$M" push -q "$TMP/bare19.git" HEAD:refs/heads/main >/dev/null 2>&1 || falha "caso 14: bare não populado"
@@ -775,6 +817,23 @@ rc="$(codigo rodar "$CONF" --projeto "$TMP/wt-bare" --respostas "$EXEMPLO")"
 [ "$rc" = 0 ] && [ ! -e "$TMP/wt-bare/CLAUDE.md" ] || falha "caso 14: CLAUDE.md gerado ou exit $rc"
 grep -q 'repositório bare' "$TMP/err" || falha "caso 14: sem aviso de repositório bare"
 grep -q '(árvore principal indisponível)' "$TMP/out" || falha "caso 14: sem '(árvore principal indisponível)'"
+# sem destino ignorado, a worktree do bare não avisa nada sobre a árvore principal
+R="$(novo_repo)"; git -C "$R" "${GIT_ID[@]}" commit -q --allow-empty -m inicial
+git init -q --bare "$TMP/bare19b.git"
+git -C "$R" push -q "$TMP/bare19b.git" HEAD:refs/heads/main >/dev/null 2>&1 || falha "caso 14: bare sem .gitignore não populado"
+git -C "$TMP/bare19b.git" worktree add -q "$TMP/wt-bare-b" -b wbb main >/dev/null 2>&1 || falha "caso 14: worktree do bare sem .gitignore não criada"
+rc="$(codigo rodar "$CONF" --projeto "$TMP/wt-bare-b" --respostas "$EXEMPLO")"
+[ "$rc" = 0 ] && [ -f "$TMP/wt-bare-b/CLAUDE.md" ] || falha "caso 14: semente não ignorada não gerada no bare (exit $rc)"
+! grep -q 'árvore principal indisponível' "$TMP/err" || falha "caso 14: aviso de árvore principal sem destino ignorado"
+# primeiro registro que é o git-dir (--separate-git-dir) não é aceito como árvore principal
+git init -q --separate-git-dir "$TMP/sep19.git" "$TMP/sep19"
+printf 'CLAUDE.md\n' >"$TMP/sep19/.gitignore"; echo "claude sep" >"$TMP/sep19/CLAUDE.md"
+git -C "$TMP/sep19" add .gitignore && git -C "$TMP/sep19" "${GIT_ID[@]}" commit -q -m inicial
+git -C "$TMP/sep19" worktree add -q "$TMP/wt-sep" -b ws >/dev/null 2>&1 || falha "caso 14: worktree do separate-git-dir não criada"
+rc="$(codigo rodar "$CONF" --projeto "$TMP/wt-sep" --respostas "$EXEMPLO")"
+[ "$rc" = 0 ] && [ ! -e "$TMP/wt-sep/CLAUDE.md" ] || falha "caso 14: separate-git-dir: CLAUDE.md gerado ou exit $rc"
+grep -q 'não confirmada' "$TMP/err" && grep -q '(árvore principal indisponível)' "$TMP/out" \
+  || falha "caso 14: git-dir aceito como árvore principal"
 # 15: checkout comum (a própria árvore principal) renderiza a semente e a inclui no manifesto
 rm -rf "$M/docs"
 rc="$(codigo rodar "$CONF" --projeto "$M" --respostas "$EXEMPLO")"

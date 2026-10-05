@@ -57,7 +57,7 @@ Delta da feature `destinos-do-projeto` (contrato completo em
 `docs/specs/destinos-do-projeto/contracts/cli.md`).
 
 - Chave opcional do `cockpit.config`: caminhos relativos separados por espaço, iguais ao destino
-  de algum template; é a última pergunta do modo interativo (`- para vazio`). Item só de aspas,
+  de algum template depois de normalizados (sem `./` inicial, `/./` ou `//` internos e `/` final); é a última pergunta do modo interativo (`- para vazio`). Item só de aspas,
   absoluto, com componente `..` ou valor com caractere de controle: exit 1 citando a chave.
   Item sem template correspondente: aviso em stderr, exit inalterado.
 - Destino listado: intacto, sem leitura, render, prompt nem `--forcar`; nunca é gerado; linha
@@ -67,7 +67,8 @@ Delta da feature `destinos-do-projeto` (contrato completo em
   arquivo regular correspondente da árvore principal (primeiro registro de `git worktree list`),
   fora do manifesto: `  copiado da árvore principal: <rel>`. Sem origem válida (ausente, link,
   repositório bare): nada é gerado, `  mantido (ignorado pelo git): <rel> (esperado em <caminho>)`.
-- Sem a chave e fora de worktree vinculada, a saída é a de antes.
+- Sem a chave e fora de worktree vinculada, a saída é a de antes, salvo a mensagem de conflito e o
+  `--ajuda`, que passam a citar a chave.
 
 ### Saída
 
