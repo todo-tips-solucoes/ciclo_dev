@@ -29,6 +29,10 @@ As decisões abaixo vêm do owner e não são reabertas:
 - Q: A recusa do lote por edição local muda? → A: não; só a mensagem passa a sugerir
   `DESTINOS_DO_PROJETO` (D2).
 - Q: Cópia da árvore principal entra no manifesto? → A: não, não foi gerada por template (D3).
+- Q: Origem da árvore principal que é link simbólico? → A: recusada sempre, sem seguir o link;
+  tratada como sem origem, com aviso (consistente com D3: arquivo regular, não link).
+- Q: O que é "item vazio" numa lista separada por espaço? → A: só o item composto de aspas vazias;
+  espaços repetidos não geram item e valor em branco é chave não declarada (D1 mantida).
 - Q: Prefixos de branch fixos e conflito por arquivo? → A: fora de escopo (issue #16; recusado em D2).
 
 ## User Scenarios & Testing
@@ -58,7 +62,7 @@ O valor da chave vem do `cockpit.config` e não é confiável; entradas inválid
 antes de qualquer escrita.
 
 **Acceptance Scenarios**:
-1. **Given** item absoluto, com `..`, vazio ou com caractere de controle, **When** configura,
+1. **Given** item absoluto, com `..`, vazio (só aspas) ou com caractere de controle, **When** configura,
    **Then** exit 1 citando `DESTINOS_DO_PROJETO` e nada é gravado.
 2. **Given** item que não bate com destino de nenhum template, **When** configura, **Then** aviso
    e o lote segue (não é erro).
@@ -102,7 +106,7 @@ uma cópia regular (não link), idêntica à da árvore principal, fora do manif
 - **FR-004**: o relatório lista cada destino listado como `mantido (projeto): <rel>`, com
   contagem própria, separada da de sementes.
 - **FR-005**: destino de semente listado nunca é gerado, nem quando ausente.
-- **FR-006**: item absoluto, com `..`, vazio ou com caractere de controle encerra com exit 1
+- **FR-006**: item absoluto, com `..`, vazio (só aspas) ou com caractere de controle encerra com exit 1
   citando a chave, antes de qualquer escrita; item que não bate com destino de nenhum template
   gera aviso, não erro.
 - **FR-007**: a chave integra as chaves opcionais: é perguntada no modo interativo (`-` para
@@ -124,12 +128,15 @@ uma cópia regular (não link), idêntica à da árvore principal, fora do manif
 
 ## Edge Cases
 
-- Lista com espaços repetidos nas bordas: itens vazios por separador são ignorados; só o item
-  vazio explícito inválido (ex.: valor inexistente entre aspas) é erro conforme FR-006.
+- Lista com espaços repetidos ou nas bordas: o separador é o espaço e sequências dele não geram
+  item; valor em branco equivale a chave não declarada (não é erro). O "item vazio" da FR-006 é o
+  item explícito sem caminho, isto é, composto só de aspas (`""` ou `''`): exit 1 citando a chave.
 - Destino listado inexistente e não semente: não é gerado (FR-002) e não gera conflito.
 - Destino de cópia cujo diretório-pai não existe: o pai é criado dentro do projeto.
-- Arquivo da árvore principal que é link simbólico: copia-se o conteúdo regular de destino
-  somente se resolver dentro da árvore principal; caso contrário recusa como na contenção.
+- Arquivo da árvore principal que é link simbólico (o arquivo ou algum componente do caminho de
+  origem): a cópia é recusada sempre, sem seguir o link; o destino segue como ausente ignorado
+  sem origem (`mantido (ignorado pelo git)`) e o relatório avisa o motivo. Só arquivo regular,
+  fisicamente dentro da árvore principal, é copiado.
 - Duas passagens seguidas: a 2a encontra o arquivo copiado já existente e o mantém.
 
 ## Success Criteria
