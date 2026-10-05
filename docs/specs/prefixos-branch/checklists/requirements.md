@@ -41,11 +41,20 @@
 ## Dependências e premissas
 
 - [x] CHK020 - A ausência de dependência nova e o padrão shell/shellcheck estão exigidos? [Dependências, Spec §FR-013] {auto}
-- [ ] CHK021 - O hotfix residual em `constitution.md.semente.tmpl` (fora do escopo) deve virar issue de acompanhamento agora? [Assumption, Plan §Riscos] {humano}
-- [ ] CHK022 - O escopo mínimo de cinco tipos fixos (sem tipo extra) atende o apetite do produto? [Assumption, Spec §Premissas] {humano}
+- [x] CHK021 - O hotfix residual em `constitution.md.semente.tmpl` entra no escopo? [Assumption, Spec §FR-016, §SC-007] {humano} — resolvido pelo owner em D5 (entra no escopo; sem issue)
+- [x] CHK022 - O escopo mínimo de cinco tipos fixos (sem tipo extra) atende o apetite do produto? [Assumption, Spec §FR-017] {humano} — resolvido pelo owner em D6 (cinco tipos ficam)
+
+## Incremento D4-D6 (round 2)
+
+- [x] CHK023 - O conjunto de caracteres do prefixo (`^[a-z0-9][a-z0-9._-]*$`) está definido de forma única e testável? [Clareza, Spec §FR-014] {auto}
+- [x] CHK024 - A regra de FR-014 vale igualmente na validação do configurador e na Fase 1 da skill rito-dev? [Consistência, Spec §FR-014, §FR-015] {auto}
+- [x] CHK025 - Valores com maiúscula, `;`, `$(`, `|` e início por `-`, `.` ou `_` têm cenário de recusa e saída citando a chave? [Cobertura, Spec §SC-006, §Edge Cases] {auto}
+- [x] CHK026 - A troca de `hotfix/<slug>` na semente é mensurável (idêntica byte a byte com a chave ausente)? [Mensurabilidade, Spec §FR-016, §SC-007] {auto}
+- [x] CHK027 - FR-017 é coerente com FR-001 (ordem fixa) e com o fora de escopo (`tipo=prefixo`)? [Consistência, Spec §FR-001, §FR-017] {auto}
+- [x] CHK028 - A exclusão de `BRANCH_INTEGRACAO`/`BRANCH_PRODUCAO` do FR-014 está declarada como fora de escopo? [Completude, Spec §Premissas] {auto}
 
 ## Notes
 
-- Items `{auto}` resolvidos contra spec/plan; `{humano}` aguardam o owner.
-- Gate requirement-coverage: 13/13 FRs cobertos, 0 findings.
+- Items `{auto}` resolvidos contra spec/plan; `{humano}` CHK021/CHK022 decididos pelo owner (D5/D6), sem reabrir.
+- Gate requirement-coverage: 17/17 FRs cobertos (FR-014..FR-017 no round 2), 0 findings.
 - Sem `[Gap]`/`[Ambiguity]`/`[Conflict]` abertos.
