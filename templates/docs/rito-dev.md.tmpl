@@ -31,7 +31,7 @@ remoto_sha="$(gh api repos/{{REPO_REMOTO}}/branches/{{BRANCH_INTEGRACAO}} --jq .
 ## Fase 1 — Branch
 
 Crie a branch a partir de `origin/{{BRANCH_INTEGRACAO}}` conferido, em worktree, com base explícita:
-`feature/<slug>`, `fix/<slug>`, `chore/<slug>` ou `docs/<slug>`. `hotfix/<slug>` sai de
+`{{PREFIXO_FEATURE}}/<slug>`, `{{PREFIXO_FIX}}/<slug>`, `{{PREFIXO_CHORE}}/<slug>` ou `{{PREFIXO_DOCS}}/<slug>`. `{{PREFIXO_HOTFIX}}/<slug>` sai de
 `{{BRANCH_PRODUCAO}}` e só com incidente real.
 
 ```bash

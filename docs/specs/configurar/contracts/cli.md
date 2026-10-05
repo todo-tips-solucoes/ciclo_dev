@@ -51,6 +51,14 @@ entrada que não virá).
 - Saída: `  mantido (semente): <rel>` por semente pulada; a contagem final ganha
   `, K mantido(s) (semente)` só com K > 0. Só sementes mantidas: exit 0.
 
+### Prefixos de branch (`PREFIXOS_BRANCH`)
+
+Delta da feature `prefixos-branch` (contrato completo em
+`docs/specs/prefixos-branch/contracts/cli.md`): chave opcional com cinco prefixos na ordem
+feature, fix, chore, docs, hotfix; última pergunta do modo interativo (`- para vazio`);
+valor inválido: exit 1 citando a chave (cada prefixo casa com `^[a-z0-9][a-z0-9._-]*$`, regra D4). A semente `docs/constitution.md` consome `{{PREFIXO_HOTFIX}}`. Deriva os placeholders `{{PREFIXO_*}}`, que não são
+chaves (não perguntados nem gravados).
+
 ### Destinos do projeto (`DESTINOS_DO_PROJETO`)
 
 Delta da feature `destinos-do-projeto` (contrato completo em
