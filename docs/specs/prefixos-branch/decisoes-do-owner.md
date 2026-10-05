@@ -83,7 +83,7 @@ Elas são normativas na reabertura da frente e prevalecem sobre D1 e D3 onde as 
 - Os exemplos `fix/…` e `feat/…` de `skills/parallel-work/SKILL.md` (ilustração, não regra).
 - Tipos de branch além dos cinco, e renomear branches existentes.
 - Restringir os caracteres de `BRANCH_INTEGRACAO` e `BRANCH_PRODUCAO`: mesma exposição de D4, mas
-  com regra própria (aceitam `/`, como em `release/2026`); vai para issue separada.
+  com regra própria (aceitam `/`, como em `release/2026`); vai para a issue #19.
 
 ## Restrições
 
