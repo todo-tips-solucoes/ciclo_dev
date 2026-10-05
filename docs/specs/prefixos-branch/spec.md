@@ -232,3 +232,13 @@ feature-00c, 2026-10-05.
   issue #19).
 - Fora de escopo (D3): exemplos `fix/…` e `feat/…` de `skills/parallel-work/SKILL.md`, tipos de
   branch além dos cinco e renomear branches existentes.
+
+## Clarifications
+
+### Session 2026-10-05 (round 2, reabertura)
+
+Varredura das emendas D4, D5 e D6 (FR-014 a FR-017, US5, SC-006, SC-007) contra
+`decisoes-do-owner.md`, o briefing e a constituição: nenhuma ambiguidade aberta. Regra de
+caracteres (D4), resíduo da semente (D5) e tipos fixos (D6) estão decididos pelo owner e não se
+reabrem; casos de borda (maiúscula, metacaractere, início por `.`, `_` ou `-`, constituição já
+existente) já constam em Edge Cases e nos cenários de aceite. Zero perguntas ao operador.
