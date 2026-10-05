@@ -20,7 +20,7 @@ Roda a partir do clone do cockpit (lê `templates/`, `versoes.env` e
 | `--projeto DIR` | diretório corrente | raiz do projeto-alvo; MUST ser o topo de um repositório git |
 | `--respostas ARQ` | — | modo não interativo: todos os valores vêm de `ARQ` (formato `CHAVE=valor`); nenhuma pergunta |
 | `--atualizar` | — | não pergunta nada; re-renderiza a partir do `cockpit.config` existente |
-| `--forcar` | — | sobrescreve arquivos editados à mão sem confirmação, exceto sementes, que nunca são sobrescritas |
+| `--forcar` | — | sobrescreve arquivos editados à mão sem confirmação, exceto sementes e destinos em `DESTINOS_DO_PROJETO`, que nunca são sobrescritos |
 | `--ajuda` | — | imprime o uso e sai com 0 |
 
 `--atualizar` e `--respostas` juntos: erro de uso. Sem `--respostas`, sem
@@ -51,6 +51,25 @@ entrada que não virá).
 - Saída: `  mantido (semente): <rel>` por semente pulada; a contagem final ganha
   `, K mantido(s) (semente)` só com K > 0. Só sementes mantidas: exit 0.
 
+### Destinos do projeto (`DESTINOS_DO_PROJETO`)
+
+Delta da feature `destinos-do-projeto` (contrato completo em
+`docs/specs/destinos-do-projeto/contracts/cli.md`).
+
+- Chave opcional do `cockpit.config`: caminhos relativos separados por espaço, iguais ao destino
+  de algum template depois de normalizados (sem `./` inicial, `/./` ou `//` internos e `/` final); é a última pergunta do modo interativo (`- para vazio`). Item só de aspas,
+  absoluto, com componente `..` ou valor com caractere de controle: exit 1 citando a chave.
+  Item sem template correspondente: aviso em stderr, exit inalterado.
+- Destino listado: intacto, sem leitura, render, prompt nem `--forcar`; nunca é gerado; linha
+  anterior do manifesto mantida. Saída `  mantido (projeto): <rel>` e, na contagem final,
+  `, P mantido(s) (projeto)`.
+- Numa worktree vinculada, semente ou destino listado ausente e ignorado pelo git é copiado do
+  arquivo regular correspondente da árvore principal (primeiro registro de `git worktree list`),
+  fora do manifesto: `  copiado da árvore principal: <rel>`. Sem origem válida (ausente, link,
+  repositório bare): nada é gerado, `  mantido (ignorado pelo git): <rel> (esperado em <caminho>)`.
+- Sem a chave e fora de worktree vinculada, a saída é a de antes, salvo a mensagem de conflito e o
+  `--ajuda`, que passam a citar a chave.
+
 ### Saída
 
 - stdout: progresso por passo e resumo final (arquivos escritos, inalterados,
@@ -73,7 +92,7 @@ entrada que não virá).
 ### Mensagens de referência (conteúdo, não literal final)
 
 - Residual: `Placeholder sem valor: {{CHAVE}} em <rel do template>`
-- Conflito: `Arquivo editado localmente, mantido: <rel>. Use --forcar para sobrescrever.`
+- Conflito: `Arquivo editado localmente, mantido: <rel>. Use --forcar para sobrescrever ou declare o destino em DESTINOS_DO_PROJETO no cockpit.config.`
 - `--atualizar` sem config: `Nenhum cockpit.config em <raiz>. Rode ./configurar.sh sem --atualizar para criá-lo.`
 - `cstk` ausente: o mesmo par de linhas `Execute: ...` que `instalar.sh` imprime (URL lida de um único lugar no código).
 

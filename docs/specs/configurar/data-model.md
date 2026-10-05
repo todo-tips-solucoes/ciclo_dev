@@ -20,6 +20,7 @@ forma de escrita.
 | `IDENTIDADES` | não | sim | 1+ itens `nome:email` separados por `;` — ver [Decision 5 (proposta)](./research.md) |
 | `BOARD` | não | sim (pode ser vazio) | `''` = projeto sem board; senão texto não vazio de uma linha |
 | `PRINCIPIO_III` | não | sim (`ligado` sugerido só na pergunta interativa; ausente no modo não interativo é erro, FR-016) | `ligado` \| `desligado` |
+| `DESTINOS_DO_PROJETO` | não | não (opcional; ausente, vazia ou só espaços = não declarada) | caminhos relativos separados por espaço, sem item absoluto, sem componente `..`, sem item só de aspas |
 
 ### Regras
 
@@ -59,6 +60,7 @@ forma de escrita.
 | `IDENTIDADES` | ver Decision 5; ≥ 1 item; espaços nas pontas de itens, nome e e-mail são aparados; nome sem `:` |
 | `BOARD` | vazio ou texto com ao menos um caractere que não seja espaço |
 | `PRINCIPIO_III` | `ligado` ou `desligado` |
+| `DESTINOS_DO_PROJETO` | cada item relativo, sem `..` e com ao menos um caractere que não seja aspas; item que não é destino de template só gera aviso |
 
 ---
 

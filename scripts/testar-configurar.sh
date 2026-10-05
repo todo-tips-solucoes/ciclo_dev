@@ -430,31 +430,40 @@ if command -v script >/dev/null 2>&1 && script -qec true /dev/null >/dev/null 2>
   }
   T="$(novo_repo)"
   # 12 chaves, depois nome/e-mail de duas identidades, nome vazio encerra,
-  # board e Enter no Princípio III (sugere ligado).
-  interativo 'proj\norg/repo\ndev\nmain\nnpm\nnpm run tc\nnpm run lint\nnpm run build\nnpm run d:i\nnpm run d:p\n-\n-\nAna Silva\n1+ana@users.noreply.github.com\nBeto\n2+beto@users.noreply.github.com\n\n@ana-exemplo\norg-exemplo/9\n\n' --projeto "$T" \
+  # board, Enter no Princípio III (sugere ligado) e - nos destinos do projeto.
+  interativo 'proj\norg/repo\ndev\nmain\nnpm\nnpm run tc\nnpm run lint\nnpm run build\nnpm run d:i\nnpm run d:p\n-\n-\nAna Silva\n1+ana@users.noreply.github.com\nBeto\n2+beto@users.noreply.github.com\n\n@ana-exemplo\norg-exemplo/9\n\n-\n' --projeto "$T" \
     || falha "configuração interativa falhou: $(tail -3 "$TMP/tty")"
   grep -q "^IDENTIDADES='Ana Silva:1+ana@users.noreply.github.com;Beto:2+beto@users.noreply.github.com'\$" "$T/cockpit.config" \
     || falha "nome e e-mail separados não gravados como nome:email"
   grep -q "^PRINCIPIO_III='ligado'\$" "$T/cockpit.config" || falha "Enter no Princípio III não aceitou o sugerido"
-  # SC-001: configuração mínima (uma identidade) com exatamente 18 respostas (17 + DONOS_CODEOWNERS).
-  MINIMO='proj\norg/repo\ndev\nmain\nnpm\nnpm run tc\nnpm run lint\nnpm run build\nnpm run d:i\nnpm run d:p\n-\n-\nAna\n1+ana@users.noreply.github.com\n\n@ana-exemplo\n-\n\n'
-  [ "$(printf '%b' "$MINIMO" | wc -l | tr -d ' ')" = 18 ] || falha "entrada mínima não tem 18 respostas"
+  # SC-001 (ajustado por FR-007 da feature destinos-do-projeto): configuração mínima
+  # (uma identidade) com exatamente 19 respostas (18 + DESTINOS_DO_PROJETO).
+  MINIMO18='proj\norg/repo\ndev\nmain\nnpm\nnpm run tc\nnpm run lint\nnpm run build\nnpm run d:i\nnpm run d:p\n-\n-\nAna\n1+ana@users.noreply.github.com\n\n@ana-exemplo\n-\n\n'
+  MINIMO="$MINIMO18-\n"
+  [ "$(printf '%b' "$MINIMO" | wc -l | tr -d ' ')" = 19 ] || falha "entrada mínima não tem 19 respostas"
   T3="$(novo_repo)"
-  interativo "$MINIMO" --projeto "$T3" || falha "configuração mínima com 18 respostas falhou: $(tail -3 "$TMP/tty")"
+  interativo "$MINIMO" --projeto "$T3" || falha "configuração mínima com 19 respostas falhou: $(tail -3 "$TMP/tty")"
   [ -f "$T3/cockpit.config" ] && [ -f "$T3/.cockpit/LEIAME.md" ] || falha "configuração mínima não gravou config e templates"
+  ! grep -q '^DESTINOS_DO_PROJETO=' "$T3/cockpit.config" || falha "- nos destinos gravou a chave"
   T3="$(novo_repo)"
-  ! interativo "$(printf '%b' "$MINIMO" | head -17 | sed 's/$/\\n/' | tr -d '\n')" --projeto "$T3" \
-    || falha "configuração concluiu com 17 respostas; SC-001 fixa 18"
+  ! interativo "$MINIMO18" --projeto "$T3" \
+    || falha "configuração concluiu com 18 respostas; a mínima passou a 19"
   # Config incompleto: só a chave ausente é perguntada.
   grep -v '^BOARD=' "$T/cockpit.config" >"$TMP/c14"; cp "$TMP/c14" "$T/cockpit.config"
-  interativo 'org-exemplo/3\n-\n-\n' --projeto "$T" || falha "interativo com config incompleto falhou: $(tail -3 "$TMP/tty")"
+  interativo 'org-exemplo/3\n-\n-\n-\n' --projeto "$T" || falha "interativo com config incompleto falhou: $(tail -3 "$TMP/tty")"
   grep -q 'ausente(s) no cockpit.config: BOARD' "$TMP/tty" || falha "chave ausente não foi reportada"
   ! grep -q 'Nome do projeto' "$TMP/tty" || falha "config incompleto perguntou chave já definida"
   grep -q "^BOARD='org-exemplo/3'\$" "$T/cockpit.config" || falha "chave ausente não foi gravada"
   # Nome com ':' é recusado e perguntado de novo; vazio depois mantém as atuais.
-  interativo '\n\n\n\n\n\n\n\n\n\n\n\nA:B\n\n\n\n\n' --projeto "$T" || falha "reentrada de identidade falhou: $(tail -3 "$TMP/tty")"
+  interativo '\n\n\n\n\n\n\n\n\n\n\n\nA:B\n\n\n\n\n\n' --projeto "$T" || falha "reentrada de identidade falhou: $(tail -3 "$TMP/tty")"
   grep -q "não pode conter ':'" "$TMP/tty" || falha "nome com ':' não recusado"
   grep -q "^IDENTIDADES='Ana Silva:" "$T/cockpit.config" || falha "identidades atuais não mantidas"
+  # Pergunta nova (FR-007): texto, dica e gravação.
+  T4="$(novo_repo)"
+  interativo "${MINIMO18}CLAUDE.md\n" --projeto "$T4" || falha "rodada com destinos falhou: $(tail -3 "$TMP/tty")"
+  grep -q 'Destinos mantidos pelo projeto' "$TMP/tty" || falha "pergunta dos destinos ausente"
+  grep -q 'Destinos mantidos pelo projeto (caminhos separados por espaço) (- para vazio)' "$TMP/tty" || falha "dica (- para vazio) ausente"
+  grep -q "^DESTINOS_DO_PROJETO='CLAUDE.md'\$" "$T4/cockpit.config" || falha "DESTINOS_DO_PROJETO não gravado"
 else
   printf '  (script(1) ausente — cenário interativo pulado)\n'
 fi
@@ -472,6 +481,7 @@ done
 # Nenhum template real usa chave opcional (a ausência delas não pode deixar resíduo).
 [ -d "$RAIZ_COCKPIT/templates" ] || falha "diretório templates/ ausente"
 ! grep -rq 'URL_AMBIENTE' "$RAIZ_COCKPIT/templates" || falha "template usa chave opcional URL_AMBIENTE_*"
+! grep -rq 'DESTINOS_DO_PROJETO' "$RAIZ_COCKPIT/templates" || falha "template usa chave opcional DESTINOS_DO_PROJETO"
 # Princípios na ordem, seção de princípios próprios e o que o pre-flight do /feature-00c exige.
 ordem="$(grep -oE '^### [IVX]+(-bis)?\. ' "$T/docs/constitution.md" | tr -d '#. ' | tr '\n' ' ')"
 [ "$ordem" = "II II-bis III IV IV-bis V VI VII VIII " ] || falha "princípios fora de ordem: $ordem"
@@ -647,6 +657,188 @@ rc="$(codigo rodar "$C/configurar.sh" --projeto "$T" --respostas "$EXEMPLO")"
 T="$(novo_repo)"; printf 'arquivo\n' >"$T/sub"
 rc="$(codigo rodar "$C/configurar.sh" --projeto "$T" --respostas "$EXEMPLO")"
 [ "$rc" = 1 ] || falha "caso 9: pai arquivo saiu com $rc (esperado 1)"
+
+# --------------------------------------------------------------- 18 ---
+cenario "18: destinos do projeto"
+# resp18 DESTINOS ARQ — respostas do exemplo com a chave DESTINOS_DO_PROJETO.
+resp18() { { grep -v '^DESTINOS_DO_PROJETO=' "$EXEMPLO"; printf "DESTINOS_DO_PROJETO='%s'\n" "$1"; } >"$2"; }
+# 1 e 2: destino editado e listado fica intacto com --forcar e com --atualizar
+T="$(novo_repo)"
+rodar "$CONF" --projeto "$T" --respostas "$EXEMPLO" >/dev/null 2>&1 || falha "caso 1: setup"
+echo "meu rito" >"$T/docs/rito-dev.md"; cp "$T/docs/rito-dev.md" "$TMP/rito18"
+grep '  docs/rito-dev.md$' "$T/.cockpit/manifesto.sha256" >"$TMP/linha18" || falha "caso 1: rito fora do manifesto"
+resp18 'docs/rito-dev.md' "$TMP/resp18"
+rc="$(codigo rodar "$CONF" --projeto "$T" --respostas "$TMP/resp18" --forcar)"
+[ "$rc" = 0 ] || falha "caso 1: exit $rc: $(cat "$TMP/err")"
+cmp -s "$T/docs/rito-dev.md" "$TMP/rito18" || falha "caso 1: destino listado alterado com --forcar"
+grep -q '^  mantido (projeto): docs/rito-dev.md$' "$TMP/out" || falha "caso 1: sem 'mantido (projeto)'"
+grep -q '1 mantido(s) (projeto)' "$TMP/out" || falha "caso 1: contagem sem mantido(s) (projeto)"
+grep '  docs/rito-dev.md$' "$T/.cockpit/manifesto.sha256" | cmp -s - "$TMP/linha18" || falha "caso 1: linha do manifesto não preservada"
+rc="$(codigo rodar "$CONF" --projeto "$T" --atualizar </dev/null)"
+[ "$rc" = 0 ] || falha "caso 2: --atualizar saiu com $rc"
+cmp -s "$T/docs/rito-dev.md" "$TMP/rito18" || falha "caso 2: destino listado alterado com --atualizar"
+grep -q '^  mantido (projeto): docs/rito-dev.md$' "$TMP/out" || falha "caso 2: sem 'mantido (projeto)'"
+# 3: semente listada e ausente não é gerada
+T="$(novo_repo)"; resp18 'CLAUDE.md' "$TMP/resp18"
+rc="$(codigo rodar "$CONF" --projeto "$T" --respostas "$TMP/resp18")"
+[ "$rc" = 0 ] && [ ! -e "$T/CLAUDE.md" ] || falha "caso 3: semente listada gerada (exit $rc)"
+grep -q '^  mantido (projeto): CLAUDE.md$' "$TMP/out" || falha "caso 3: sem 'mantido (projeto)'"
+# 4: conflito fora da lista recusa o lote, sugere a chave e não cita o listado
+T="$(novo_repo)"
+rodar "$CONF" --projeto "$T" --respostas "$EXEMPLO" >/dev/null 2>&1 || falha "caso 4: setup"
+echo editado >>"$T/.cockpit/LEIAME.md"; echo "meu rito" >"$T/docs/rito-dev.md"
+resp18 'docs/rito-dev.md' "$TMP/resp18"; sed -i.bak "s/^PROJETO_NOME=.*/PROJETO_NOME='outro18'/" "$TMP/resp18"
+rc="$(codigo rodar "$CONF" --projeto "$T" --respostas "$TMP/resp18")"
+[ "$rc" = 2 ] || falha "caso 4: exit $rc (esperado 2)"
+grep -q -- '--forcar' "$TMP/err" && grep -q 'DESTINOS_DO_PROJETO' "$TMP/err" || falha "caso 4: mensagem sem --forcar e DESTINOS_DO_PROJETO"
+grep -q '.cockpit/LEIAME.md' "$TMP/err" || falha "caso 4: stderr não cita LEIAME.md"
+! grep -q 'docs/rito-dev.md' "$TMP/err" || falha "caso 4: stderr cita o destino listado"
+# 5: itens inválidos dão exit 1 citando a chave, sem criar cockpit.config
+for v in '/etc/x' 'docs/../x' 'ci.yml "" b' "$(printf 'a\tb')"; do
+  T="$(novo_repo)"; resp18 "$v" "$TMP/resp18"
+  rc="$(codigo rodar "$CONF" --projeto "$T" --respostas "$TMP/resp18")"
+  [ "$rc" = 1 ] || falha "caso 5: '$v' saiu com $rc (esperado 1)"
+  grep -q 'DESTINOS_DO_PROJETO' "$TMP/err" || falha "caso 5: '$v' sem citar a chave"
+  [ ! -e "$T/cockpit.config" ] || falha "caso 5: '$v' criou cockpit.config"
+done
+# 6: item sem template avisa e segue; 7: chave ausente ou em branco = árvore idêntica; 8: duas passagens
+T="$(novo_repo)"; resp18 'nao-e-template.md' "$TMP/resp18"
+rc="$(codigo rodar "$CONF" --projeto "$T" --respostas "$TMP/resp18")"
+[ "$rc" = 0 ] || falha "caso 6: exit $rc"
+grep -q "Aviso: DESTINOS_DO_PROJETO: 'nao-e-template.md' não é destino de nenhum template; ignorado." "$TMP/err" || falha "caso 6: sem aviso"
+TA="$(novo_repo)"; TB="$(novo_repo)"; TC="$(novo_repo)"
+rodar "$CONF" --projeto "$TA" --respostas "$EXEMPLO" >/dev/null 2>&1 || falha "caso 7: setup A"
+grep -v '^DESTINOS_DO_PROJETO=' "$EXEMPLO" >"$TMP/sem18"
+rodar "$CONF" --projeto "$TB" --respostas "$TMP/sem18" >/dev/null 2>&1 || falha "caso 7: sem a chave"
+resp18 '   ' "$TMP/branco18"
+rodar "$CONF" --projeto "$TC" --respostas "$TMP/branco18" >/dev/null 2>&1 || falha "caso 7: chave em branco"
+diff -r --exclude=.git "$TA" "$TB" >/dev/null || falha "caso 7: ausente difere de vazia"
+diff -r --exclude=.git "$TA" "$TC" >/dev/null || falha "caso 7: em branco difere de vazia"
+! grep -q '^DESTINOS_DO_PROJETO=' "$TC/cockpit.config" || falha "caso 7: em branco foi gravada"
+T="$(novo_repo)"; resp18 'docs/rito-dev.md' "$TMP/resp18"
+rodar "$CONF" --projeto "$T" --respostas "$TMP/resp18" >/dev/null 2>&1 || falha "caso 8: 1ª passagem"
+[ ! -e "$T/docs/rito-dev.md" ] || falha "caso 8: destino listado inexistente foi gerado"
+cp -R "$T" "$TMP/copia18"
+rodar "$CONF" --projeto "$T" --respostas "$TMP/resp18" >/dev/null 2>&1 || falha "caso 8: 2ª passagem"
+diff -r --exclude=.git "$T" "$TMP/copia18" >/dev/null || falha "caso 8: 2ª passagem alterou a árvore"
+# 9: vários itens, com espaços repetidos e grafia não canônica, protegem todos com --forcar
+T="$(novo_repo)"
+rodar "$CONF" --projeto "$T" --respostas "$EXEMPLO" >/dev/null 2>&1 || falha "caso 9: setup"
+echo "meu rito" >"$T/docs/rito-dev.md"; echo "meu leiame" >"$T/.cockpit/LEIAME.md"
+cp "$T/docs/rito-dev.md" "$TMP/rito18"; cp "$T/.cockpit/LEIAME.md" "$TMP/leiame18"
+resp18 '  ./docs/rito-dev.md   .cockpit//LEIAME.md/ ' "$TMP/resp18"
+rc="$(codigo rodar "$CONF" --projeto "$T" --respostas "$TMP/resp18" --forcar)"
+[ "$rc" = 0 ] || falha "caso 9: exit $rc: $(cat "$TMP/err")"
+cmp -s "$T/docs/rito-dev.md" "$TMP/rito18" && cmp -s "$T/.cockpit/LEIAME.md" "$TMP/leiame18" \
+  || falha "caso 9: item da lista sobrescrito com --forcar"
+grep -q '2 mantido(s) (projeto)' "$TMP/out" || falha "caso 9: contagem sem 2 mantido(s) (projeto)"
+! grep -q 'não é destino de nenhum template' "$TMP/err" || falha "caso 9: grafia equivalente tratada como sem template"
+# 10: modo interativo não pergunta sobrescrita de destino listado e editado
+if declare -F interativo >/dev/null; then
+  T="$(novo_repo)"; resp18 'docs/rito-dev.md' "$TMP/resp18"
+  rodar "$CONF" --projeto "$T" --respostas "$TMP/resp18" >/dev/null 2>&1 || falha "caso 10: setup"
+  echo "meu rito" >"$T/docs/rito-dev.md"; cp "$T/docs/rito-dev.md" "$TMP/rito18"
+  interativo "$(printf '\\n%.0s' {1..40})" --projeto "$T" || falha "caso 10: interativo falhou: $(tail -3 "$TMP/tty")"
+  ! grep -q 'Arquivo editado localmente: docs/rito-dev.md' "$TMP/tty" || falha "caso 10: perguntou sobrescrita do destino listado"
+  cmp -s "$T/docs/rito-dev.md" "$TMP/rito18" || falha "caso 10: destino listado alterado no interativo"
+  grep -q 'mantido (projeto): docs/rito-dev.md' "$TMP/tty" || falha "caso 10: sem 'mantido (projeto)'"
+fi
+
+# --------------------------------------------------------------- 19 ---
+cenario "19: worktree e destino ignorado"
+GIT_ID=(-c user.name=Teste -c user.email=teste@example.invalid -c commit.gpgsign=false)
+M="$(novo_repo)"
+printf 'CLAUDE.md\ndocs/rito-dev.md\nsub/x.md\n' >"$M/.gitignore"
+git -C "$M" add .gitignore
+git -C "$M" "${GIT_ID[@]}" commit -q -m inicial
+MF="$(cd "$M" && pwd -P)"
+# nova_wt NOME — worktree vinculada nova, fora de M.
+nova_wt() { git -C "$M" worktree add -q "$TMP/wt-$1" -b "wt-$1" >/dev/null 2>&1 || falha "worktree $1 não criada"; printf '%s' "$TMP/wt-$1"; }
+estado_m() { git -C "$M" status --porcelain --ignored; }
+# 9 e 10: cópia como arquivo regular, fora do manifesto, árvore principal intacta
+printf 'meu claude\n' >"$M/CLAUDE.md"; estado_m >"$TMP/est19"
+W="$(nova_wt a)"
+rc="$(codigo rodar "$CONF" --projeto "$W" --respostas "$EXEMPLO")"
+[ "$rc" = 0 ] || falha "caso 9: exit $rc: $(cat "$TMP/err")"
+[ -f "$W/CLAUDE.md" ] && [ ! -L "$W/CLAUDE.md" ] && cmp -s "$W/CLAUDE.md" "$M/CLAUDE.md" || falha "caso 9: CLAUDE.md não copiado como arquivo regular"
+grep -q 'copiado da árvore principal: CLAUDE.md' "$TMP/out" || falha "caso 9: sem 'copiado da árvore principal'"
+grep -q '1 copiado(s) da árvore principal' "$TMP/out" || falha "caso 9: contagem sem copiado(s)"
+! grep -q '  CLAUDE.md$' "$W/.cockpit/manifesto.sha256" || falha "caso 9: cópia entrou no manifesto"
+# semente não ignorada segue renderizada e no manifesto na worktree (FR-011)
+[ -f "$W/docs/constitution.md" ] && grep -q '  docs/constitution.md$' "$W/.cockpit/manifesto.sha256" \
+  || falha "caso 9: semente não ignorada não renderizada ou fora do manifesto"
+estado_m | cmp -s - "$TMP/est19" || falha "caso 9: árvore principal alterada"
+[ "$(cat "$M/CLAUDE.md")" = "meu claude" ] || falha "caso 9: origem alterada"
+rc="$(codigo rodar "$CONF" --projeto "$W" --respostas "$EXEMPLO")"
+[ "$rc" = 0 ] && grep -q '^  mantido (semente): CLAUDE.md$' "$TMP/out" || falha "caso 10: 2ª passagem sem 'mantido (semente)' (exit $rc)"
+# 11: sem o arquivo na árvore principal, nada é gerado
+rm "$M/CLAUDE.md"
+W="$(nova_wt b)"
+rc="$(codigo rodar "$CONF" --projeto "$W" --respostas "$EXEMPLO")"
+[ "$rc" = 0 ] && [ ! -e "$W/CLAUDE.md" ] || falha "caso 11: CLAUDE.md gerado ou exit $rc"
+grep -qF "mantido (ignorado pelo git): CLAUDE.md (esperado em $MF/CLAUDE.md)" "$TMP/out" || falha "caso 11: sem 'mantido (ignorado pelo git)' com o caminho esperado"
+grep -q '1 mantido(s) (ignorado pelo git)' "$TMP/out" || falha "caso 11: contagem sem mantido(s) (ignorado pelo git)"
+# 12: origem que é link (para arquivo regular existente fora da árvore), diretório, ou
+# com componente que é link, é recusada
+echo "conteúdo alheio" >"$TMP/alheio19"; ln -s "$TMP/alheio19" "$M/CLAUDE.md"
+W="$(nova_wt c)"
+rc="$(codigo rodar "$CONF" --projeto "$W" --respostas "$EXEMPLO")"
+[ "$rc" = 0 ] && [ ! -e "$W/CLAUDE.md" ] && [ ! -L "$W/CLAUDE.md" ] || falha "caso 12: origem link copiada (exit $rc)"
+grep -q 'link simbólico' "$TMP/err" || falha "caso 12: sem aviso de link simbólico"
+rm "$M/CLAUDE.md"; mkdir "$M/CLAUDE.md"
+W="$(nova_wt c2)"
+rc="$(codigo rodar "$CONF" --projeto "$W" --respostas "$EXEMPLO")"
+[ "$rc" = 0 ] && [ ! -e "$W/CLAUDE.md" ] || falha "caso 12: origem diretório copiada (exit $rc)"
+grep -q 'não é arquivo regular legível' "$TMP/err" || falha "caso 12: sem aviso de origem não regular"
+rmdir "$M/CLAUDE.md"
+mkdir "$TMP/alvo19"; echo "rito alheio" >"$TMP/alvo19/rito-dev.md"; ln -s "$TMP/alvo19" "$M/docs"
+W="$(nova_wt d)"; resp18 'docs/rito-dev.md' "$TMP/resp19"
+rc="$(codigo rodar "$CONF" --projeto "$W" --respostas "$TMP/resp19")"
+[ "$rc" = 0 ] && [ ! -e "$W/docs/rito-dev.md" ] || falha "caso 12: componente link copiado (exit $rc)"
+grep -q 'link simbólico' "$TMP/err" || falha "caso 12: sem aviso para componente link"
+# 13: destino listado e ignorado é copiado, com criação do pai
+rm "$M/docs"; mkdir "$M/docs"; echo "rito do projeto" >"$M/docs/rito-dev.md"
+W="$(nova_wt e)"
+rc="$(codigo rodar "$CONF" --projeto "$W" --respostas "$TMP/resp19")"
+[ "$rc" = 0 ] || falha "caso 13: exit $rc: $(cat "$TMP/err")"
+[ -f "$W/docs/rito-dev.md" ] && [ ! -L "$W/docs/rito-dev.md" ] && cmp -s "$W/docs/rito-dev.md" "$M/docs/rito-dev.md" || falha "caso 13: destino listado não copiado"
+grep -q 'copiado da árvore principal: docs/rito-dev.md' "$TMP/out" || falha "caso 13: sem 'copiado da árvore principal'"
+# o pai do destino copiado só existe se a cópia o criar (nenhum outro template em sub/)
+C="$(cockpit_copia)"; mkdir -p "$C/templates/sub" "$M/sub"
+printf 'ok\n' >"$C/templates/sub/x.md.semente.tmpl"; echo "x do projeto" >"$M/sub/x.md"
+W="$(nova_wt f)"
+rc="$(codigo rodar "$C/configurar.sh" --projeto "$W" --respostas "$EXEMPLO")"
+[ "$rc" = 0 ] && cmp -s "$W/sub/x.md" "$M/sub/x.md" || falha "caso 13: cópia sem pai não criou o diretório (exit $rc)"
+# 14: árvore principal bare, construída sem rede nem cópia de .git (gap CHK023)
+git init -q --bare "$TMP/bare19.git"
+git -C "$M" push -q "$TMP/bare19.git" HEAD:refs/heads/main >/dev/null 2>&1 || falha "caso 14: bare não populado"
+git -C "$TMP/bare19.git" worktree add -q "$TMP/wt-bare" -b wb main >/dev/null 2>&1 || falha "caso 14: worktree do bare não criada"
+rc="$(codigo rodar "$CONF" --projeto "$TMP/wt-bare" --respostas "$EXEMPLO")"
+[ "$rc" = 0 ] && [ ! -e "$TMP/wt-bare/CLAUDE.md" ] || falha "caso 14: CLAUDE.md gerado ou exit $rc"
+grep -q 'repositório bare' "$TMP/err" || falha "caso 14: sem aviso de repositório bare"
+grep -q '(árvore principal indisponível)' "$TMP/out" || falha "caso 14: sem '(árvore principal indisponível)'"
+# sem destino ignorado, a worktree do bare não avisa nada sobre a árvore principal
+R="$(novo_repo)"; git -C "$R" "${GIT_ID[@]}" commit -q --allow-empty -m inicial
+git init -q --bare "$TMP/bare19b.git"
+git -C "$R" push -q "$TMP/bare19b.git" HEAD:refs/heads/main >/dev/null 2>&1 || falha "caso 14: bare sem .gitignore não populado"
+git -C "$TMP/bare19b.git" worktree add -q "$TMP/wt-bare-b" -b wbb main >/dev/null 2>&1 || falha "caso 14: worktree do bare sem .gitignore não criada"
+rc="$(codigo rodar "$CONF" --projeto "$TMP/wt-bare-b" --respostas "$EXEMPLO")"
+[ "$rc" = 0 ] && [ -f "$TMP/wt-bare-b/CLAUDE.md" ] || falha "caso 14: semente não ignorada não gerada no bare (exit $rc)"
+! grep -q 'árvore principal indisponível' "$TMP/err" || falha "caso 14: aviso de árvore principal sem destino ignorado"
+# primeiro registro que é o git-dir (--separate-git-dir) não é aceito como árvore principal
+git init -q --separate-git-dir "$TMP/sep19.git" "$TMP/sep19"
+printf 'CLAUDE.md\n' >"$TMP/sep19/.gitignore"; echo "claude sep" >"$TMP/sep19/CLAUDE.md"
+git -C "$TMP/sep19" add .gitignore && git -C "$TMP/sep19" "${GIT_ID[@]}" commit -q -m inicial
+git -C "$TMP/sep19" worktree add -q "$TMP/wt-sep" -b ws >/dev/null 2>&1 || falha "caso 14: worktree do separate-git-dir não criada"
+rc="$(codigo rodar "$CONF" --projeto "$TMP/wt-sep" --respostas "$EXEMPLO")"
+[ "$rc" = 0 ] && [ ! -e "$TMP/wt-sep/CLAUDE.md" ] || falha "caso 14: separate-git-dir: CLAUDE.md gerado ou exit $rc"
+grep -q 'não confirmada' "$TMP/err" && grep -q '(árvore principal indisponível)' "$TMP/out" \
+  || falha "caso 14: git-dir aceito como árvore principal"
+# 15: checkout comum (a própria árvore principal) renderiza a semente e a inclui no manifesto
+rm -rf "$M/docs"
+rc="$(codigo rodar "$CONF" --projeto "$M" --respostas "$EXEMPLO")"
+[ "$rc" = 0 ] && [ -f "$M/CLAUDE.md" ] || falha "caso 15: semente não renderizada (exit $rc)"
+grep -q '  CLAUDE.md$' "$M/.cockpit/manifesto.sha256" || falha "caso 15: semente fora do manifesto"
 
 # --------------------------------------------------------------- 11 ---
 cenario "11: qualidade estática"

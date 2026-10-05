@@ -72,3 +72,10 @@ BOARD=''
 # `ligado` ou `desligado` (`ligado` é o sugerido na pergunta interativa; no arquivo de respostas a chave é obrigatória).
 
 PRINCIPIO_III='ligado'
+
+# --- Destinos mantidos pelo projeto (opcional) -------------------------------
+# Caminhos relativos à raiz, separados por espaço, iguais ao destino de algum
+# template. Destino listado nunca é gerado nem sobrescrito (nem com --forcar).
+# Exemplo: DESTINOS_DO_PROJETO='.github/workflows/ci.yml docs/rito-dev.md'
+
+DESTINOS_DO_PROJETO=''

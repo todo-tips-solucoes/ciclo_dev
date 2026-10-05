@@ -11,6 +11,12 @@
 # (qualquer tipo), fica intacto, mesmo com --forcar; não entra nem sai do manifesto
 # (a linha anterior dela, se houver, é mantida — FR-006).
 #
+# Destinos do projeto: a chave opcional DESTINOS_DO_PROJETO (caminhos separados
+# por espaço) lista destinos que o projeto mantém; ficam intactos como uma
+# semente existente, nem com --forcar são sobrescritos. Numa worktree vinculada,
+# semente ou destino listado ausente e ignorado pelo git é copiado da árvore
+# principal (arquivo regular, fora do manifesto); sem origem válida, não é gerado.
+#
 # Uso: ./configurar.sh [--projeto DIR] [--respostas ARQ] [--atualizar]
 #                      [--forcar] [--ajuda]
 #
@@ -42,9 +48,9 @@ REPO_ROOT="$COCKPIT_DIR"
   exit 1
 }
 
-# Ordem fixa de gravação (data-model.md). URLs são as únicas opcionais.
-CHAVES_ORDEM="PROJETO_NOME REPO_REMOTO BRANCH_INTEGRACAO BRANCH_PRODUCAO GERENCIADOR_PACOTES CMD_TYPECHECK CMD_LINT CMD_BUILD CMD_DEPLOY_INTEGRACAO CMD_DEPLOY_PRODUCAO URL_AMBIENTE_INTEGRACAO URL_AMBIENTE_PRODUCAO IDENTIDADES DONOS_CODEOWNERS BOARD PRINCIPIO_III"
-CHAVES_OPCIONAIS=" URL_AMBIENTE_INTEGRACAO URL_AMBIENTE_PRODUCAO "
+# Ordem fixa de gravação (data-model.md). URLs e DESTINOS_DO_PROJETO são as únicas opcionais.
+CHAVES_ORDEM="PROJETO_NOME REPO_REMOTO BRANCH_INTEGRACAO BRANCH_PRODUCAO GERENCIADOR_PACOTES CMD_TYPECHECK CMD_LINT CMD_BUILD CMD_DEPLOY_INTEGRACAO CMD_DEPLOY_PRODUCAO URL_AMBIENTE_INTEGRACAO URL_AMBIENTE_PRODUCAO IDENTIDADES DONOS_CODEOWNERS BOARD PRINCIPIO_III DESTINOS_DO_PROJETO"
+CHAVES_OPCIONAIS=" URL_AMBIENTE_INTEGRACAO URL_AMBIENTE_PRODUCAO DESTINOS_DO_PROJETO "
 CABECALHO_1="# cockpit.config — gerado por configurar.sh; pode ser editado à mão."
 CABECALHO_2="# Rode ./configurar.sh --atualizar para re-renderizar os templates."
 CABECALHO_EXTRAS="# Chaves não reconhecidas por configurar.sh, mantidas do arquivo anterior:"
@@ -69,7 +75,10 @@ MOTIVO=""
 TPL_ORIG=()
 DEST_REL=()
 SEMENTE=() # 1 = template .semente.tmpl
-PULAR=()   # 1 = semente cujo destino já existe
+PULAR=()   # motivo de não renderizar: vazio | semente | projeto | copia | ignorado
+ORIGEM=()  # copia: arquivo na árvore principal; ignorado: caminho esperado
+VINCULADA=false # worktree vinculada (git-dir != git-common-dir)
+PRINCIPAL=""    # árvore principal confirmada, ou vazio
 
 # Variáveis de ambiente não são fonte de valor: garante que CFG_* do ambiente
 # do usuário nunca alimente o render.
@@ -100,7 +109,8 @@ renderiza os templates e provisiona os guard hooks.
                    --projeto é obrigatório)
   --respostas ARQ  modo não interativo: valores lidos de ARQ (CHAVE=valor)
   --atualizar      sem perguntas: re-renderiza a partir do cockpit.config
-  --forcar         sobrescreve arquivos editados à mão sem confirmação (exceto sementes, nunca sobrescritas)
+  --forcar         sobrescreve arquivos editados à mão sem confirmação, exceto sementes e
+                   destinos em DESTINOS_DO_PROJETO, que nunca são sobrescritos
   --ajuda          mostra este texto
 EOF
 }
@@ -290,6 +300,14 @@ validar_chave() {
       [ -z "$v" ] || [[ "$v" =~ ^[A-Za-z0-9-]+/[1-9][0-9]*$ ]] \
         || { erro "Valor inválido para BOARD: esperado dono/número (número inteiro positivo) ou vazio."; return 1; }
       ;;
+    DESTINOS_DO_PROJETO)
+      read -ra itens <<<"$v" # sem expansão de glob
+      for item in ${itens[@]+"${itens[@]}"}; do
+        [ -n "${item//[\'\"]/}" ] || { erro "Valor inválido para DESTINOS_DO_PROJETO: item '$item' vazio (só aspas)."; return 1; }
+        case "$item" in /*) erro "Valor inválido para DESTINOS_DO_PROJETO: item '$item' é absoluto."; return 1 ;; esac
+        case "/$item/" in */../*) erro "Valor inválido para DESTINOS_DO_PROJETO: item '$item' contém '..'."; return 1 ;; esac
+      done
+      ;;
     DONOS_CODEOWNERS)
       [ -n "${v//[[:space:]]/}" ] || { erro "Valor inválido para DONOS_CODEOWNERS: informe ao menos um dono (@usuario)."; return 1; }
       read -ra itens <<<"$v" # sem expansão de glob
@@ -351,12 +369,17 @@ chaves_faltantes() {
 # validar_todos — exige as obrigatórias (sem presumir valor, FR-016) e valida
 # todos os valores. Devolve 1 se algo falhar (mensagens já emitidas).
 validar_todos() {
-  local k rc=0
+  local k v rc=0
   normalizar_identidades
   for k in $CHAVES_ORDEM; do
     # Opcional vazia = ausente, como no cockpit.config gravado; senão o render
     # a resolveria e o --atualizar seguinte daria residual (FR-006).
     if chave_opcional "$k" && definido "$k" && [ -z "$(valor "$k")" ]; then desetar "$k"; fi
+    # Só espaços em DESTINOS_DO_PROJETO equivale a não declarada (TAB segue p/ validar_chave).
+    if [ "$k" = DESTINOS_DO_PROJETO ] && definido "$k"; then
+      v="$(valor "$k")"
+      [ -n "${v// /}" ] || desetar "$k"
+    fi
     if ! definido "$k"; then
       chave_opcional "$k" && continue
       erro "Chave obrigatória ausente: $k"
@@ -446,6 +469,7 @@ perguntar_chave() {
     IDENTIDADES) perguntar_identidades ;;
     DONOS_CODEOWNERS) perguntar DONOS_CODEOWNERS "Donos do CODEOWNERS (@usuario separados por espaço)" ;;
     BOARD) perguntar BOARD "Board do projeto (dono/número)" ;;
+    DESTINOS_DO_PROJETO) perguntar DESTINOS_DO_PROJETO "Destinos mantidos pelo projeto (caminhos separados por espaço)" ;;
     PRINCIPIO_III)
       # Padrão sugerido só na pergunta interativa; no modo não interativo a
       # chave ausente é erro (FR-016).
@@ -587,15 +611,122 @@ preparar_templates() {
   done < <(find "$tdir" -type f | sort)
 }
 
-# marcar_sementes — semente cujo destino já existe (qualquer tipo, inclusive
-# link quebrado) é pulada por inteiro: sem leitura, render, conflito ou hash.
-marcar_sementes() {
-  local i
+# resolver_dir DIR — caminho físico de DIR, relativo a $RAIZ se não absoluto.
+resolver_dir() { (cd "$RAIZ" && cd "$1" 2>/dev/null && pwd -P); }
+
+# arvore_principal — decide uma vez por execução se o projeto é worktree
+# vinculada (git-dir != git-common-dir, ambos físicos) e, se for, qual é a
+# árvore principal: primeiro registro de `worktree list --porcelain`, absoluto,
+# sem controle, não bare e confirmado pelo git-dir dele igual ao git-common-dir.
+# Só leitura. Qualquer falha do git desliga a cópia, nunca a habilita.
+arvore_principal() {
+  local gd gc linha cand="" bare=false g2 top why=""
+  VINCULADA=false
+  PRINCIPAL=""
+  gd="$(git -C "$RAIZ" rev-parse --git-dir 2>/dev/null)" || return 0
+  gc="$(git -C "$RAIZ" rev-parse --git-common-dir 2>/dev/null)" || return 0
+  gd="$(resolver_dir "$gd")" || return 0
+  gc="$(resolver_dir "$gc")" || return 0
+  [ "$gd" != "$gc" ] || return 0
+  VINCULADA=true
+  while IFS= read -r linha; do
+    [ -n "$linha" ] || break
+    case "$linha" in
+      "worktree "*) [ -n "$cand" ] || cand="${linha#worktree }" ;;
+      bare) bare=true ;;
+    esac
+  done < <(git -C "$RAIZ" worktree list --porcelain 2>/dev/null || true)
+  if $bare; then
+    why="repositório bare"
+  elif [ -z "$cand" ] || [[ "$cand" != /* ]] || tem_controle "$cand" || [ ! -d "$cand" ]; then
+    why="não confirmada"
+  else
+    g2="$(git -C "$cand" rev-parse --git-dir 2>/dev/null)" || g2=""
+    case "$g2" in
+      "") ;;
+      /*) g2="$(resolver_dir "$g2")" || g2="" ;;
+      *) g2="$(resolver_dir "$cand/$g2")" || g2="" ;;
+    esac
+    # O git-dir também passa no teste acima (`--git-dir` dentro dele é `.`), como no
+    # primeiro registro de `--separate-git-dir` ou de submódulo: exigir árvore de trabalho.
+    top=""
+    if [ -n "$g2" ] && [ "$g2" = "$gc" ]; then
+      top="$(git -C "$cand" rev-parse --show-toplevel 2>/dev/null)" || top=""
+      [ -z "$top" ] || top="$(resolver_dir "$top")" || top=""
+    fi
+    if [ -n "$top" ] && [ "$top" = "$(resolver_dir "$cand")" ]; then PRINCIPAL="$top"; else why="não confirmada"; fi
+  fi
+  [ -z "$why" ] || aviso "árvore principal indisponível ($why); destinos ignorados pelo git não serão copiados."
+  return 0
+}
+
+# origem_valida REL — a origem na árvore principal é arquivo regular legível, não
+# é link e tem pai físico igual ao lógico (sem link em nenhum componente). Só leitura.
+origem_valida() {
+  local o="$PRINCIPAL/$1" lpai pai
+  if [ -L "$o" ]; then aviso "origem recusada (link simbólico): $o"; return 1; fi
+  [ -e "$o" ] || return 1
+  if [ ! -f "$o" ] || [ ! -r "$o" ]; then aviso "origem recusada (não é arquivo regular legível): $o"; return 1; fi
+  lpai="$(dirname "$o")"
+  pai="$(cd "$lpai" 2>/dev/null && pwd -P)" || return 1
+  if [ "$pai" != "$lpai" ]; then aviso "origem recusada (link simbólico): $o"; return 1; fi
+  return 0
+}
+
+# normalizar_rel REL — grafia canônica de um caminho relativo: sem `./` inicial,
+# sem `/./` nem `//` internos e sem `/` final, para comparar com o destino.
+normalizar_rel() {
+  local r="$1"
+  while [[ "$r" == ./* ]]; do r="${r#./}"; done
+  while [[ "$r" == *//* || "$r" == */./* ]]; do r="${r//\/\//\/}"; r="${r//\/.\//\/}"; done
+  r="${r%/}"
+  printf '%s' "$r"
+}
+
+# classificar_destinos — decide uma vez, antes de qualquer escrita, o motivo de
+# não renderizar cada destino (PULAR) e a origem da cópia (ORIGEM): listado em
+# DESTINOS_DO_PROJETO = projeto; semente existente (qualquer tipo, inclusive link
+# quebrado) = semente; em worktree vinculada, semente ou listado ausente e
+# ignorado pelo git = copia (origem válida) ou ignorado. Pulado não é lido,
+# renderizado nem comparado.
+classificar_destinos() {
+  local i item norm rel listado casou arv=false
+  local -a brutos=() itens=()
   PULAR=()
+  ORIGEM=()
+  ! definido DESTINOS_DO_PROJETO || read -ra brutos <<<"$(valor DESTINOS_DO_PROJETO)"
+  for item in ${brutos[@]+"${brutos[@]}"}; do
+    norm="$(normalizar_rel "$item")"
+    itens+=("$norm")
+    casou=false
+    for rel in ${DEST_REL[@]+"${DEST_REL[@]}"}; do [ "$norm" != "$rel" ] || { casou=true; break; }; done
+    $casou || aviso "DESTINOS_DO_PROJETO: '$item' não é destino de nenhum template; ignorado."
+  done
   for ((i = 0; i < ${#DEST_REL[@]}; i++)); do
-    PULAR[i]=0
-    if [ "${SEMENTE[i]}" = 1 ] && { [ -e "$RAIZ/${DEST_REL[i]}" ] || [ -L "$RAIZ/${DEST_REL[i]}" ]; }; then
-      PULAR[i]=1
+    rel="${DEST_REL[i]}"
+    PULAR[i]=""
+    ORIGEM[i]=""
+    listado=false
+    for item in ${itens[@]+"${itens[@]}"}; do [ "$item" != "$rel" ] || { listado=true; break; }; done
+    if $listado; then
+      PULAR[i]=projeto
+    elif [ "${SEMENTE[i]}" = 1 ] && { [ -e "$RAIZ/$rel" ] || [ -L "$RAIZ/$rel" ]; }; then
+      PULAR[i]=semente
+    fi
+    # check-ignore antes de arvore_principal: o aviso de árvore indisponível só sai
+    # quando há destino ignorado a copiar.
+    if { $listado || [ "${SEMENTE[i]}" = 1 ]; } && [ ! -e "$RAIZ/$rel" ] && [ ! -L "$RAIZ/$rel" ] \
+      && git -C "$RAIZ" check-ignore -q -- "$rel" 2>/dev/null; then
+      $arv || { arvore_principal; arv=true; }
+      if $VINCULADA; then
+        if [ -n "$PRINCIPAL" ] && origem_valida "$rel"; then
+          PULAR[i]=copia
+          ORIGEM[i]="$PRINCIPAL/$rel"
+        else
+          PULAR[i]=ignorado
+          [ -z "$PRINCIPAL" ] || ORIGEM[i]="$PRINCIPAL/$rel"
+        fi
+      fi
     fi
   done
 }
@@ -673,7 +804,7 @@ herdar_modo() {
 # função é chamada sob `||`, onde o set -e não vale.
 aplicar_templates() {
   local i n="${#TPL_ORIG[@]}" rel nome resp
-  local -a conflitos=() gravados=() inalterados=() mantidos=()
+  local -a conflitos=() gravados=() inalterados=() m_sem=() m_proj=() copiados=() m_ign=()
   local h_atual h_man dest
   if [ "$n" -eq 0 ]; then
     [ ! -d "$COCKPIT_DIR/templates" ] || log "Nenhum template em templates/: nada havia a renderizar."
@@ -682,7 +813,7 @@ aplicar_templates() {
   fi
   : >"$STG/residuais" || falhar "Falha ao escrever em $STG."
   for ((i = 0; i < n; i++)); do
-    [ "${PULAR[i]}" != 1 ] || continue
+    [ -z "${PULAR[i]}" ] || continue
     rel="${TPL_ORIG[i]#"$COCKPIT_DIR/templates/"}"
     : >"$STG/res" || falhar "Falha ao escrever em $STG."
     renderizar "${TPL_ORIG[i]}" "$STG/r$i" "$STG/res" || falhar "Falha ao renderizar $rel."
@@ -698,7 +829,7 @@ aplicar_templates() {
     return 2
   fi
   for ((i = 0; i < n; i++)); do
-    [ "${PULAR[i]}" != 1 ] || continue
+    [ -z "${PULAR[i]}" ] || continue
     dest="$RAIZ/${DEST_REL[i]}"
     [ -e "$dest" ] || continue
     cmp -s "$STG/r$i" "$dest" && continue
@@ -715,15 +846,37 @@ aplicar_templates() {
   done
   if [ "${#conflitos[@]}" -gt 0 ]; then
     for rel in "${conflitos[@]}"; do
-      erro "Arquivo editado localmente, mantido: $rel. Use --forcar para sobrescrever."
+      erro "Arquivo editado localmente, mantido: $rel. Use --forcar para sobrescrever ou declare o destino em DESTINOS_DO_PROJETO no cockpit.config."
     done
     erro "Nenhum template foi gravado."
     log "Templates: 0 gravado(s); mantido(s) por edição local: ${conflitos[*]}"
     return 2
   fi
+  # Cópias da árvore principal vão para o staging antes de qualquer mv: falha de
+  # leitura recusa o lote sem deixar gravação parcial.
   for ((i = 0; i < n; i++)); do
-    if [ "${PULAR[i]}" = 1 ]; then mantidos+=("${DEST_REL[i]}"); continue; fi
+    [ "${PULAR[i]}" = copia ] || continue
+    # Limite aceito (research, Riscos aceitos): a origem pode virar link entre
+    # origem_valida e este cp; a árvore principal é do próprio usuário.
+    cp -- "${ORIGEM[i]}" "$STG/c$i" || falhar "Falha ao copiar ${DEST_REL[i]} da árvore principal."
+  done
+  for ((i = 0; i < n; i++)); do
     dest="$RAIZ/${DEST_REL[i]}"
+    case "${PULAR[i]}" in
+      semente) m_sem+=("${DEST_REL[i]}"); continue ;;
+      projeto) m_proj+=("${DEST_REL[i]}"); continue ;;
+      ignorado)
+        if [ -n "${ORIGEM[i]}" ]; then m_ign+=("${DEST_REL[i]} (esperado em ${ORIGEM[i]})")
+        else m_ign+=("${DEST_REL[i]} (árvore principal indisponível)"); fi
+        continue ;;
+      copia)
+        exigir_contido "$dest" "${DEST_REL[i]}"
+        mkdir -p "$(dirname "$dest")" || falhar "Falha ao criar o diretório de ${DEST_REL[i]}."
+        exigir_contido "$dest" "${DEST_REL[i]}"
+        mv -f "$STG/c$i" "$dest" || falhar "Falha ao gravar ${DEST_REL[i]}."
+        copiados+=("${DEST_REL[i]}")
+        continue ;;
+    esac
     exigir_contido "$dest" "${DEST_REL[i]}"
     if [ -f "$dest" ] && cmp -s "$STG/r$i" "$dest"; then
       sincronizar_exec "${TPL_ORIG[i]}" "$dest" || falhar "Falha ao ajustar permissão de ${DEST_REL[i]}."
@@ -740,9 +893,15 @@ aplicar_templates() {
   gravar_manifesto
   for rel in ${gravados[@]+"${gravados[@]}"}; do log "  gravado: $rel"; done
   for rel in ${inalterados[@]+"${inalterados[@]}"}; do log "  inalterado: $rel"; done
-  for rel in ${mantidos[@]+"${mantidos[@]}"}; do log "  mantido (semente): $rel"; done
+  for rel in ${m_sem[@]+"${m_sem[@]}"}; do log "  mantido (semente): $rel"; done
+  for rel in ${m_proj[@]+"${m_proj[@]}"}; do log "  mantido (projeto): $rel"; done
+  for rel in ${copiados[@]+"${copiados[@]}"}; do log "  copiado da árvore principal: $rel"; done
+  for rel in ${m_ign[@]+"${m_ign[@]}"}; do log "  mantido (ignorado pelo git): $rel"; done
   local suf=""
-  [ "${#mantidos[@]}" -eq 0 ] || suf=", ${#mantidos[@]} mantido(s) (semente)"
+  [ "${#m_sem[@]}" -eq 0 ] || suf="$suf, ${#m_sem[@]} mantido(s) (semente)"
+  [ "${#m_proj[@]}" -eq 0 ] || suf="$suf, ${#m_proj[@]} mantido(s) (projeto)"
+  [ "${#copiados[@]}" -eq 0 ] || suf="$suf, ${#copiados[@]} copiado(s) da árvore principal"
+  [ "${#m_ign[@]}" -eq 0 ] || suf="$suf, ${#m_ign[@]} mantido(s) (ignorado pelo git)"
   log "Templates: ${#gravados[@]} gravado(s), ${#inalterados[@]} inalterado(s)$suf."
   return 0
 }
@@ -770,7 +929,8 @@ gravar_manifesto() {
   : >"$STG/manifesto" || falhar "Falha ao escrever em $STG."
   ord="$({
     for ((i = 0; i < n; i++)); do
-      if [ "${PULAR[i]}" = 1 ]; then
+      if [ -n "${PULAR[i]}" ]; then
+        [ "${PULAR[i]}" != copia ] || continue # cópia não foi gerada por template (D3)
         h="$(manifesto_hash "${DEST_REL[i]}")"
         [ -z "$h" ] || printf '%s  %s\n' "$h" "${DEST_REL[i]}"
         continue
@@ -944,10 +1104,10 @@ main() {
   fi
 
   preparar_templates
-  marcar_sementes
+  classificar_destinos
   local i
   for ((i = 0; i < ${#DEST_REL[@]}; i++)); do
-    [ "${PULAR[i]}" != 1 ] || continue
+    [ -z "${PULAR[i]}" ] || [ "${PULAR[i]}" = copia ] || continue
     exigir_contido "$RAIZ/${DEST_REL[i]}" "${DEST_REL[i]}"
   done
   exigir_contido "$RAIZ/$MANIFESTO_REL" "$MANIFESTO_REL"
