@@ -277,3 +277,34 @@ Ref: docs/specs/prefixos-branch/quickstart.md 8 a 12; spec.md SC-005 a SC-007
 - [x] 5.6.2 Conferir por `grep` a Fase 1 da skill (quickstart 11, manual) e a regra do cenário 15 (`! grep -rq 'PREFIXOS_BRANCH' templates/`)
 - [x] 5.6.3 Conferir manualmente o `--atualizar` com a chave declarada em projeto sem ela: `docs/constitution.md` intacta (quickstart 12.3)
 - [x] 5.6.4 Registrar na PR a comparação de render contra `origin/main` (`diff -r --exclude=.git` vazio sem a chave)
+
+## FASE 6 - Convergência
+
+> Fase gerada automaticamente pela skill `converge` (reconciliação
+> spec-vs-código). Cada tarefa abaixo corresponde a um achado (`Gap`)
+> entre o que `spec.md`/`plan.md`/`tasks.md` descreveram e o estado
+> presente do código. Tarefas sem o prefixo `[Revisar]` são acionáveis
+> (`missing`/`partial`/`contradicts`); tarefas com `[Revisar]` são item de
+> revisão (`unrequested`, FR-013) — nunca "implementar", o código já
+> existe. Append-only: esta fase nunca reescreve fases/tarefas anteriores
+> do arquivo (FR-009).
+
+### 6.1 Regex de D4 em subshell `bash -c` em vez de `[[ =~ ]]` direto `[A]`
+
+Ref: FR-014 / task 5.1.1 · tipo: `contradicts` · severidade: `MEDIUM`
+
+O plan.md §Incremento item 1 pede, no ramo `PREFIXOS_BRANCH)` de `validar_chave`, um `[[ "$item" =~ ^[a-z0-9][a-z0-9._-]*$ ]]` direto, e o research.md (Decision 10) registra que o script já roda com `export LC_ALL=C` (l.38). Em `configurar.sh` l.321-322 a checagem abre `LC_ALL=C bash -c '[[ $1 =~ ... ]]' _ "$item"`, um processo por prefixo só para repetir o locale já exportado; as validações vizinhas (BOARD, DONOS_CODEOWNERS) usam `[[ ... =~ ... ]]` direto. Sonda: com `export LC_ALL=C`, o `[[ =~ ]]` direto recusa `Feat`, `á`, `-x`, `.x`, `_x`, `a;b` e aceita `feat`, `feature`, `a.b`.
+
+- [ ] 6.1.1 Corrigir `configurar.sh` conforme `FR-014 / task 5.1.1`: trocar `LC_ALL=C bash -c '[[ $1 =~ ^[a-z0-9][a-z0-9._-]*$ ]]' _ "$item"` por `[[ "$item" =~ ^[a-z0-9][a-z0-9._-]*$ ]]` e ajustar o comentário da l.321 (o locale vem do `export LC_ALL=C` da l.38); rodar o cenário 20 (caso 4 cobre `Feat` e `á`)
+
+<!-- converge-key: 580082a09015 -->
+
+### 6.2 Padrão declarado explicitamente não conferido como aceito `[A]`
+
+Ref: task 5.5.4 · tipo: `partial` · severidade: `MEDIUM`
+
+A task 5.5.4 pede que o padrão e `'feat fx ch dc hf'` sigam aceitos, e FR-014 afirma que `feature fix chore docs hotfix` satisfaz a regra de D4. O cenário 20 de `scripts/testar-configurar.sh` só exercita o padrão com a chave ausente (caso 1, que não passa pelo ramo de validação dos itens) e aceita `'feat fx ch dc hf'` (caso 2); nenhum caso declara `PREFIXOS_BRANCH='feature fix chore docs hotfix'` e confere exit 0.
+
+- [ ] 6.2.1 Implementar em `scripts/testar-configurar.sh` conforme `task 5.5.4`: no cenário 20, com `resp20 'feature fix chore docs hotfix'`, conferir exit 0 e a chave gravada no `cockpit.config`
+
+<!-- converge-key: 6bdc44bff2e8 -->
