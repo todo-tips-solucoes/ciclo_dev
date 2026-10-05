@@ -2,9 +2,11 @@
 
 **Feature**: `prefixos-branch`
 **Created**: 2026-10-05
-**Status**: Draft
+**Status**: Draft (reaberta, round 2)
 **Origem**: issue #16 (correlata da #14). Decisões D1, D2 e D3 do owner, normativas e fechadas,
 em `decisoes-do-owner.md` (mesmo diretório).
+**Reabertura (round 2)**: emendas D4, D5 e D6 do owner (mesmo arquivo, seção "Emendas após a
+primeira execução"), normativas; ampliam D1 e D3 e não se reabrem no clarify.
 
 > Decisões de infraestrutura: N/A (script shell local, sem scheduler, sessão, chave
 > criptográfica, multi-réplica ou retry).
@@ -79,6 +81,9 @@ mensagem citando `PREFIXOS_BRANCH`.
 2. **Given** prefixo com `/`, com caractere de controle ou que não forma nome de branch válido,
    **When** valida, **Then** exit 1 citando a chave.
 3. **Given** prefixo repetido entre tipos, **When** valida, **Then** exit 1 citando a chave.
+4. **Given** prefixo com maiúscula, com metacaractere de shell (`;`, `$()`, crase, `|`, `&`,
+   aspas) ou começando por `.`, `_` ou `-`, **When** valida, **Then** exit 1 citando a chave e o
+   conjunto aceito (D4).
 
 ---
 
@@ -101,6 +106,29 @@ skill e a tabela de chaves consumidas.
    prosa em português do Brasil acentuado e sem nomear projeto real.
 3. **Given** chave declarada, **When** a skill executa a Fase 1, **Then** os nomes de branch
    usam os prefixos declarados; chave ausente usa o padrão.
+4. **Given** `cockpit.config` editado à mão com prefixo fora de `^[a-z0-9][a-z0-9._-]*$`, ou
+   com quantidade errada ou repetição, **When** a skill executa a Fase 1, **Then** ela PARA
+   antes de compor qualquer comando e nomeia a chave `PREFIXOS_BRANCH` (D4).
+
+---
+
+### User Story 5 - Constituição semeada honra o prefixo de hotfix (Priority: P2)
+
+`docs/constitution.md` semeado cita o prefixo de hotfix declarado em vez do literal `hotfix/`.
+
+**Why this priority**: resíduo `hotfix/<slug>` deixaria a constituição divergente dos guias (D5).
+
+**Independent Test**: semear com e sem a chave e comparar a constituição gerada.
+
+**Acceptance Scenarios**:
+
+1. **Given** chave ausente, **When** a constituição é semeada, **Then** o arquivo é byte a byte
+   o de hoje.
+2. **Given** chave com prefixo de hotfix declarado, **When** a constituição é semeada, **Then**
+   a linha que citava `hotfix/<slug>` mostra `<prefixo-de-hotfix>/<slug>`.
+3. **Given** projeto já configurado (constituição existente), **When** `--atualizar` roda,
+   **Then** a constituição não é regravada; o ajuste manual fica registrado em
+   `cockpit.config.example`, junto da chave.
 
 ---
 
@@ -112,6 +140,9 @@ skill e a tabela de chaves consumidas.
 - Prefixo com caractere que o Git recusa em nome de branch (por exemplo `..`, `~`, terminando
   em `.lock`): recusado.
 - `fix` e `hotfix` com o mesmo prefixo: recusado por repetição.
+- `Feat` (maiúscula), `a;b`, `a$(x)`, `a|b`, `-x`, `.x`: recusados por D4, mesmo quando o Git
+  aceitaria o nome (`Feat/x` e `feat/x` colidem em sistema de arquivos sem distinção de caixa).
+- Tipos além dos cinco (`refactor`, `release`) e formato `tipo=prefixo`: fora de escopo (D6).
 - Projeto que já declarou os documentos como mantidos pelo projeto: não é afetado.
 
 ## Requirements
@@ -126,6 +157,19 @@ skill e a tabela de chaves consumidas.
   caractere de controle ou que não forma nome de branch válido segundo o Git.
 - **FR-004**: O configurador MUST recusar com exit 1, citando a chave, prefixo repetido entre
   tipos.
+- **FR-014** (D4): Cada prefixo MUST casar com `^[a-z0-9][a-z0-9._-]*$`; fora disso o
+  configurador MUST sair com exit 1 citando `PREFIXOS_BRANCH` e o conjunto aceito. A regra se
+  soma a FR-002, FR-003 e FR-004 (quantidade, `git check-ref-format --branch '<prefixo>/x'`,
+  repetição). O padrão `feature fix chore docs hotfix` a satisfaz.
+- **FR-015** (D4): A Fase 1 de `skills/rito-dev/SKILL.md` MUST aplicar a mesma regra antes de
+  compor qualquer comando (cinco prefixos, cada um casando com o padrão, sem repetição) e, se
+  violada, PARAR nomeando a chave, pois o `cockpit.config` é versionado e editável à mão.
+- **FR-016** (D5): `templates/docs/constitution.md.semente.tmpl` MUST trocar `hotfix/<slug>` por
+  `{{PREFIXO_HOTFIX}}/<slug>`; com a chave ausente a constituição semeada MUST ser byte a byte a
+  de hoje; a semente só é gerada com destino inexistente, e `cockpit.config.example` MUST
+  registrar, junto da chave, que projeto já configurado ajusta a própria constituição à mão.
+- **FR-017** (D6): Os cinco tipos fixos e a ordem de FR-001 MUST ser mantidos; nenhum tipo novo
+  nem formato `tipo=prefixo` nesta frente.
 - **FR-005**: A chave MUST ser opcional: perguntada no modo interativo com `-` para vazio e a dica
   do padrão, gravada como as demais opcionais; valor em branco equivale a não declarada.
 - **FR-006**: Com a chave ausente ou em branco, o configurador MUST usar
@@ -143,7 +187,9 @@ skill e a tabela de chaves consumidas.
   MUST documentar a chave.
 - **FR-012**: A suíte `scripts/testar-configurar.sh` MUST ganhar um cenário novo cobrindo chave
   ausente com render idêntico, chave válida refletida nos dois documentos, valores inválidos com
-  exit 1 e modo interativo; o cenário 14 passa a exigir 20 respostas mínimas.
+  exit 1 e modo interativo; o cenário 14 passa a exigir 20 respostas mínimas. O cenário 20 MUST também cobrir D4 (recusa
+  com maiúscula e com metacaractere de shell, exit 1 citando a chave) e D5 (constituição semeada
+  idêntica sem a chave e com o prefixo de hotfix declarado quando presente).
 - **FR-013**: A implementação MUST usar bash com `set -euo pipefail`, `LC_ALL=C`, shellcheck sem
   findings e nenhuma dependência nova; prosa em português do Brasil com acentuação e sem nomear
   projeto real.
@@ -167,6 +213,10 @@ skill e a tabela de chaves consumidas.
 - **SC-004**: Um projeto já configurado roda o `--atualizar` sem nenhuma pergunta nova e sem
   erro.
 - **SC-005**: A suíte de testes do configurador passa inteira, inclusive o cenário novo.
+- **SC-006**: 100% dos valores com caractere fora de `[a-z0-9._-]` ou iniciando por `.`, `_` ou
+  `-` terminam em exit 1 citando a chave e o conjunto aceito; a Fase 1 da skill recusa os mesmos.
+- **SC-007**: Com a chave ausente, a constituição semeada é idêntica byte a byte à de antes;
+  com a chave, 0 ocorrências de `hotfix/<slug>` literal.
 
 ## Delta Requirements
 
@@ -178,5 +228,7 @@ feature-00c, 2026-10-05.
 
 - A validação de nome de branch usa o próprio Git (`git check-ref-format --branch`), já exigido
   pelo ciclo; nenhuma dependência nova.
+- Fora de escopo: `BRANCH_INTEGRACAO` e `BRANCH_PRODUCAO` (mesma exposição de D4, regra própria,
+  issue #19).
 - Fora de escopo (D3): exemplos `fix/…` e `feat/…` de `skills/parallel-work/SKILL.md`, tipos de
   branch além dos cinco e renomear branches existentes.
