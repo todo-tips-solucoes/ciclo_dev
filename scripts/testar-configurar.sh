@@ -913,6 +913,10 @@ for v in 'a b c d' 'a b c d e f' 'a/b c d e f' '-a b c d e' 'a@{b c d e f' 'a b 
   esac
   [ ! -e "$T/cockpit.config" ] || falha "caso 4: '$v' criou cockpit.config"
 done
+# 6: padrão declarado explicitamente é aceito e gravado
+T="$(novo_repo)"; resp20 'feature fix chore docs hotfix' "$TMP/r20"
+rc="$(codigo rodar "$CONF" --projeto "$T" --respostas "$TMP/r20")"
+[ "$rc" = 0 ] && grep -q "^PREFIXOS_BRANCH='feature fix chore docs hotfix'\$" "$T/cockpit.config" || falha "caso 6: padrão declarado (exit $rc)"
 # (caso 5, modo interativo, no cenário 14)
 
 # --------------------------------------------------------------- 11 ---

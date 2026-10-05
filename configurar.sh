@@ -318,8 +318,8 @@ validar_chave() {
       local ant=" "
       for item in ${itens[@]+"${itens[@]}"}; do
         case "$item" in *"/"*) erro "Valor inválido para PREFIXOS_BRANCH: o prefixo '$item' contém '/'."; return 1 ;; esac
-        # D4: conjunto restrito (LC_ALL=C evita que o intervalo case não ASCII/maiúscula).
-        LC_ALL=C bash -c '[[ $1 =~ ^[a-z0-9][a-z0-9._-]*$ ]]' _ "$item" \
+        # D4: conjunto restrito (o intervalo é ASCII porque `export LC_ALL=C` vale desde a l.38).
+        [[ "$item" =~ ^[a-z0-9][a-z0-9._-]*$ ]] \
           || { erro "Valor inválido para PREFIXOS_BRANCH: o prefixo '$item' fora do conjunto aceito ^[a-z0-9][a-z0-9._-]*\$."; return 1; }
         git check-ref-format --branch "$item/x" >/dev/null 2>&1 \
           || { erro "Valor inválido para PREFIXOS_BRANCH: o prefixo '$item' não forma nome de branch válido."; return 1; }
