@@ -865,11 +865,14 @@ for t in CICLO-GIT rito-dev; do
   sed 's/{{PREFIXO_FEATURE}}/feature/g;s/{{PREFIXO_FIX}}/fix/g;s/{{PREFIXO_CHORE}}/chore/g;s/{{PREFIXO_DOCS}}/docs/g;s/{{PREFIXO_HOTFIX}}/hotfix/g' \
     "$C20/templates/docs/$t.md.tmpl" >"$C20/templates/docs/$t.md.tmpl.n" && mv "$C20/templates/docs/$t.md.tmpl.n" "$C20/templates/docs/$t.md.tmpl"
 done
+S20="$C20/templates/docs/constitution.md.semente.tmpl"
+sed 's/{{PREFIXO_HOTFIX}}/hotfix/g' "$S20" >"$S20.n" && mv "$S20.n" "$S20"
 TL="$(novo_repo)"
 rodar "$C20/configurar.sh" --projeto "$TL" --respostas "$TMP/r20" >/dev/null 2>&1 || falha "caso 1: setup da cópia literal"
 for f in docs/CICLO-GIT.md docs/rito-dev.md; do
   cmp -s "$T/$f" "$TL/$f" || falha "caso 1: $f difere do render com literais"
 done
+cmp -s "$T/docs/constitution.md" "$TL/docs/constitution.md" || falha "caso 1: constitution.md difere do render com literais"
 # --atualizar sem a chave: sem pergunta, stderr sem a chave, documentos inalterados (quickstart 6)
 cp "$T/docs/CICLO-GIT.md" "$TMP/ant-ciclo"; cp "$T/docs/rito-dev.md" "$TMP/ant-rito"
 rc="$(codigo rodar "$CONF" --projeto "$T" --atualizar </dev/null)"
@@ -889,6 +892,7 @@ for f in docs/CICLO-GIT.md docs/rito-dev.md; do
   done
 done
 grep -q "^PREFIXOS_BRANCH='feat fx ch dc hf'\$" "$T/cockpit.config" || falha "caso 2: chave não gravada"
+grep -Fq 'hf/<slug>' "$T/docs/constitution.md" && ! grep -Fq 'hotfix/<slug>' "$T/docs/constitution.md" || falha "caso 2: constitution.md sem hf/<slug> ou com hotfix/<slug>"
 ! grep -q '^PREFIXO_' "$T/cockpit.config" || falha "caso 2: placeholder gravado"
 # 3: só espaços equivale a ausente
 T="$(novo_repo)"; resp20 '   ' "$TMP/r20"
@@ -896,11 +900,17 @@ rc="$(codigo rodar "$CONF" --projeto "$T" --respostas "$TMP/r20")"
 [ "$rc" = 0 ] && grep -q 'feature/<slug>' "$T/docs/CICLO-GIT.md" || falha "caso 3: só espaços (exit $rc)"
 ! grep -q '^PREFIXOS_BRANCH=' "$T/cockpit.config" || falha "caso 3: só espaços gravou a chave"
 # 4: inválidos: exit 1 citando a chave, sem cockpit.config
-for v in 'a b c d' 'a b c d e f' 'a/b c d e f' '-a b c d e' 'a@{b c d e f' 'a b c d a' 'a.lock b c d e' "$(printf 'a	b c d e f')"; do
+# D4/D6: conjunto ^[a-z0-9][a-z0-9._-]*$; sem tipo novo nem formato tipo=prefixo.
+for v in 'a b c d' 'a b c d e f' 'a/b c d e f' '-a b c d e' 'a@{b c d e f' 'a b c d a' 'a.lock b c d e' "$(printf 'a	b c d e f')" \
+  'Feat b c d e' 'a;b c d e f' 'a$(x) b c d e' 'a|b c d e f' 'a`x` b c d e' '.a b c d e' '_a b c d e' 'á b c d e' \
+  'feature=feat fix chore docs hotfix'; do
   T="$(novo_repo)"; resp20 "$v" "$TMP/r20"
   rc="$(codigo rodar "$CONF" --projeto "$T" --respostas "$TMP/r20")"
   [ "$rc" = 1 ] || falha "caso 4: '$v' saiu com $rc (esperado 1)"
   grep -q 'PREFIXOS_BRANCH' "$TMP/err" || falha "caso 4: '$v' sem citar a chave"
+  case "$v" in 'Feat b c d e' | 'a;b'* | 'a$('* | 'a|b'* | 'a`x`'* | '.a '* | '_a '* | 'á '* | 'feature='*)
+    grep -Fq '^[a-z0-9][a-z0-9._-]*$' "$TMP/err" || falha "caso 4: '$v' sem citar o conjunto aceito" ;;
+  esac
   [ ! -e "$T/cockpit.config" ] || falha "caso 4: '$v' criou cockpit.config"
 done
 # (caso 5, modo interativo, no cenário 14)

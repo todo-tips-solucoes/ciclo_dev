@@ -21,7 +21,7 @@ forma de escrita.
 | `BOARD` | não | sim (pode ser vazio) | `''` = projeto sem board; senão texto não vazio de uma linha |
 | `PRINCIPIO_III` | não | sim (`ligado` sugerido só na pergunta interativa; ausente no modo não interativo é erro, FR-016) | `ligado` \| `desligado` |
 | `DESTINOS_DO_PROJETO` | não | não (opcional; ausente, vazia ou só espaços = não declarada) | caminhos relativos separados por espaço, sem item absoluto, sem componente `..`, sem item só de aspas |
-| `PREFIXOS_BRANCH` | não | não (opcional; ausente, vazia ou só espaços = padrão `feature fix chore docs hotfix`) | exatamente cinco prefixos, sem `/`, sem repetição, cada `<p>/x` aceito por `git check-ref-format --branch` |
+| `PREFIXOS_BRANCH` | não | não (opcional; ausente, vazia ou só espaços = padrão `feature fix chore docs hotfix`) | exatamente cinco prefixos, cada um casando com `^[a-z0-9][a-z0-9._-]*$` (D4), sem repetição, cada `<p>/x` aceito por `git check-ref-format --branch`; também consumida pela semente da constituição (`{{PREFIXO_HOTFIX}}`) |
 
 ### Regras
 
@@ -61,7 +61,7 @@ forma de escrita.
 | `IDENTIDADES` | ver Decision 5; ≥ 1 item; espaços nas pontas de itens, nome e e-mail são aparados; nome sem `:` |
 | `BOARD` | vazio ou texto com ao menos um caractere que não seja espaço |
 | `PRINCIPIO_III` | `ligado` ou `desligado` |
-| `PREFIXOS_BRANCH` | 0 ou 5 itens; sem `/`; sem `-` inicial nem `@{`; `git check-ref-format --branch '<p>/x'`; sem repetição |
+| `PREFIXOS_BRANCH` | 0 ou 5 itens; sem `/`; `^[a-z0-9][a-z0-9._-]*$` (D4); `git check-ref-format --branch '<p>/x'`; sem repetição |
 | `DESTINOS_DO_PROJETO` | cada item relativo, sem `..` e com ao menos um caractere que não seja aspas; item que não é destino de template só gera aviso |
 
 ---

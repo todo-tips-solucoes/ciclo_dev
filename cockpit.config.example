@@ -82,8 +82,10 @@ DESTINOS_DO_PROJETO=''
 
 # --- Prefixos de branch de trabalho (opcional) -------------------------------
 # Cinco prefixos separados por espaço, na ordem feature, fix, chore, docs, hotfix.
-# Sem `/`, sem repetição, cada um formando nome de branch válido. Ausente ou vazia:
-# feature fix chore docs hotfix.
+# Cada prefixo casa com ^[a-z0-9][a-z0-9._-]*$ (sem `/`), sem repetição, e forma nome de
+# branch válido. Ausente ou vazia: feature fix chore docs hotfix.
+# A constituição é semente: não é regravada no --atualizar. Projeto já configurado que declarar
+# esta chave troca à mão `hotfix/<slug>` na sua docs/constitution.md.
 # Exemplo: PREFIXOS_BRANCH='feat fix chore docs hotfix'
 
 PREFIXOS_BRANCH=''

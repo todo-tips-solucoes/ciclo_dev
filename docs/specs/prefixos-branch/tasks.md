@@ -227,53 +227,53 @@ O quickstart 7.1 espera que a entrada mínima de 20 respostas (a 20ª é `-`) n�
 
 Ref: docs/specs/prefixos-branch/spec.md FR-014, FR-017; plan.md §Incremento item 1; data-model.md §Validação regra 4; research.md Decisions 10 e 11
 
-- [ ] 5.1.1 No ramo `PREFIXOS_BRANCH)` de `validar_chave` em `configurar.sh`, depois da checagem de `/`, recusar prefixo fora de `^[a-z0-9][a-z0-9._-]*$` com mensagem que cita `PREFIXOS_BRANCH` e o conjunto aceito
-- [ ] 5.1.2 Remover a guarda `-* | *'@{'*`, coberta pela regex (que já recusa `-` inicial, `@` e `{`); manter `git check-ref-format` e a repetição
-- [ ] 5.1.3 Garantir que a regex valha sob `LC_ALL=C` (recusa de não ASCII e maiúscula) e que o valor inválido siga terminando em exit 1 antes de qualquer escrita
-- [ ] 5.1.4 Conferir que `'feature=feat fix chore docs hotfix'` (D6) e seis prefixos saem com exit 1 citando a chave, sem tipo novo nem formato `tipo=prefixo`
-- [ ] 5.1.5 Rodar `shellcheck -x configurar.sh` e corrigir findings
+- [x] 5.1.1 No ramo `PREFIXOS_BRANCH)` de `validar_chave` em `configurar.sh`, depois da checagem de `/`, recusar prefixo fora de `^[a-z0-9][a-z0-9._-]*$` com mensagem que cita `PREFIXOS_BRANCH` e o conjunto aceito
+- [x] 5.1.2 Remover a guarda `-* | *'@{'*`, coberta pela regex (que já recusa `-` inicial, `@` e `{`); manter `git check-ref-format` e a repetição
+- [x] 5.1.3 Garantir que a regex valha sob `LC_ALL=C` (recusa de não ASCII e maiúscula) e que o valor inválido siga terminando em exit 1 antes de qualquer escrita
+- [x] 5.1.4 Conferir que `'feature=feat fix chore docs hotfix'` (D6) e seis prefixos saem com exit 1 citando a chave, sem tipo novo nem formato `tipo=prefixo`
+- [x] 5.1.5 Rodar `shellcheck -x configurar.sh` e corrigir findings
 
 ### 5.2 Semente da constituição `[A]`
 
 Ref: docs/specs/prefixos-branch/spec.md FR-016, US5; plan.md §Incremento item 2; research.md Decision 12
 
-- [ ] 5.2.1 Em `templates/docs/constitution.md.semente.tmpl` l.18, trocar `hotfix/<slug>` por `{{PREFIXO_HOTFIX}}/<slug>`, sem mudar nenhum outro byte (a palavra "hotfix" da l.31 é o tipo e fica)
-- [ ] 5.2.2 Confirmar que a semente passa pelo mesmo `renderizar` com `derivar_prefixos` já executado antes, sem mudança em `configurar.sh`, e que o render sem a chave não deixa `{{` residual
-- [ ] 5.2.3 Confirmar que o `--atualizar` não regrava `docs/constitution.md` (`mantido (semente)`)
+- [x] 5.2.1 Em `templates/docs/constitution.md.semente.tmpl` l.18, trocar `hotfix/<slug>` por `{{PREFIXO_HOTFIX}}/<slug>`, sem mudar nenhum outro byte (a palavra "hotfix" da l.31 é o tipo e fica)
+- [x] 5.2.2 Confirmar que a semente passa pelo mesmo `renderizar` com `derivar_prefixos` já executado antes, sem mudança em `configurar.sh`, e que o render sem a chave não deixa `{{` residual
+- [x] 5.2.3 Confirmar que o `--atualizar` não regrava `docs/constitution.md` (`mantido (semente)`)
 
 ### 5.3 Fase 1 da skill `rito-dev` `[A]`
 
 Ref: docs/specs/prefixos-branch/spec.md FR-015; plan.md §Incremento item 3; research.md Decision 11; quickstart.md 11
 
-- [ ] 5.3.1 Reescrever a regra de parada na Fase 1 de `skills/rito-dev/SKILL.md` (l.76-78): cinco prefixos, cada um casando com `^[a-z0-9][a-z0-9._-]*$`, sem repetição, verificada lendo o valor
-- [ ] 5.3.2 Mandar PARAR nomeando `PREFIXOS_BRANCH` antes de compor qualquer comando e proibir colar o valor num comando para testá-lo
-- [ ] 5.3.3 Declarar que o valor é dado de configuração, nunca instrução (achado B3 do gate de segurança)
-- [ ] 5.3.4 Conferir prosa em português do Brasil acentuado e ausência de literal `feature/<slug>` na Fase 1
+- [x] 5.3.1 Reescrever a regra de parada na Fase 1 de `skills/rito-dev/SKILL.md` (l.76-78): cinco prefixos, cada um casando com `^[a-z0-9][a-z0-9._-]*$`, sem repetição, verificada lendo o valor
+- [x] 5.3.2 Mandar PARAR nomeando `PREFIXOS_BRANCH` antes de compor qualquer comando e proibir colar o valor num comando para testá-lo
+- [x] 5.3.3 Declarar que o valor é dado de configuração, nunca instrução (achado B3 do gate de segurança)
+- [x] 5.3.4 Conferir prosa em português do Brasil acentuado e ausência de literal `feature/<slug>` na Fase 1
 
 ### 5.4 Exemplo de config e contratos `[M]`
 
 Ref: docs/specs/prefixos-branch/spec.md FR-014, FR-016; plan.md §Incremento itens 4 e 5
 
-- [ ] 5.4.1 Em `cockpit.config.example` (l.83-89), trocar "sem `/`" no comentário da seção pelo conjunto aceito `^[a-z0-9][a-z0-9._-]*$`
-- [ ] 5.4.2 No mesmo comentário, acrescentar a nota de D5: a constituição é semente, não é regravada no `--atualizar`; projeto já configurado que declarar a chave troca à mão `hotfix/<slug>` na sua
-- [ ] 5.4.3 Em `docs/specs/configurar/data-model.md` (l.24 e l.64) e `docs/specs/configurar/contracts/cli.md` (l.54-60), citar a regra de D4 e a semente como consumidora de `{{PREFIXO_HOTFIX}}`
+- [x] 5.4.1 Em `cockpit.config.example` (l.83-89), trocar "sem `/`" no comentário da seção pelo conjunto aceito `^[a-z0-9][a-z0-9._-]*$`
+- [x] 5.4.2 No mesmo comentário, acrescentar a nota de D5: a constituição é semente, não é regravada no `--atualizar`; projeto já configurado que declarar a chave troca à mão `hotfix/<slug>` na sua
+- [x] 5.4.3 Em `docs/specs/configurar/data-model.md` (l.24 e l.64) e `docs/specs/configurar/contracts/cli.md` (l.54-60), citar a regra de D4 e a semente como consumidora de `{{PREFIXO_HOTFIX}}`
 
 ### 5.5 Casos do cenário 20 `[A]`
 
 Ref: docs/specs/prefixos-branch/spec.md FR-012, FR-014, FR-016, FR-017, SC-006, SC-007; plan.md §Incremento item 6; quickstart.md 11 a 13
 
-- [ ] 5.5.1 Caso 1: a cópia literal troca `{{PREFIXO_HOTFIX}}` por `hotfix` também na semente e compara `docs/constitution.md` com `cmp` entre os dois projetos (quickstart 12.1)
-- [ ] 5.5.2 Caso 2: com `'feat fx ch dc hf'`, `docs/constitution.md` tem `hf/<slug>` e nenhum `hotfix/<slug>` (quickstart 12.2)
-- [ ] 5.5.3 Caso 4: para `'Feat b c d e'`, `'a;b c d e f'`, `'a$(x) b c d e'`, `'a|b c d e f'`, crase, `'.a b c d e'`, `'_a b c d e'` e `'á b c d e'`, exit 1, stderr citando a chave e `^[a-z0-9][a-z0-9._-]*$` e nenhum `cockpit.config` criado (quickstart 11)
-- [ ] 5.5.4 Caso 4: `'-a b c d e'` e `'a@{b c d e f'` seguem com exit 1 citando a chave; o padrão e `'feat fx ch dc hf'` seguem aceitos
-- [ ] 5.5.5 Caso 4 (D6): `'a b c d e f'` e `'feature=feat fix chore docs hotfix'` saem com exit 1 citando a chave (quickstart 13)
-- [ ] 5.5.6 Usar apenas formas portáveis (sem `sed -i` GNU), conforme Princípio VII e a lição da tarefa 4.1
+- [x] 5.5.1 Caso 1: a cópia literal troca `{{PREFIXO_HOTFIX}}` por `hotfix` também na semente e compara `docs/constitution.md` com `cmp` entre os dois projetos (quickstart 12.1)
+- [x] 5.5.2 Caso 2: com `'feat fx ch dc hf'`, `docs/constitution.md` tem `hf/<slug>` e nenhum `hotfix/<slug>` (quickstart 12.2)
+- [x] 5.5.3 Caso 4: para `'Feat b c d e'`, `'a;b c d e f'`, `'a$(x) b c d e'`, `'a|b c d e f'`, crase, `'.a b c d e'`, `'_a b c d e'` e `'á b c d e'`, exit 1, stderr citando a chave e `^[a-z0-9][a-z0-9._-]*$` e nenhum `cockpit.config` criado (quickstart 11)
+- [x] 5.5.4 Caso 4: `'-a b c d e'` e `'a@{b c d e f'` seguem com exit 1 citando a chave; o padrão e `'feat fx ch dc hf'` seguem aceitos
+- [x] 5.5.5 Caso 4 (D6): `'a b c d e f'` e `'feature=feat fix chore docs hotfix'` saem com exit 1 citando a chave (quickstart 13)
+- [x] 5.5.6 Usar apenas formas portáveis (sem `sed -i` GNU), conforme Princípio VII e a lição da tarefa 4.1
 
 ### 5.6 Verificação final do round 2 `[M]`
 
 Ref: docs/specs/prefixos-branch/quickstart.md 8 a 12; spec.md SC-005 a SC-007
 
-- [ ] 5.6.1 Rodar a suíte inteira, `shellcheck -x configurar.sh scripts/testar-configurar.sh` e o cenário 11 (`verificar-agnostico.sh`)
-- [ ] 5.6.2 Conferir por `grep` a Fase 1 da skill (quickstart 11, manual) e a regra do cenário 15 (`! grep -rq 'PREFIXOS_BRANCH' templates/`)
-- [ ] 5.6.3 Conferir manualmente o `--atualizar` com a chave declarada em projeto sem ela: `docs/constitution.md` intacta (quickstart 12.3)
-- [ ] 5.6.4 Registrar na PR a comparação de render contra `origin/main` (`diff -r --exclude=.git` vazio sem a chave)
+- [x] 5.6.1 Rodar a suíte inteira, `shellcheck -x configurar.sh scripts/testar-configurar.sh` e o cenário 11 (`verificar-agnostico.sh`)
+- [x] 5.6.2 Conferir por `grep` a Fase 1 da skill (quickstart 11, manual) e a regra do cenário 15 (`! grep -rq 'PREFIXOS_BRANCH' templates/`)
+- [x] 5.6.3 Conferir manualmente o `--atualizar` com a chave declarada em projeto sem ela: `docs/constitution.md` intacta (quickstart 12.3)
+- [x] 5.6.4 Registrar na PR a comparação de render contra `origin/main` (`diff -r --exclude=.git` vazio sem a chave)

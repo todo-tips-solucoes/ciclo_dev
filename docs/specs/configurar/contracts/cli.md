@@ -56,7 +56,7 @@ entrada que não virá).
 Delta da feature `prefixos-branch` (contrato completo em
 `docs/specs/prefixos-branch/contracts/cli.md`): chave opcional com cinco prefixos na ordem
 feature, fix, chore, docs, hotfix; última pergunta do modo interativo (`- para vazio`);
-valor inválido: exit 1 citando a chave. Deriva os placeholders `{{PREFIXO_*}}`, que não são
+valor inválido: exit 1 citando a chave (cada prefixo casa com `^[a-z0-9][a-z0-9._-]*$`, regra D4). A semente `docs/constitution.md` consome `{{PREFIXO_HOTFIX}}`. Deriva os placeholders `{{PREFIXO_*}}`, que não são
 chaves (não perguntados nem gravados).
 
 ### Destinos do projeto (`DESTINOS_DO_PROJETO`)
