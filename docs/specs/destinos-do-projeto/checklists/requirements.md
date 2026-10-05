@@ -43,7 +43,7 @@
 
 ## Testes (construção do cenário 19)
 
-- [ ] CHK023 - [Gap] A construção do repositório bare do cenário 19 com `cp -R .git` + `core.bare true` está bem fundamentada? A research (Decision 10) e o quickstart (§14) só citam "sem rede"; o argumento de que o bash-guard bloquearia a clonagem não procede dentro do script: o bash-guard é hook PreToolUse que só inspeciona o comando digitado pelo agente, e comandos executados dentro de `scripts/testar-configurar.sh` (CI e execução direta) não passam por ele. Além disso, copiar `.git` e forçar `core.bare` depende da estrutura interna do git (`worktrees/`, `index`, `HEAD` apontando para branch em checkout). O requisito de teste deve preferir `git clone --bare` de caminho local (sem rede) dentro do script, ou `git init --bare` + push de um commit, seguido de `git worktree add`. Destino: `/create-tasks` (tarefa de ajuste em research Decision 10, quickstart §14 e no cenário 19). [Gap, research.md Decision 10, quickstart.md §14] {auto}
+- [x] CHK023 - [Gap] A construção do repositório bare do cenário 19 com `cp -R .git` + `core.bare true` está bem fundamentada? A research (Decision 10) e o quickstart (§14) só citam "sem rede"; o argumento de que o bash-guard bloquearia a clonagem não procede dentro do script: o bash-guard é hook PreToolUse que só inspeciona o comando digitado pelo agente, e comandos executados dentro de `scripts/testar-configurar.sh` (CI e execução direta) não passam por ele. Além disso, copiar `.git` e forçar `core.bare` depende da estrutura interna do git (`worktrees/`, `index`, `HEAD` apontando para branch em checkout). O requisito de teste deve preferir `git clone --bare` de caminho local (sem rede) dentro do script, ou `git init --bare` + push de um commit, seguido de `git worktree add`. Destino: `/create-tasks` (tarefa de ajuste em research Decision 10, quickstart §14 e no cenário 19). [Gap, research.md Decision 10, quickstart.md §14] {auto}
 - [x] CHK024 - O cenário 19 exige commits com identidade explícita (`-c user.*`, sem gpgsign) e `.gitignore` commitado, sem depender da máquina? [Completude, research.md Decision 10] {auto}
 
 ## Julgamento do dono
@@ -53,5 +53,5 @@
 ## Notes
 
 - Resolução: 23 itens `{auto}` resolvidos com evidência (`[x]`) e 1 `[Gap]` (CHK023); 1 `{humano}` (CHK025) aguardando.
-- CHK023 vira tarefa em `/create-tasks`; nenhum `[Ambiguity]`/`[Conflict]` aberto.
+- CHK023 resolvido pela tarefa 1.1 (research Decision 10 e quickstart §14 ajustados); nenhum `[Ambiguity]`/`[Conflict]` aberto.
 - O gate `requirement-coverage.sh` não existe neste projeto (script do plugin ausente); a cobertura FR→cenário foi conferida manualmente em CHK019.

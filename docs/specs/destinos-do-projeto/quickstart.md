@@ -93,7 +93,7 @@ linha `DESTINOS_DO_PROJETO='…'` acrescentada.
 
 ## 14. Repositório principal bare (US4-4)
 
-1. `cp -R M/.git B.git`; `git -C B.git config core.bare true`; `git -C B.git worktree add <WB> -b wb`
+1. `git init --bare B.git`; `git -C M push <B>.git HEAD:refs/heads/main`; `git -C B.git worktree add <WB> -b wb main` (equivalente a `git clone --bare M B.git` seguido do `worktree add`; sem `cp -R` e sem `core.bare`)
 2. Configurar `WB`
 3. **Expected**: exit 0; `WB/CLAUDE.md` não existe; stderr `Aviso:` com `repositório bare`; stdout
    `mantido (ignorado pelo git): CLAUDE.md (árvore principal indisponível)`.
