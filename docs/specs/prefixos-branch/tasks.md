@@ -148,3 +148,64 @@ Tier de entrega usado na geração deste backlog: não informado nos `args`; bac
 | EX-001 | Exemplos `fix/…` e `feat/…` de `skills/parallel-work/SKILL.md` | Ilustração, não regra (decisoes-do-owner.md §Fora de escopo) |
 | EX-002 | Tipos de branch além dos cinco e renomear branches existentes | Fora de escopo (decisoes-do-owner.md) |
 | EX-003 | `hotfix/<slug>` em `templates/docs/constitution.md.semente.tmpl` l.18 | Fora de D3; candidato a issue de acompanhamento (research, Riscos aceitos) |
+
+## FASE 4 - Convergência
+
+> Fase gerada automaticamente pela skill `converge` (reconciliação
+> spec-vs-código). Cada tarefa abaixo corresponde a um achado (`Gap`)
+> entre o que `spec.md`/`plan.md`/`tasks.md` descreveram e o estado
+> presente do código. Tarefas sem o prefixo `[Revisar]` são acionáveis
+> (`missing`/`partial`/`contradicts`); tarefas com `[Revisar]` são item de
+> revisão (`unrequested`, FR-013) — nunca "implementar", o código já
+> existe. Append-only: esta fase nunca reescreve fases/tarefas anteriores
+> do arquivo (FR-009).
+
+### 4.1 sed -i não portável no cenário 20 `[C]`
+
+Ref: FR-013 / task 3.1.1 · tipo: `contradicts` · severidade: `CRITICAL`
+
+O caso 1 do cenário 20 em `scripts/testar-configurar.sh` usa `sed -i '/^PREFIXOS_BRANCH=/d' "$TMP/r20"`, forma só do GNU sed: no BSD sed do macOS o `-i` consome a expressão como sufixo de backup e o cenário quebra sob `set -euo pipefail`. O Princípio VII (MUST) exige que o script rode igual em Linux, WSL e macOS; o próprio arquivo já usa a forma portável `sed -i.bak` no cenário 18.
+
+- [ ] 4.1.1 Corrigir `scripts/testar-configurar.sh` conforme `FR-013 / task 3.1.1`: montar as respostas sem a chave sem `sed -i` GNU (por exemplo `grep -v '^PREFIXOS_BRANCH=' "$EXEMPLO" >"$TMP/r20"`, dispensando o `resp20 ""` seguido de `sed`)
+
+<!-- converge-key: 3c3387241068 -->
+
+### 4.2 Render byte a byte e --atualizar sem a chave não verificados `[C]`
+
+Ref: task 3.1.1 · tipo: `partial` · severidade: `HIGH`
+
+A task 3.1.1 (quickstart 1 e 6, FR-009, SC-001, SC-004) pede render byte a byte igual com a chave ausente e `--atualizar` sem pergunta, com stderr sem `PREFIXOS_BRANCH` e documentos inalterados. O caso 1 do cenário 20 em `scripts/testar-configurar.sh` só faz `grep` de `feature/<slug>` e `hotfix/<slug>` e, no `--atualizar`, só confere exit 0.
+
+- [ ] 4.2.1 Implementar em `scripts/testar-configurar.sh` conforme `task 3.1.1`: comparar com `cmp` os dois documentos renderizados sem a chave contra os de uma cópia do cockpit com os cinco placeholders trocados pelos literais (quickstart 1); no `--atualizar`, conferir stderr sem `PREFIXOS_BRANCH` e os dois documentos inalterados (quickstart 6)
+
+<!-- converge-key: cc199b8de4ec -->
+
+### 4.3 Chave válida: 5 de 5 prefixos e 0 padrões não verificados `[C]`
+
+Ref: task 3.1.2 · tipo: `partial` · severidade: `HIGH`
+
+SC-002 exige 5 de 5 prefixos refletidos e 0 ocorrências dos prefixos padrão substituídos nos dois documentos. O caso 2 do cenário 20 em `scripts/testar-configurar.sh` confere só `feat/<slug>` e `hf/<slug>` presentes e só `feature/<slug>` ausente.
+
+- [ ] 4.3.1 Implementar em `scripts/testar-configurar.sh` conforme `task 3.1.2`: no caso 2, conferir os cinco prefixos declarados presentes e os cinco padrões substituídos ausentes nos dois documentos
+
+<!-- converge-key: a011087fcc54 -->
+
+### 4.4 Só espaços: não gravação da chave não verificada `[A]`
+
+Ref: task 3.1.3 · tipo: `partial` · severidade: `MEDIUM`
+
+O quickstart 4 espera, com `PREFIXOS_BRANCH='   '`, exit 0, documentos com o padrão e chave não gravada. O caso 3 do cenário 20 em `scripts/testar-configurar.sh` confere exit 0 e o padrão em `docs/CICLO-GIT.md`, mas não que a chave ficou fora do `cockpit.config`.
+
+- [ ] 4.4.1 Implementar em `scripts/testar-configurar.sh` conforme `task 3.1.3`: no caso 3, conferir que `cockpit.config` não tem linha `PREFIXOS_BRANCH=`
+
+<!-- converge-key: a00525a4b79c -->
+
+### 4.5 Resposta - na pergunta nova: não gravação não verificada `[A]`
+
+Ref: task 3.1.5 · tipo: `partial` · severidade: `MEDIUM`
+
+O quickstart 7.1 espera que a entrada mínima de 20 respostas (a 20ª é `-`) não grave a chave. No cenário 14 de `scripts/testar-configurar.sh`, a rodada com `$MINIMO` confere só que `DESTINOS_DO_PROJETO` não foi gravada.
+
+- [ ] 4.5.1 Implementar em `scripts/testar-configurar.sh` conforme `task 3.1.5`: depois da configuração mínima com 20 respostas, conferir que `cockpit.config` não tem linha `PREFIXOS_BRANCH=`
+
+<!-- converge-key: 7a6033ad2acf -->
