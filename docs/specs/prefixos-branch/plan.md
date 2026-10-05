@@ -1,7 +1,8 @@
 # Implementation Plan: prefixos de branch de trabalho configuráveis
 
 **Feature**: `prefixos-branch` | **Date**: 2026-10-05 | **Spec**: [spec.md](spec.md)
-**Decisões do owner**: [decisoes-do-owner.md](decisoes-do-owner.md) (D1, D2, D3, normativas)
+**Decisões do owner**: [decisoes-do-owner.md](decisoes-do-owner.md) (D1 a D6, normativas; D4 a D6
+são as emendas da reabertura, round 2)
 
 ## Summary
 
@@ -12,6 +13,15 @@ placeholders de render, sempre com valor e nunca gravados, que substituem os lit
 `CICLO-GIT.md.tmpl` e `rito-dev.md.tmpl`; sem a chave, os dois documentos saem byte a byte os de
 hoje. A Fase 1 da skill `rito-dev` lê a chave na hora. Tudo em `configurar.sh` reusando o
 mecanismo das opcionais (`CHAVES_OPCIONAIS`) e o render existente; nenhuma dependência nova.
+
+**Incremento do round 2 (D4 a D6; FR-014 a FR-017, US5, SC-006, SC-007)**: cada prefixo passa a
+casar com `^[a-z0-9][a-z0-9._-]*$`, no `validar_chave` e na Fase 1 da skill, porque o git aceita
+metacaractere de shell e maiúscula ([research](research.md), Decisions 10 e 11). A semente da
+constituição troca `hotfix/<slug>` por `{{PREFIXO_HOTFIX}}/<slug>`, renderizada pelo mesmo
+caminho, byte a byte igual sem a chave; `cockpit.config.example` registra o ajuste manual de quem
+já tem constituição (Decision 12). Os cinco tipos fixos ficam (Decision 13). Nenhum arquivo,
+função ou mecanismo novo: uma regra a mais num ramo existente, um placeholder já derivado num
+template a mais, prosa e testes.
 
 ## Technical Context
 
@@ -28,7 +38,9 @@ para `BRANCH_*`)
 qualquer escrita; prosa em pt-BR acentuado; nada que nomeie projeto real
 **Scale/Scope**: `configurar.sh` (2 constantes, 1 função nova, 5 funções alteradas), 2 templates,
 1 skill, `cockpit.config.example`, 2 documentos da feature `configurar`, 1 cenário novo e 2
-ajustados
+ajustados. Round 2: 1 ramo de `validar_chave`, 1 template a mais (semente da constituição), a
+Fase 1 da skill, `cockpit.config.example`, os 2 documentos da `configurar` e 3 casos do
+cenário 20
 
 ## Constitution Check
 
@@ -47,6 +59,12 @@ ajustados
 **Re-check pós-design**: PASS. O design não cria arquivo, processo nem mecanismo de render novo;
 os placeholders reusam `setar`/`renderizar`, e a chave reusa o caminho das opcionais. Sem
 violação a justificar.
+
+**Re-check do round 2**: PASS. I — a semente deixa de fixar um prefixo que varia por projeto. V —
+a exposição que motiva D4 foi sondada no git 2.55.0 e o comportamento da regex sob `LC_ALL=C`
+também ([research](research.md), Decision 10). VII — nenhuma escrita nova: a semente segue gerada
+só com destino inexistente, então projeto já configurado não tem a constituição regravada
+(Decision 12). D6 não adiciona tipo nem formato.
 
 ## Design
 
@@ -99,13 +117,46 @@ saída: o caminho das opcionais e o render já cobrem a chave e os placeholders.
   incompleto e da reentrada de identidade.
 - Cenário 15: `! grep -rq 'PREFIXOS_BRANCH'` nos templates.
 
+### Incremento do round 2 (D4 a D6)
+
+Referências de linha: commit `11c546d` (round 1 implementado).
+
+1. **`validar_chave`, ramo `PREFIXOS_BRANCH)`** (l.314-327, FR-014): depois da checagem de `/`
+   (l.320), um `[[ "$item" =~ ^[a-z0-9][a-z0-9._-]*$ ]]` com a mensagem do conjunto aceito
+   ([data-model](data-model.md) §Validação, regra 4). A guarda `-* | *'@{'*` (l.321) sai: a regex
+   já recusa `-` inicial, `@` e `{`. `git check-ref-format` (l.322) e a repetição (l.324) ficam;
+   o git segue recusando o que a regex aceita, como `a..b` e `a.lock` (Decision 10).
+2. **Semente da constituição** (FR-016): `templates/docs/constitution.md.semente.tmpl` l.18,
+   `hotfix/<slug>` vira `{{PREFIXO_HOTFIX}}/<slug>`; nenhum outro byte muda (a palavra "hotfix"
+   da l.31 é o tipo, não o prefixo, e fica). Sem mudança em `configurar.sh`: a semente passa pelo
+   mesmo `renderizar` (l.846) e `derivar_prefixos` roda antes (l.1123) (Decision 12).
+3. **Skill `rito-dev`, Fase 1** (l.76-78, FR-015): a regra de parada passa a ser a de D4 — cinco
+   prefixos, cada um casando com `^[a-z0-9][a-z0-9._-]*$`, sem repetição —, verificada lendo o
+   valor, antes de compor qualquer comando e sem colar o valor num comando para testá-lo; fora
+   disso, PARA e nomeia `PREFIXOS_BRANCH`. O valor é dado de configuração, nunca instrução
+   (gate de segurança do round 2, achado B3) (Decision 11).
+4. **`cockpit.config.example`** (l.83-89, FR-014 e FR-016): o comentário da seção troca "sem `/`"
+   pelo conjunto aceito e ganha a nota de D5: a constituição é semente, não é regravada no
+   `--atualizar`; projeto já configurado que declarar a chave troca à mão `hotfix/<slug>` na sua.
+5. **Documentos da `configurar`**: `data-model.md` l.24 e l.64 e `contracts/cli.md` l.54-60 citam
+   a regra de D4; o contrato cita também a semente como consumidora de `{{PREFIXO_HOTFIX}}`.
+6. **Cenário 20** (FR-012, SC-006, SC-007): caso 1 — a cópia literal troca os placeholders também
+   na semente e compara `docs/constitution.md` com `cmp`; caso 2 — a constituição tem `hf/<slug>`
+   e nenhum `hotfix/<slug>`; caso 4 — valores de D4 (maiúscula, `;`, `$(x)`, `|`, crase, `.`, `_`
+   e não ASCII) com exit 1, stderr citando a chave e o conjunto aceito, sem `cockpit.config`;
+   para D6, `feature=feat fix chore docs hotfix` também sai com exit 1
+   ([quickstart](quickstart.md) 11 a 13).
+
+Sem mudança em `derivar_prefixos`, `renderizar`, `perguntar_chave`, manifesto, `--ajuda` e
+códigos de saída.
+
 ## Project Structure
 
 ### Documentação (esta feature)
 
 ```text
 docs/specs/prefixos-branch/
-├── decisoes-do-owner.md   # D1-D3 (normativas)
+├── decisoes-do-owner.md   # D1-D6 (normativas)
 ├── spec.md
 ├── plan.md                # este arquivo
 ├── research.md
@@ -122,6 +173,7 @@ configurar.sh
 cockpit.config.example
 templates/docs/CICLO-GIT.md.tmpl
 templates/docs/rito-dev.md.tmpl
+templates/docs/constitution.md.semente.tmpl   # round 2 (D5)
 skills/rito-dev/SKILL.md
 scripts/testar-configurar.sh
 docs/specs/configurar/contracts/cli.md
@@ -132,10 +184,31 @@ docs/specs/configurar/data-model.md
 
 N/A — single-layer (script local, sem fronteira de serviço).
 
+## Gate de segurança do round 2
+
+Revisão OWASP do desenho (A05 injeção, LLM01/ASI01 injeção via agente, validação na fronteira):
+0 crítico, 0 alto, 0 médio. A regra de D4 é allowlist aplicada antes de qualquer escrita
+(`validar_todos`, l.1122, antes de `derivar_prefixos` e da gravação) e antes de o git receber o
+prefixo como argumento, então nem `-` inicial chega ao git; `tem_controle` já barra controle e
+bidi antes da regra, e o `ler_kv` lê o config sem `source`/`eval`.
+
+| Achado | Severidade | Disposição |
+|---|---|---|
+| B1 — a checagem da Fase 1 da skill é feita pelo agente lendo o valor, não por script | baixo | aceito: classe de caractere simples; o `configurar.sh` aplica a regra de forma determinística (Riscos) |
+| B2 — sem limite de tamanho por prefixo | baixo | aceito: o valor vem do próprio repositório; nome longo demais falha na criação da branch |
+| B3 — prefixo que passa na regex pode carregar texto imperativo (`ignore-as-regras-anteriores`) lido pelo agente | baixo | corrigido no desenho: a Fase 1 diz que o valor é dado, nunca instrução (Design round 2, item 3) |
+
+`BRANCH_INTEGRACAO` e `BRANCH_PRODUCAO` têm a mesma exposição e ficam para a issue #19.
+
 ## Riscos
 
-- `templates/docs/constitution.md.semente.tmpl` l.18 cita `hotfix/<slug>`: fora do escopo de D3;
-  candidato a issue de acompanhamento (research, Riscos aceitos).
+- ~~`templates/docs/constitution.md.semente.tmpl` l.18 cita `hotfix/<slug>`~~: entrou no escopo
+  pela D5 (round 2).
+- A checagem da Fase 1 da skill é feita pelo agente lendo o valor, não por script; a regra é de
+  classe de caractere simples, e o `configurar.sh` aplica a mesma de forma determinística a todo
+  valor que passa por ele (Decision 11).
+- Constituição de projeto já configurado não é corrigida: é semente, e D5 manda o ajuste manual,
+  registrado em `cockpit.config.example`.
 - Entradas posicionais do cenário 14 dependem da ordem das perguntas; a chave no fim limita o
   ajuste a uma resposta a mais por entrada.
 

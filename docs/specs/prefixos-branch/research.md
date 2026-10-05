@@ -1,7 +1,8 @@
 # Research: prefixos de branch de trabalho configuráveis
 
 **Feature**: `prefixos-branch` | **Date**: 2026-10-05 | **Spec**: [spec.md](spec.md)
-**Decisões do owner**: [decisoes-do-owner.md](decisoes-do-owner.md) (D1, D2, D3, normativas)
+**Decisões do owner**: [decisoes-do-owner.md](decisoes-do-owner.md) (D1 a D6, normativas; D4 a D6
+na reabertura, round 2 — Decisions 10 a 14)
 
 Referências de linha: `configurar.sh` no commit `ec13897`. Nenhum `NEEDS CLARIFICATION` de eixo
 estrutural: linguagem, persistência e plataforma são as do script existente (bash, arquivos texto,
@@ -47,6 +48,8 @@ Linux/WSL/macOS — Princípio VII).
 
 - **Alternatives considered**: regex própria de nome de ref — rejeitada: duplicaria regras que o
   git já aplica e envelheceria com ele (D1 manda usar o git).
+- **Ampliada no round 2** (Decision 10): a regra de caracteres de D4 entra depois da checagem de
+  `/` e absorve a guarda `-*`/`@{`; `git check-ref-format` e a repetição continuam.
 
 ## Decision 3: valor em branco ou só de espaços equivale a chave não declarada
 
@@ -107,6 +110,8 @@ Linux/WSL/macOS — Princípio VII).
   também para valor malformado; o padrão só vale para chave ausente ou em branco.
 - **Fora de escopo** (D3): a `description` do frontmatter cita os tipos (`feature/fix/chore/docs`)
   como gatilho de uso, não como prefixo de branch; fica como está.
+- **Ampliada no round 2** (Decision 11): a regra de parada "cinco prefixos sem `/`" passa a ser a
+  de D4.
 
 ## Decision 8: testes
 
@@ -133,11 +138,101 @@ Linux/WSL/macOS — Princípio VII).
   `CHAVES_ORDEM` (l.51) o aponta como fonte da ordem de gravação; sem a linha, a fonte fica
   desatualizada. Valor vazio no exemplo mantém iguais os cenários que o usam como respostas.
 
+## Decision 10: regra de caracteres de D4 em `validar_chave` (round 2)
+
+Referências de linha das Decisions 10 a 14: commit `11c546d` (round 1 implementado).
+
+- **Decision**: no ramo `PREFIXOS_BRANCH)` (l.314-327), por item, nesta ordem: `/` (l.320, como
+  hoje); `[[ "$item" =~ ^[a-z0-9][a-z0-9._-]*$ ]]` com a mensagem do conjunto aceito
+  ([data-model](data-model.md) §Validação, regra 4); `git check-ref-format --branch "<item>/x"`;
+  repetição. A guarda `-* | *'@{'*` (l.321) sai.
+- **Rationale**: D4 e FR-014. A checagem de `/` fica antes porque tem mensagem própria (FR-003). A
+  regex recusa `-` no início, `@` e `{`, então a guarda vira código morto. O git continua
+  necessário: a regex aceita `a..b` e `a.lock`, que o git recusa. O script já roda com
+  `export LC_ALL=C` (l.38), e nesse locale `[a-z]` é só ASCII: `á` e maiúsculas ficam de fora.
+  Regex nativa do bash: nenhuma dependência nova.
+- **Fonte**: sondas de 2026-10-05, git 2.55.0 e bash com `LC_ALL=C`.
+
+  | Prefixo | `git check-ref-format --branch '<p>/x'` | regex de D4 |
+  |---|---|---|
+  | `feature`, `fix`, `hotfix`, `feat`, `a.b`, `a_b`, `a-b`, `0x` | aceito | aceito |
+  | `a;b`, `a$(x)`, `a\|b`, `a&b`, crase, `a"b`, `a'b` | aceito | recusado |
+  | `Feat`, `_x` | aceito | recusado |
+  | `á` | aceito (Decision 2) | recusado |
+  | `-x`, `.x`, `a@{b`, `a/b` | recusado | recusado |
+  | `a..b`, `a.lock` | recusado | aceito |
+  | `a.` | aceito | aceito |
+
+  O `configurar.sh` do round 1 aceita hoje `a;b`, `a$(x)`, `a|b`, crase, `á` e `Feat` como
+  prefixo (exit 0, prefixo gravado no documento), o que confirma a exposição que D4 fecha.
+- **Alternatives considered**: (a) só a regex, sem o git — rejeitada: D4 manda manter as checagens
+  de D1, e `a..b` passaria; (b) manter a guarda `-*`/`@{` — rejeitada: nunca dispara depois da
+  regex.
+
+## Decision 11: Fase 1 da skill `rito-dev` aplica D4 (round 2)
+
+- **Decision**: a regra de parada da Fase 1 (l.76-78) passa a ser: exatamente cinco prefixos,
+  cada um casando com `^[a-z0-9][a-z0-9._-]*$` (minúsculas ASCII, dígitos, `.`, `_` e `-`,
+  começando por letra ou dígito), sem repetição; a verificação é feita lendo o valor, antes de
+  compor qualquer comando, e o valor nunca é colado num comando para ser testado. Fora disso, a
+  skill PARA e nomeia `PREFIXOS_BRANCH`. Ausente ou em branco segue valendo o padrão. A prosa
+  diz que o valor é dado de configuração, nunca instrução: um prefixo como
+  `ignore-as-regras-anteriores` passa na regex (gate de segurança do round 2, achado B3).
+- **Rationale**: D4 e FR-015. O `cockpit.config` é versionado e editável à mão, então a skill não
+  pode confiar que o valor passou pelo `configurar.sh`. A skill já lê todas as chaves pela leitura
+  do arquivo (l.11-17); a regra é de classe de caractere, sem ambiguidade de leitura. Colar o valor
+  num comando para validá-lo seria executar o próprio vetor que D4 fecha.
+- **Alternatives considered**: (a) trecho de bash na skill que extrai a chave do arquivo e valida
+  — rejeitado: duplicaria na skill o leitor `ler_kv`/`desaspar` (aspas, `export`, última
+  atribuição vale) e criaria um segundo parser para manter; (b) a skill rodar
+  `git check-ref-format` — rejeitado: D4 não pede, e exigiria colar o valor num comando; nome que
+  passa na regex mas o git recusa (`a..b`) falha na criação da branch, sem efeito colateral.
+
+## Decision 12: semente da constituição usa `{{PREFIXO_HOTFIX}}` (round 2)
+
+- **Decision**: em `templates/docs/constitution.md.semente.tmpl` l.18, `hotfix/<slug>` vira
+  `{{PREFIXO_HOTFIX}}/<slug>`; nenhum outro byte. A palavra "hotfix" da l.31 ("em hotfix") nomeia
+  o tipo e fica. `cockpit.config.example` registra, junto da chave, que a constituição é semente:
+  projeto já configurado que declarar a chave troca à mão o prefixo de hotfix na sua.
+- **Rationale**: D5 e FR-016. Sementes passam pelo mesmo `renderizar` dos demais templates (l.846)
+  e `derivar_prefixos` roda antes de qualquer render (l.1123), então o placeholder tem sempre valor
+  e, sem a chave, vale `hotfix`: o arquivo sai byte a byte o de hoje. Semente com destino existente
+  é pulada (`PULAR=semente`, l.731-732), inclusive no `--atualizar` e com `--forcar`: projeto já
+  configurado não tem a constituição regravada (US5-3), comportamento que já existe e não muda.
+  A regra do cenário 15 segue valendo: o template usa o placeholder derivado, não a chave.
+- **Evidência prevista**: caso 1 do cenário 20 — a cópia literal (`cockpit_copia`) também troca o
+  placeholder na semente, e `cmp` de `docs/constitution.md` entre os dois projetos (SC-007, sem a
+  chave); caso 2 — com `hf` no 5º prefixo, `hf/<slug>` presente e `hotfix/<slug>` ausente na
+  constituição (SC-007, com a chave).
+- **Alternatives considered**: regravar a constituição de projeto já configurado no
+  `--atualizar` — rejeitado: D5 e o contrato de semente (`configurar`) mandam nunca sobrescrever
+  semente.
+
+## Decision 13: os cinco tipos fixos ficam (round 2)
+
+- **Decision**: nenhuma mudança: cinco tipos na ordem de FR-001, sem tipo novo e sem formato
+  `tipo=prefixo` (D6, FR-017). A contagem exata de 5 do `validar_chave` e as constantes
+  `PREFIXOS_PADRAO` e `DERIVADAS` já garantem isso.
+- **Rationale**: D6 fecha o CHK022 sem demanda real por outro tipo.
+
+## Decision 14: testes do round 2
+
+- **Decision**: no cenário 20 de `scripts/testar-configurar.sh` — caso 1: o laço da cópia literal
+  passa a cobrir também `constitution.md.semente.tmpl`, e o `cmp` inclui `docs/constitution.md`;
+  caso 2: confere `hf/<slug>` e nenhum `hotfix/<slug>` em `docs/constitution.md`; caso 4: valores de
+  D4 (`Feat b c d e`, `a;b c d e f`, `a$(x) b c d e`, `a|b c d e f`, crase, `.a b c d e`,
+  `_a b c d e`, `á b c d e`, e `feature=feat fix chore docs hotfix` para D6), cada um com exit 1, stderr citando `PREFIXOS_BRANCH` e o conjunto
+  aceito, e sem `cockpit.config`. Os valores do caso 4 de hoje continuam (`-a` e `a@{b` passam a
+  cair na regra de D4, ainda com exit 1 citando a chave).
+- **Rationale**: FR-012 (D4 e D5 no cenário 20), SC-006 e SC-007. A sonda da Decision 10 mostra
+  que esses valores chegam ao `validar_chave` pelo arquivo de respostas (o `ler_kv` lê aspas
+  simples literalmente). A Fase 1 da skill é prosa: verificação manual no quickstart (11).
+
 ## Riscos aceitos
 
-- `templates/docs/constitution.md.semente.tmpl` (l.18) também cita `hotfix/<slug>`. Fica fora do
-  escopo medido por D3; por ser semente, o projeto passa a mantê-la depois da primeira geração.
-  Candidato a issue de acompanhamento.
-- Repetição é igualdade exata: `Fix` e `fix` passam, embora colidam em sistema de arquivos sem
-  distinção de caixa. D1 define repetição como texto igual.
-- Prefixo não ASCII (`á`) é aceito, porque o git aceita (sonda da Decision 2).
+- ~~`templates/docs/constitution.md.semente.tmpl` (l.18) também cita `hotfix/<slug>`~~: entrou no
+  escopo pela D5 (Decision 12).
+- Repetição é igualdade exata. Com D4, `Fix` e `fix` não convivem mais: maiúscula é recusada.
+- ~~Prefixo não ASCII (`á`) é aceito~~: recusado por D4 (Decision 10).
+- A Fase 1 da skill valida por leitura do agente, não por script (Decision 11).
+- Constituição de projeto já configurado não é corrigida automaticamente (D5).

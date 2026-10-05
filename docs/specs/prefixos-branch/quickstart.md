@@ -71,3 +71,34 @@ nenhum `` `feature/<slug>` `` literal na Fase 1.
 
 `shellcheck -x configurar.sh scripts/testar-configurar.sh` sem findings e
 `./scripts/verificar-agnostico.sh` limpo (cenário 11); suíte inteira passa (SC-005).
+
+## Round 2 (D4 a D6)
+
+### 11. Caracteres fora do conjunto (US3-4, US4-4, FR-014, FR-015, SC-006)
+
+Automatizado (caso 4 do cenário 20): para cada valor — `'Feat b c d e'`, `'a;b c d e f'`,
+`'a$(x) b c d e'`, `'a|b c d e f'`, ``'a`b c d e f'``, `'.a b c d e'`, `'_a b c d e'`,
+`'á b c d e'` —, num projeto novo:
+→ **Expected**: exit 1, stderr cita `PREFIXOS_BRANCH` e `^[a-z0-9][a-z0-9._-]*$`, nenhum
+`cockpit.config` criado. `'-a b c d e'` e `'a@{b c d e f'` seguem com exit 1 citando a chave; o
+padrão `feature fix chore docs hotfix` e `'feat fx ch dc hf'` seguem aceitos.
+
+Manual (PR), skill: ler a Fase 1 de `skills/rito-dev/SKILL.md` → **Expected**: a regra de parada
+cita cinco prefixos, `^[a-z0-9][a-z0-9._-]*$` e repetição, manda PARAR nomeando a chave antes de
+compor qualquer comando e proíbe colar o valor num comando para testá-lo.
+
+### 12. Constituição semeada (US5, FR-016, SC-007)
+
+1. Chave ausente (caso 1 do cenário 20): a cópia literal troca `{{PREFIXO_HOTFIX}}` por `hotfix`
+   também na semente → **Expected**: `cmp` de `docs/constitution.md` entre os dois projetos sem
+   diferença.
+2. Chave `'feat fx ch dc hf'` (caso 2) → **Expected**: `docs/constitution.md` com `hf/<slug>` e
+   nenhum `hotfix/<slug>`.
+3. Manual (PR): projeto configurado sem a chave; declarar `PREFIXOS_BRANCH` no `cockpit.config` e
+   rodar `--atualizar` → **Expected**: `docs/constitution.md` intacta (`mantido (semente)`); o
+   comentário da chave em `cockpit.config.example` orienta o ajuste manual.
+
+### 13. Tipos fixos (FR-017)
+
+Automatizado (caso 4 do cenário 20): `'a b c d e f'` (seis prefixos) e `'feature=feat fix chore docs hotfix'` → **Expected**: exit 1
+citando a chave (contagem e, no segundo, `=` fora do conjunto de D4).
