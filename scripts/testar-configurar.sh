@@ -446,6 +446,7 @@ if command -v script >/dev/null 2>&1 && script -qec true /dev/null >/dev/null 2>
   interativo "$MINIMO" --projeto "$T3" || falha "configuração mínima com 20 respostas falhou: $(tail -3 "$TMP/tty")"
   [ -f "$T3/cockpit.config" ] && [ -f "$T3/.cockpit/LEIAME.md" ] || falha "configuração mínima não gravou config e templates"
   ! grep -q '^DESTINOS_DO_PROJETO=' "$T3/cockpit.config" || falha "- nos destinos gravou a chave"
+  ! grep -q '^PREFIXOS_BRANCH=' "$T3/cockpit.config" || falha "- nos prefixos gravou a chave"
   T3="$(novo_repo)"
   ! interativo "$MINIMO19" --projeto "$T3" \
     || falha "configuração concluiu com 19 respostas; a mínima passou a 20"
@@ -852,20 +853,40 @@ grep -q '  CLAUDE.md$' "$M/.cockpit/manifesto.sha256" || falha "caso 15: semente
 cenario "20: prefixos de branch"
 resp20() { { grep -v '^PREFIXOS_BRANCH=' "$EXEMPLO"; [ -z "${1+x}" ] || printf "PREFIXOS_BRANCH='%s'\n" "$1"; } >"$2"; }
 # 1: chave ausente: render igual ao de hoje (padrão) e --atualizar sem pergunta
-T="$(novo_repo)"; resp20 "" "$TMP/r20"; sed -i '/^PREFIXOS_BRANCH=/d' "$TMP/r20"
+T="$(novo_repo)"; grep -v '^PREFIXOS_BRANCH=' "$EXEMPLO" >"$TMP/r20"
 rodar "$CONF" --projeto "$T" --respostas "$TMP/r20" >/dev/null 2>&1 || falha "caso 1: setup"
 for f in docs/CICLO-GIT.md docs/rito-dev.md; do
   grep -q 'feature/<slug>' "$T/$f" && grep -q 'hotfix/<slug>' "$T/$f" || falha "caso 1: padrão ausente em $f"
 done
 ! grep -q 'PREFIXO' "$T/cockpit.config" || falha "caso 1: gravou PREFIXO"
+# byte a byte igual a um cockpit com os cinco placeholders trocados pelos literais (quickstart 1)
+C20="$(cockpit_copia)"
+for t in CICLO-GIT rito-dev; do
+  sed 's/{{PREFIXO_FEATURE}}/feature/g;s/{{PREFIXO_FIX}}/fix/g;s/{{PREFIXO_CHORE}}/chore/g;s/{{PREFIXO_DOCS}}/docs/g;s/{{PREFIXO_HOTFIX}}/hotfix/g' \
+    "$C20/templates/docs/$t.md.tmpl" >"$C20/templates/docs/$t.md.tmpl.n" && mv "$C20/templates/docs/$t.md.tmpl.n" "$C20/templates/docs/$t.md.tmpl"
+done
+TL="$(novo_repo)"
+rodar "$C20/configurar.sh" --projeto "$TL" --respostas "$TMP/r20" >/dev/null 2>&1 || falha "caso 1: setup da cópia literal"
+for f in docs/CICLO-GIT.md docs/rito-dev.md; do
+  cmp -s "$T/$f" "$TL/$f" || falha "caso 1: $f difere do render com literais"
+done
+# --atualizar sem a chave: sem pergunta, stderr sem a chave, documentos inalterados (quickstart 6)
+cp "$T/docs/CICLO-GIT.md" "$TMP/ant-ciclo"; cp "$T/docs/rito-dev.md" "$TMP/ant-rito"
 rc="$(codigo rodar "$CONF" --projeto "$T" --atualizar </dev/null)"
 [ "$rc" = 0 ] || falha "caso 1: --atualizar saiu com $rc: $(cat "$TMP/err")"
+! grep -q 'PREFIXOS_BRANCH' "$TMP/err" || falha "caso 1: --atualizar citou PREFIXOS_BRANCH"
+cmp -s "$T/docs/CICLO-GIT.md" "$TMP/ant-ciclo" && cmp -s "$T/docs/rito-dev.md" "$TMP/ant-rito" \
+  || falha "caso 1: --atualizar alterou os documentos"
 # 2: chave válida refletida nos dois documentos; placeholders não gravados
 T="$(novo_repo)"; resp20 'feat fx ch dc hf' "$TMP/r20"
 rodar "$CONF" --projeto "$T" --respostas "$TMP/r20" >/dev/null 2>&1 || falha "caso 2: setup"
 for f in docs/CICLO-GIT.md docs/rito-dev.md; do
-  grep -q 'feat/<slug>' "$T/$f" && grep -q 'hf/<slug>' "$T/$f" || falha "caso 2: prefixos ausentes em $f"
-  ! grep -q 'feature/<slug>' "$T/$f" || falha "caso 2: prefixo padrão em $f"
+  for p in feat fx ch dc hf; do
+    grep -Fq "$p/<slug>" "$T/$f" || falha "caso 2: prefixo $p ausente em $f"
+  done
+  for p in feature fix chore docs hotfix; do
+    ! grep -Fq "$p/<slug>" "$T/$f" || falha "caso 2: prefixo padrão $p em $f"
+  done
 done
 grep -q "^PREFIXOS_BRANCH='feat fx ch dc hf'\$" "$T/cockpit.config" || falha "caso 2: chave não gravada"
 ! grep -q '^PREFIXO_' "$T/cockpit.config" || falha "caso 2: placeholder gravado"
@@ -873,6 +894,7 @@ grep -q "^PREFIXOS_BRANCH='feat fx ch dc hf'\$" "$T/cockpit.config" || falha "ca
 T="$(novo_repo)"; resp20 '   ' "$TMP/r20"
 rc="$(codigo rodar "$CONF" --projeto "$T" --respostas "$TMP/r20")"
 [ "$rc" = 0 ] && grep -q 'feature/<slug>' "$T/docs/CICLO-GIT.md" || falha "caso 3: só espaços (exit $rc)"
+! grep -q '^PREFIXOS_BRANCH=' "$T/cockpit.config" || falha "caso 3: só espaços gravou a chave"
 # 4: inválidos: exit 1 citando a chave, sem cockpit.config
 for v in 'a b c d' 'a b c d e f' 'a/b c d e f' '-a b c d e' 'a@{b c d e f' 'a b c d a' 'a.lock b c d e' "$(printf 'a	b c d e f')"; do
   T="$(novo_repo)"; resp20 "$v" "$TMP/r20"
