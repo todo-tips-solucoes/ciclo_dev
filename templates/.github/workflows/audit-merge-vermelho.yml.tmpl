@@ -31,18 +31,23 @@ jobs:
           set -euo pipefail
           TITULO="Auditoria: PR #$PR mergeado com check vermelho"
           export TITULO
-          ja="$(gh issue list --repo "$REPO" --state all --search "\"$TITULO\" in:title" --json title --jq '[.[] | select(.title == env.TITULO)] | length')"
-          if [ "$ja" != "0" ]; then
-            echo "Já existe issue de auditoria para o PR #$PR."
-            exit 0
-          fi
+          codificar() {
+            local LC_ALL=C s="$1" i c
+            for ((i = 0; i < ${#s}; i++)); do
+              c="${s:i:1}"
+              case "$c" in
+                [A-Za-z0-9.~_-]) printf '%s' "$c" ;;
+                *) printf '%%%02X' "'$c" ;;
+              esac
+            done
+          }
           vermelhos="$(mktemp)"
           gh api "repos/$REPO/commits/$SHA/check-runs?per_page=100" --paginate \
             --jq '.check_runs[] | select(.conclusion == "failure" or .conclusion == "timed_out" or .conclusion == "cancelled" or .conclusion == "action_required") | .name' >"$vermelhos"
           gh api "repos/$REPO/commits/$SHA/status" \
             --jq '.statuses[] | select(.state == "failure" or .state == "error") | .context' >>"$vermelhos"
           obrigatorios="$(mktemp)"
-          gh api "repos/$REPO/rules/branches/$BASE" \
+          gh api "repos/$REPO/rules/branches/$(codificar "$BASE")" \
             --jq '.[] | select(.type == "required_status_checks") | .parameters.required_status_checks[].context' >"$obrigatorios" 2>/dev/null || true
           nota="Sem regra de checks obrigatórios legível na branch base: todo check vermelho foi listado."
           if [ -s "$obrigatorios" ]; then
@@ -61,4 +66,11 @@ jobs:
             sort -u "$vermelhos" | sed 's/^/- /'
             printf '\n%s\n' "$nota"
           } >"$corpo"
+          # ponytail: a listagem direta varre todas as páginas de issues a cada merge vermelho; se o volume pesar, filtrar por rótulo ou data (Decision 3 da research).
+          ja="$(gh api "repos/$REPO/issues?state=all&per_page=100" --paginate \
+            --jq '.[] | select((has("pull_request") | not) and .title == env.TITULO) | .number')"
+          if [ -n "$ja" ]; then
+            echo "Já existe issue de auditoria para o PR #$PR."
+            exit 0
+          fi
           gh issue create --repo "$REPO" --title "$TITULO" --body-file "$corpo"

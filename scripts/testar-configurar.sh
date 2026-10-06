@@ -919,6 +919,70 @@ rc="$(codigo rodar "$CONF" --projeto "$T" --respostas "$TMP/r20")"
 [ "$rc" = 0 ] && grep -q "^PREFIXOS_BRANCH='feature fix chore docs hotfix'\$" "$T/cockpit.config" || falha "caso 6: padrão declarado (exit $rc)"
 # (caso 5, modo interativo, no cenário 14)
 
+# --------------------------------------------------------------- 24 ---
+cenario "24: auditoria de merge vermelho (rota codificada e duplicada sem índice)"
+T="$(novo_repo)"
+rodar "$CONF" --projeto "$T" --respostas "$EXEMPLO" >/dev/null 2>&1 || falha "render do audit-merge-vermelho falhou"
+awk '/- name: Registrar merge com check vermelho/ {d=1} d && /run: \|/ {r=1; next} r {sub(/^          /, ""); print}' \
+  "$T/.github/workflows/audit-merge-vermelho.yml" >"$TMP/auditoria.sh"
+[ -s "$TMP/auditoria.sh" ] || falha "não extraí o passo do audit-merge-vermelho"
+G24="$TMP/gh24"; mkdir -p "$G24/bin"
+cat >"$G24/bin/gh" <<'GHFALSO'
+#!/usr/bin/env bash
+# gh falso: registra a chamada; `api` serve a fixture pela rota e aplica o --jq recebido.
+echo "$*" >>"$G24/log"
+if [ "$1" = api ]; then
+  rota="$2"; jqx=""
+  while [ $# -gt 0 ]; do [ "$1" = --jq ] && jqx="$2"; shift; done
+  case "$rota" in
+    */issues\?*)
+      [ -z "${G24_FALHA:-}" ] || exit 1
+      for p in "$G24"/issues-*.json; do jq -r "$jqx" "$p"; done ;;
+    */check-runs\?*) jq -r "$jqx" "$G24/checks.json" ;;
+    */status) jq -r "$jqx" "$G24/status.json" ;;
+    */rules/branches/*) jq -r "$jqx" "$G24/rules.json" ;;
+    *) exit 64 ;;
+  esac
+elif [ "$1 $2" = "issue create" ]; then
+  while [ $# -gt 0 ]; do [ "$1" = --body-file ] && cp "$2" "$G24/corpo"; shift; done
+else
+  exit 64
+fi
+GHFALSO
+chmod +x "$G24/bin/gh"
+printf '{"check_runs":[{"name":"ci","conclusion":"failure"},{"name":"lint","conclusion":"failure"},{"name":"ok","conclusion":"success"}]}' >"$G24/checks.json"
+printf '{"statuses":[]}' >"$G24/status.json"
+printf '[{"type":"required_status_checks","parameters":{"required_status_checks":[{"context":"ci"}]}}]' >"$G24/rules.json"
+roda24() { # $1 = BASE
+  rm -f "$G24/log" "$G24/corpo"
+  codigo env G24="$G24" PATH="$G24/bin:$PATH" REPO=org/repo PR=7 SHA=abc BASE="$1" \
+    URL_PR=https://exemplo.invalid/pr/7 AUTOR_MERGE=maria-exemplo bash "$TMP/auditoria.sh"
+}
+TIT='Auditoria: PR #7 mergeado com check vermelho'
+# 1: título parecido e PR de mesmo título não impedem a criação; filtro pelos obrigatórios
+printf '[{"number":1,"title":"%s extra"},{"number":2,"title":"%s","pull_request":{}}]' "$TIT" "$TIT" >"$G24/issues-1.json"
+printf '[]' >"$G24/issues-2.json"
+rc="$(roda24 release/2026)"
+[ "$rc" = 0 ] || falha "caso 1: saiu $rc"
+grep -q 'issue create' "$G24/log" || falha "caso 1: issue não criada"
+grep -qF 'rules/branches/release%2F2026 ' "$G24/log" || falha "caso 1: rota sem a branch codificada"
+grep -q '^- ci$' "$G24/corpo" && ! grep -q '^- lint$' "$G24/corpo" && grep -q 'filtrada pelos checks obrigatórios' "$G24/corpo" || falha "caso 1: corpo da issue"
+# 2: issue fechada de título idêntico na página 2 não gera outra e não usa a busca
+printf '[{"number":3,"title":"outra"}]' >"$G24/issues-1.json"
+printf '[{"number":4,"state":"closed","title":"%s"}]' "$TIT" >"$G24/issues-2.json"
+rc="$(roda24 main)"
+[ "$rc" = 0 ] && grep -q 'Já existe issue de auditoria para o PR #7' "$TMP/out" || falha "caso 2: duplicada não detectada (saiu $rc)"
+! grep -q 'issue create' "$G24/log" && ! grep -q 'issue list' "$G24/log" || falha "caso 2: criou ou buscou issue"
+grep -qF 'rules/branches/main ' "$G24/log" || falha "caso 2: rota de main mudou"
+# 3: caracteres especiais e UTF-8 codificados byte a byte
+printf '[]' >"$G24/issues-1.json"; rm -f "$G24/issues-2.json"
+rc="$(roda24 'feat/ação+1#x')"
+grep -qF 'rules/branches/feat%2Fa%C3%A7%C3%A3o%2B1%23x ' "$G24/log" || falha "caso 3: codificação da rota"
+# 4: falha da listagem derruba o passo sem criar issue
+rm -f "$G24/log"
+rc="$(codigo env G24_FALHA=1 G24="$G24" PATH="$G24/bin:$PATH" REPO=org/repo PR=7 SHA=abc BASE=main URL_PR=u AUTOR_MERGE=m bash "$TMP/auditoria.sh")"
+[ "$rc" != 0 ] && ! grep -q 'issue create' "$G24/log" || falha "caso 4: falha da listagem deveria abortar sem criar (saiu $rc)"
+
 # --------------------------------------------------------------- 11 ---
 cenario "11: qualidade estática"
 if command -v shellcheck >/dev/null 2>&1; then
