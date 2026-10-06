@@ -919,6 +919,19 @@ rc="$(codigo rodar "$CONF" --projeto "$T" --respostas "$TMP/r20")"
 [ "$rc" = 0 ] && grep -q "^PREFIXOS_BRANCH='feature fix chore docs hotfix'\$" "$T/cockpit.config" || falha "caso 6: padrão declarado (exit $rc)"
 # (caso 5, modo interativo, no cenário 14)
 
+# --------------------------------------------------------------- 25 ---
+cenario "25: commitlint sem limite de linha no corpo"
+T="$(novo_repo)"
+rodar "$CONF" --projeto "$T" --respostas "$EXEMPLO" >/dev/null 2>&1 || falha "render do commitlint falhou"
+linha="$(grep -F 'commitlint.config.cjs' "$T/.github/workflows/commitlint.yml" | grep '^ *printf ')"
+[ "$(printf '%s\n' "$linha" | grep -c .)" = 1 ] || falha "esperada exatamente 1 linha printf da config do commitlint"
+pasta="$TMP/commitlint25"
+mkdir -p "$pasta"
+pasta="$pasta" bash -c "$linha" || falha "linha printf da config do commitlint falhou"
+[ -f "$pasta/commitlint.config.cjs" ] || falha "commitlint.config.cjs não foi criado"
+grep -Fq "extends: ['@commitlint/config-conventional']" "$pasta/commitlint.config.cjs" || falha "config sem o extends da config convencional"
+grep -Fq "'body-max-line-length': [0, 'always', Infinity]" "$pasta/commitlint.config.cjs" || falha "config sem a regra body-max-line-length desligada"
+
 # --------------------------------------------------------------- 11 ---
 cenario "11: qualidade estática"
 if command -v shellcheck >/dev/null 2>&1; then

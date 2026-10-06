@@ -35,7 +35,7 @@ jobs:
           pasta="$RUNNER_TEMP/commitlint"
           mkdir -p "$pasta"
           npm install --prefix "$pasta" --no-audit --no-fund @commitlint/cli@21.2.3 @commitlint/config-conventional@21.2.3
-          printf "module.exports = { extends: ['@commitlint/config-conventional'] };\n" >"$pasta/commitlint.config.cjs"
+          printf "module.exports = { extends: ['@commitlint/config-conventional'], rules: { 'body-max-line-length': [0, 'always', Infinity] } };\n" >"$pasta/commitlint.config.cjs"
           lint() { "$pasta/node_modules/.bin/commitlint" --config "$pasta/commitlint.config.cjs" "$@"; }
           if ! printf '%s\n' "$TITULO" | lint; then
             echo "::error::Título do PR fora do padrão. Formato esperado: tipo(escopo): descrição (ex.: feat(api): adiciona rota)."
