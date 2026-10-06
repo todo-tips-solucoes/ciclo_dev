@@ -131,3 +131,44 @@ flowchart TD
 | REPO_REMOTO | Regra própria já existe (`RE_REPO`) | Fora de escopo por decisão do owner |
 | CMD_* | Comandos por desenho | Fora de escopo por decisão do owner |
 | Tier de entrega | Não citado nos args; backlog completo | Sem divisão nuvem/não-nuvem aplicável |
+
+
+---
+
+## FASE 5 - Convergência
+
+> Fase gerada automaticamente pela skill `converge` (reconciliação
+> spec-vs-código). Cada tarefa abaixo corresponde a um achado (`Gap`)
+> entre o que `spec.md`/`plan.md`/`tasks.md` descreveram e o estado
+> presente do código. Tarefas sem o prefixo `[Revisar]` são acionáveis
+> (`missing`/`partial`/`contradicts`); tarefas com `[Revisar]` são item de
+> revisão (`unrequested`, FR-013) — nunca "implementar", o código já
+> existe. Append-only: esta fase nunca reescreve fases/tarefas anteriores
+> do arquivo (FR-009).
+
+### 5.1 Valores recusados no --atualizar nas duas chaves `[C]`
+
+Ref: 1.1 (tarefa 1.1.2; spec.md SC-001) · tipo: `partial` · severidade: `HIGH`
+
+A tarefa 1.1.2 promete os valores recusados (`main;curl x`, `$(x)`, crase, `a|b`, `a b`) nas duas
+chaves em `--respostas` e `--atualizar`, com exit 1 e nada gravado. Em `scripts/testar-configurar.sh`,
+cenário 21, o caso 1 cobre as 10 combinações só em `--respostas`; no `--atualizar` só o caso 3 roda,
+com `BRANCH_PRODUCAO='$(x)'`. As outras 9 combinações chave x valor não são exercitadas no
+`--atualizar`. O código (`configurar.sh`, `validar_chave`) já é comum aos três modos; falta só o teste.
+
+- [ ] 5.1.1 Estender o caso 3 do cenário 21 em `scripts/testar-configurar.sh` para as duas chaves e os cinco valores recusados no `--atualizar` (exit 1, chave e conjunto citados, `cockpit.config` e manifesto inalterados), só acrescentando casos
+
+<!-- converge-key: 4c8f843795d7 -->
+
+### 5.2 Conteúdo do manifesto anterior conferido no caso 6 `[A]`
+
+Ref: FR-007 (US3 cenário 2; quickstart caso 6) · tipo: `partial` · severidade: `MEDIUM`
+
+A US3 cenário 2 pede o manifesto anterior "mantido e atualizado", e o quickstart caso 6 espera o
+manifesto "com as linhas dos destinos listados preservadas". Em `scripts/testar-configurar.sh`,
+cenário 21, o caso 6 só confere que `.cockpit/manifesto.sha256` existe; um manifesto truncado ou
+vazio passaria. O código (`configurar.sh`, `gravar_manifesto`) preserva as linhas; falta o teste.
+
+- [ ] 5.2.1 No caso 6 do cenário 21 em `scripts/testar-configurar.sh`, guardar o manifesto do setup e conferir que as linhas dos destinos listados continuam no manifesto depois da segunda execução, só acrescentando a checagem
+
+<!-- converge-key: 0e13ac065203 -->
