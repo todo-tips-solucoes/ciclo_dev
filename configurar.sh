@@ -291,8 +291,10 @@ validar_chave() {
       done
       ;;
     BRANCH_INTEGRACAO | BRANCH_PRODUCAO)
-      [[ "$v" =~ $RE_BRANCH ]] && git check-ref-format --branch "$v" >/dev/null 2>&1 \
-        || { erro "Valor inválido para $chave: esperado nome de branch válido para o Git, só com caracteres do conjunto aceito $RE_BRANCH."; return 1; }
+      if ! [[ "$v" =~ $RE_BRANCH ]] || ! git check-ref-format --branch "$v" >/dev/null 2>&1; then
+        erro "Valor inválido para $chave: esperado nome de branch válido para o Git, só com caracteres do conjunto aceito $RE_BRANCH."
+        return 1
+      fi
       ;;
     PROJETO_NOME | GERENCIADOR_PACOTES | CMD_*)
       [ -n "${v//[[:space:]]/}" ] || { erro "Valor inválido para $chave: não pode ser vazio."; return 1; }
