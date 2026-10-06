@@ -55,7 +55,7 @@ forma de escrita.
 | Chave | Regra |
 |---|---|
 | `REPO_REMOTO` | `org/repositório`: cada parte `[A-Za-z0-9._-]+`, sem começar por `-` e diferente de `.` e `..` |
-| `BRANCH_*` | `git check-ref-format --branch <valor>` passa |
+| `BRANCH_*` | casa com `^[A-Za-z0-9][A-Za-z0-9._/-]*$` e `git check-ref-format --branch <valor>` passa |
 | `CMD_*`, `PROJETO_NOME`, `GERENCIADOR_PACOTES` | não vazio após remover espaços |
 | `URL_*` | vazio (ausente) ou `^https?://[^[:space:]]+$` |
 | `IDENTIDADES` | ver Decision 5; ≥ 1 item; espaços nas pontas de itens, nome e e-mail são aparados; nome sem `:` |
@@ -113,7 +113,7 @@ Arquivo existente fora do manifesto é tratado como `editado`.
 
 Template removido do cockpit: o arquivo gerado continua no projeto, a linha do
 manifesto é mantida com o hash antigo e cada execução avisa que ele não é mais
-gerado; nada é apagado. Sem nenhum template e sem manifesto anterior, nenhum
+gerado; nada é apagado. Sem linha a registrar e sem manifesto anterior, nenhum
 manifesto é criado. O bit de execução do destino segue o do template, lido do modo registrado no git do cockpit (`100755`/`100644`) e, fora do git, do sistema de arquivos; as
 demais permissões do destino existente (ex.: 600) são mantidas na regravação,
 também no `cockpit.config`; a ausência de newline final no template é

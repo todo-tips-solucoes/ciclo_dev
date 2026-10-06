@@ -919,6 +919,63 @@ rc="$(codigo rodar "$CONF" --projeto "$T" --respostas "$TMP/r20")"
 [ "$rc" = 0 ] && grep -q "^PREFIXOS_BRANCH='feature fix chore docs hotfix'\$" "$T/cockpit.config" || falha "caso 6: padrão declarado (exit $rc)"
 # (caso 5, modo interativo, no cenário 14)
 
+# --------------------------------------------------------------- 21 ---
+cenario "21: branches e manifesto"
+RE_B='^[A-Za-z0-9][A-Za-z0-9._/-]*$'
+# respb CHAVE VALOR ARQ — respostas do exemplo com CHAVE trocada.
+respb() { { grep -v "^$1=" "$EXEMPLO"; printf "%s='%s'\n" "$1" "$2"; } >"$3"; }
+# 1: recusados nas duas chaves, em --respostas: exit 1, cita chave e conjunto, nada gravado
+for k in BRANCH_INTEGRACAO BRANCH_PRODUCAO; do
+  for v in 'main;curl x' '$(x)' '`x`' 'a|b' 'a b'; do
+    T="$(novo_repo)"; respb "$k" "$v" "$TMP/r21"
+    rc="$(codigo rodar "$CONF" --projeto "$T" --respostas "$TMP/r21")"
+    [ "$rc" = 1 ] || falha "caso 1: $k='$v' saiu com $rc (esperado 1)"
+    grep -q "$k" "$TMP/err" && grep -Fq "$RE_B" "$TMP/err" || falha "caso 1: $k='$v' sem citar chave e conjunto"
+    [ ! -e "$T/cockpit.config" ] && [ ! -e "$T/.cockpit" ] || falha "caso 1: $k='$v' gravou algo"
+  done
+done
+# 2: aceitos nas duas chaves
+for par in 'release/2026 main' 'main release/2026'; do
+  # shellcheck disable=SC2086
+  set -- $par; T="$(novo_repo)"
+  { grep -Ev '^BRANCH_(INTEGRACAO|PRODUCAO)=' "$EXEMPLO"; printf "BRANCH_INTEGRACAO='%s'\nBRANCH_PRODUCAO='%s'\n" "$1" "$2"; } >"$TMP/r21"
+  rc="$(codigo rodar "$CONF" --projeto "$T" --respostas "$TMP/r21")"
+  [ "$rc" = 0 ] || falha "caso 2: '$par' saiu com $rc"
+  grep -q "^BRANCH_INTEGRACAO='$1'\$" "$T/cockpit.config" && grep -q "^BRANCH_PRODUCAO='$2'\$" "$T/cockpit.config" \
+    || falha "caso 2: '$par' não gravado"
+done
+# 3: --atualizar com config editado à mão: exit 1, linha de correção, nada alterado
+T="$(novo_repo)"
+rodar "$CONF" --projeto "$T" --respostas "$EXEMPLO" >/dev/null 2>&1 || falha "caso 3: setup"
+sed -i "s/^BRANCH_PRODUCAO=.*/BRANCH_PRODUCAO='\$(x)'/" "$T/cockpit.config"
+cp "$T/cockpit.config" "$TMP/cfg21"; cp "$T/.cockpit/manifesto.sha256" "$TMP/man21"
+rc="$(codigo rodar "$CONF" --projeto "$T" --atualizar </dev/null)"
+[ "$rc" = 1 ] || falha "caso 3: --atualizar saiu com $rc (esperado 1)"
+grep -q 'BRANCH_PRODUCAO' "$TMP/err" && grep -Fq "$RE_B" "$TMP/err" && grep -Fq 'Corrija o valor no cockpit.config' "$TMP/err" \
+  || falha "caso 3: sem chave, conjunto e linha de correção"
+cmp -s "$T/cockpit.config" "$TMP/cfg21" && cmp -s "$T/.cockpit/manifesto.sha256" "$TMP/man21" || falha "caso 3: alterou arquivos"
+# 4: interativo pergunta de novo (no pty do cenário 14)
+if declare -F interativo >/dev/null; then
+  T="$(novo_repo)"
+  interativo "$(printf '%s' "$MINIMO" | sed 's/^\(proj\\norg\/repo\\n\)dev/\1a|b\\ndev/')" --projeto "$T" \
+    || falha "caso 4: interativo falhou: $(tail -3 "$TMP/tty")"
+  grep -q 'BRANCH_INTEGRACAO' "$TMP/tty" && grep -q "^BRANCH_INTEGRACAO='dev'\$" "$T/cockpit.config" || falha "caso 4: não perguntou de novo"
+else
+  printf '  (script(1) ausente — caso 4 pulado)\n'
+fi
+# 5: todos os destinos listados, sem manifesto anterior: .cockpit/ não existe
+DEST21="$(cd "$RAIZ_COCKPIT/templates" && find . -type f | sed -e 's|^\./||' -e 's/\.semente\.tmpl$//' -e 's/\.tmpl$//' | sort | tr '\n' ' ')"
+T="$(novo_repo)"
+{ grep -v '^DESTINOS_DO_PROJETO=' "$EXEMPLO"; printf "DESTINOS_DO_PROJETO='%s'\n" "${DEST21% }"; } >"$TMP/r21"
+rc="$(codigo rodar "$CONF" --projeto "$T" --respostas "$TMP/r21")"
+[ "$rc" = 0 ] || falha "caso 5: saiu com $rc: $(tail -3 "$TMP/err")"
+[ ! -e "$T/.cockpit" ] || falha "caso 5: .cockpit/ criado sem linha a registrar"
+# 6: com manifesto anterior, regra de hoje: manifesto continua
+T="$(novo_repo)"
+rodar "$CONF" --projeto "$T" --respostas "$EXEMPLO" >/dev/null 2>&1 || falha "caso 6: setup"
+rc="$(codigo rodar "$CONF" --projeto "$T" --respostas "$TMP/r21")"
+[ "$rc" = 0 ] && [ -f "$T/.cockpit/manifesto.sha256" ] || falha "caso 6: manifesto anterior perdido (exit $rc)"
+
 # --------------------------------------------------------------- 11 ---
 cenario "11: qualidade estática"
 if command -v shellcheck >/dev/null 2>&1; then
