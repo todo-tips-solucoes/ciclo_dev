@@ -992,6 +992,49 @@ rc="$(codigo rodar "$CONF" --projeto "$T" --respostas "$TMP/r21")"
 [ -s "$TMP/man6" ] || falha "caso 6: manifesto do setup vazio"
 if grep -Fxvf "$T/.cockpit/manifesto.sha256" "$TMP/man6" | grep -q .; then falha "caso 6: linhas do manifesto anterior perdidas"; fi
 
+# --------------------------------------------------------------- 23 ---
+cenario "23: promotion-pr decide pelas árvores"
+# Reusa $TMP/promocao.sh do cenário 16; gh falso responde por "$*" e registra cada chamada.
+mkdir -p "$TMP/gh23"
+cat >"$TMP/gh23/gh" <<'GH'
+#!/bin/sh
+echo "$*" >>"$GH23_LOG"
+case "$*" in
+  *"/compare/"*"--jq .ahead_by"*) echo 3 ;;
+  *"/compare/"*) echo "- abc1234 mensagem" ;;
+  *"commits/heads/prod"*) [ "$ARV_PROD" = FALHA ] && exit 1; echo "$ARV_PROD" ;;
+  *"commits/heads/integ"*) echo "$ARV_INTEG" ;;
+  "pr list"*) echo "$PR_ABERTO" ;;
+esac
+exit 0
+GH
+chmod +x "$TMP/gh23/gh"
+roda23() { # $1=árvore prod, $2=árvore integ, $3=PR aberto ("" = nenhum)
+  : >"$TMP/gh23.log"
+  codigo env PATH="$TMP/gh23:$PATH" GH23_LOG="$TMP/gh23.log" ARV_PROD="$1" ARV_INTEG="$2" PR_ABERTO="$3" \
+    TOKEN_PADRAO=x INTEGRACAO=integ PRODUCAO=prod REPO=org/repo bash "$TMP/promocao.sh"
+}
+# 1 e 2: árvores iguais com ahead_by positivo: nada de PR, com ou sem PR aberto.
+for aberto in "" 7; do
+  rc="$(roda23 abc123 abc123 "$aberto")"
+  [ "$rc" = 0 ] && grep -q 'nada a promover' "$TMP/out" || falha "caso 1/2: árvores iguais (PR '$aberto') saiu $rc"
+  ! grep -qE 'pr (create|edit)' "$TMP/gh23.log" || falha "caso 1/2: árvores iguais tocaram o PR (PR '$aberto')"
+done
+# 3: árvores diferentes sem PR: exatamente um pr create.
+rc="$(roda23 abc123 def456 "")"
+[ "$rc" = 0 ] && [ "$(grep -c 'pr create' "$TMP/gh23.log")" = 1 ] && ! grep -q 'pr edit' "$TMP/gh23.log" || falha "caso 3: árvores diferentes sem PR (saiu $rc)"
+# 4: árvores diferentes com PR aberto: pr edit 7, sem pr create.
+rc="$(roda23 abc123 def456 7)"
+[ "$rc" = 0 ] && grep -q 'pr edit 7' "$TMP/gh23.log" && ! grep -q 'pr create' "$TMP/gh23.log" || falha "caso 4: árvores diferentes com PR (saiu $rc)"
+# 5: leitura de árvore falhando ou devolvendo null: sai != 0 sem tocar o PR.
+for ruim in FALHA null; do
+  rc="$(roda23 "$ruim" def456 "")"
+  [ "$rc" != 0 ] && grep -q 'Não consegui ler as árvores' "$TMP/err" || falha "caso 5: '$ruim' deveria falhar (saiu $rc)"
+  ! grep -qE 'pr (create|edit)' "$TMP/gh23.log" || falha "caso 5: '$ruim' tocou o PR"
+done
+# 6: cabeçalho documenta o merge commit (US3).
+grep -q 'merge commit' "$RAIZ_COCKPIT/templates/.github/workflows/promotion-pr.yml.tmpl" || falha "caso 6: cabeçalho sem merge commit"
+
 # --------------------------------------------------------------- 11 ---
 cenario "11: qualidade estática"
 if command -v shellcheck >/dev/null 2>&1; then
