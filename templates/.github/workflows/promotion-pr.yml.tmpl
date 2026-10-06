@@ -2,6 +2,9 @@
 # Segredo opcional TOKEN_AUTOMACAO (PAT ou token de App); sem ele usa o GITHUB_TOKEN, que exige
 # "Allow GitHub Actions to create and approve pull requests" ligado e deixa os checks do PR
 # aguardando aprovação de execução.
+# A promoção recomendada é por merge commit (como na Fase 9 do rito-dev). Com squash, os commits
+# da integração nunca entram na produção; por isso o fluxo compara o conteúdo (árvore) das duas
+# pontas e não abre nem reabre o PR quando já é igual.
 name: promotion-pr
 
 on:
@@ -38,6 +41,16 @@ jobs:
           adiante="$(gh api "repos/$REPO/compare/$PRODUCAO...$INTEGRACAO" --jq '.ahead_by')"
           if [ "$adiante" = "0" ]; then
             echo "A produção já contém a integração: nada a promover."
+            exit 0
+          fi
+          arv_producao="$(gh api "repos/$REPO/commits/heads/$PRODUCAO" --jq '.commit.tree.sha' || true)"
+          arv_integracao="$(gh api "repos/$REPO/commits/heads/$INTEGRACAO" --jq '.commit.tree.sha' || true)"
+          if ! [[ "$arv_producao" =~ ^[0-9a-f]+$ && "$arv_integracao" =~ ^[0-9a-f]+$ ]]; then
+            echo "Não consegui ler as árvores de $PRODUCAO e $INTEGRACAO: nada promovido." >&2
+            exit 1
+          fi
+          if [ "$arv_producao" = "$arv_integracao" ]; then
+            echo "Produção e integração têm o mesmo conteúdo: nada a promover."
             exit 0
           fi
           corpo="$(mktemp)"
