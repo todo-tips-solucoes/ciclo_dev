@@ -1112,6 +1112,52 @@ pasta="$pasta" bash -c "$linha" || falha "linha printf da config do commitlint f
 grep -Fq "extends: ['@commitlint/config-conventional']" "$pasta/commitlint.config.cjs" || falha "config sem o extends da config convencional"
 grep -Fq "'body-max-line-length': [0, 'always', Infinity]" "$pasta/commitlint.config.cjs" || falha "config sem a regra body-max-line-length desligada"
 
+# --------------------------------------------------------------- 22 ---
+cenario "22: aprovação de dono no commit atual"
+if ! command -v jq >/dev/null 2>&1; then
+  [ "${COCKPIT_EXIGIR_FERRAMENTAS:-}" != 1 ] || falha "jq ausente no CI"
+  printf '  (jq ausente nesta máquina — cenário pulado, checado no CI)\n'
+else
+  T="$(novo_repo)"
+  rodar "$CONF" --projeto "$T" --respostas "$EXEMPLO" >/dev/null 2>&1 || falha "render do fluxo falhou"
+  FLUXO="$T/.github/workflows/require-codeowner-approval.yml"
+  awk '/^          BASE_SHA/ {d=1} d && /run: \|/ {r=1; next} r {sub(/^          /, ""); print}' "$FLUXO" >"$TMP/aprov.sh"
+  [ -s "$TMP/aprov.sh" ] || falha "não extraí o passo do require-codeowner-approval"
+  # gh falso: serve CODEOWNERS, head.sha (HEAD_ATUAL) e as reviews de REVIEWS_JSON via jq.
+  mkdir -p "$TMP/gh22"
+  cat >"$TMP/gh22/gh" <<'EOF2'
+#!/bin/sh
+for a; do case "$a" in repos/*/contents/*) printf '* @maria-exemplo @jose-exemplo\n'; exit 0 ;; esac; done
+prog=""; prev=""
+for a; do [ "$prev" = --jq ] && prog="$a"; prev="$a"; done
+for a; do
+  case "$a" in
+    repos/*/pulls/*/reviews) printf '%s' "$REVIEWS_JSON" | jq -r "$prog"; exit 0 ;;
+    repos/*/pulls/*) printf '{"head":{"sha":"%s"}}' "$HEAD_ATUAL" | jq -r "$prog"; exit 0 ;;
+  esac
+done
+exit 1
+EOF2
+  chmod +x "$TMP/gh22/gh"
+  aprova22() { # aprova22 HEAD REVIEWS_JSON
+    codigo env PATH="$TMP/gh22:$PATH" REPO=org-exemplo/repo PR=1 BASE_SHA=B HEAD_ATUAL="$1" REVIEWS_JSON="$2" bash "$TMP/aprov.sh"
+  }
+  H=1111111111111111111111111111111111111111; A=2222222222222222222222222222222222222222
+  rv() { printf '{"user":{"login":"Maria-Exemplo"},"state":"%s","commit_id":"%s"}' "$1" "$2"; }
+  rc="$(aprova22 "$H" "[$(rv APPROVED "$H")]")"
+  [ "$rc" = 0 ] && grep -q 'Aprovado por um dono\.' "$TMP/out" || falha "caso 1: aprovação no head deveria contar (saiu $rc)"
+  rc="$(aprova22 "$H" "[$(rv APPROVED "$A")]")"
+  [ "$rc" = 1 ] && grep -q 'Aprovação pendente' "$TMP/out" || falha "caso 2: aprovação em commit anterior não deveria contar (saiu $rc)"
+  rc="$(aprova22 "$H" "[$(rv APPROVED "$H"),$(rv CHANGES_REQUESTED "$H")]")"
+  [ "$rc" = 1 ] || falha "caso 3: pedido de mudança no head após aprovação deveria bloquear (saiu $rc)"
+  rc="$(aprova22 "" "[$(rv APPROVED "$H")]")"
+  [ "$rc" = 1 ] && grep -q '^::error::' "$TMP/out" || falha "caso 4: head vazio deveria falhar com ::error:: (saiu $rc)"
+  for f in "$FLUXO" "$T/.github/CODEOWNERS"; do
+    grep -q 'Require review from Code Owners' "$f" && grep -q 'Dismiss stale pull request approvals when new commits are pushed' "$f" \
+      || falha "caso 5: comentário sem as opções nativas em $f"
+  done
+fi
+
 # --------------------------------------------------------------- 11 ---
 cenario "11: qualidade estática"
 if command -v shellcheck >/dev/null 2>&1; then

@@ -36,6 +36,8 @@ comportamentos do GitHub citados vêm de research §Fontes (F1–F13).
 - É verificação **extra**, forjável por conteúdo do PR (roda o arquivo do merge commit, F14):
   a garantia é a regra nativa "Require review from Code Owners" + aprovações obrigatórias
   (F8), passo obrigatório do quickstart (dec-025).
+- Delta (frente `codeowner-aprovacao-atual`): só conta review feita sobre o commit head atual do PR;
+  ver `docs/specs/codeowner-aprovacao-atual/contracts/require-codeowner-approval.md`.
 
 ## `.github/workflows/promotion-pr.yml`
 
