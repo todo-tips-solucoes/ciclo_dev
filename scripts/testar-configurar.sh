@@ -1035,6 +1035,19 @@ done
 # 6: cabeçalho documenta o merge commit (US3).
 grep -q 'merge commit' "$RAIZ_COCKPIT/templates/.github/workflows/promotion-pr.yml.tmpl" || falha "caso 6: cabeçalho sem merge commit"
 
+# --------------------------------------------------------------- 25 ---
+cenario "25: commitlint sem limite de linha no corpo"
+T="$(novo_repo)"
+rodar "$CONF" --projeto "$T" --respostas "$EXEMPLO" >/dev/null 2>&1 || falha "render do commitlint falhou"
+linha="$(grep -F 'commitlint.config.cjs' "$T/.github/workflows/commitlint.yml" | grep '^ *printf ' || true)"
+[ "$(printf '%s\n' "$linha" | grep -c .)" = 1 ] || falha "esperada exatamente 1 linha printf da config do commitlint"
+pasta="$TMP/commitlint25"
+mkdir -p "$pasta"
+pasta="$pasta" bash -c "$linha" || falha "linha printf da config do commitlint falhou"
+[ -f "$pasta/commitlint.config.cjs" ] || falha "commitlint.config.cjs não foi criado"
+grep -Fq "extends: ['@commitlint/config-conventional']" "$pasta/commitlint.config.cjs" || falha "config sem o extends da config convencional"
+grep -Fq "'body-max-line-length': [0, 'always', Infinity]" "$pasta/commitlint.config.cjs" || falha "config sem a regra body-max-line-length desligada"
+
 # --------------------------------------------------------------- 11 ---
 cenario "11: qualidade estática"
 if command -v shellcheck >/dev/null 2>&1; then
