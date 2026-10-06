@@ -1,7 +1,9 @@
 # Gerado pelo cockpit. Verificação EXTRA de aprovação de dono, para visibilidade no PR.
 # ATENÇÃO: este check é forjável por conteúdo do PR (o fluxo que roda é o do merge commit do
 # próprio PR). A garantia real é a regra nativa da branch: aprovações obrigatórias +
-# "Require review from Code Owners". Este fluxo nunca aprova nem mergeia nada.
+# "Require review from Code Owners", com a opção abaixo para descartar aprovações antigas:
+# "Dismiss stale pull request approvals when new commits are pushed".
+# Aqui só conta aprovação feita sobre o commit atual do PR. Este fluxo nunca aprova nem mergeia nada.
 name: require-codeowner-approval
 
 on:
@@ -39,10 +41,15 @@ jobs:
             echo "::error::A linha '*' do .github/CODEOWNERS não lista nenhum dono (@usuario)."
             exit 1
           fi
+          head="$(gh api "repos/$REPO/pulls/$PR" --jq .head.sha)" || head=""
+          if [ -z "$head" ]; then
+            echo "::error::Não consegui ler o commit atual do PR; rode o fluxo de novo."
+            exit 1
+          fi
           aprovados="$(mktemp)"
           gh api --paginate "repos/$REPO/pulls/$PR/reviews" \
-            --jq '.[] | select((.state | ascii_downcase) != "commented" and (.state | ascii_downcase) != "pending") | [.user.login, .state] | @tsv' \
-            | awk -F'\t' '{ u[tolower($1)] = tolower($2) } END { for (k in u) if (u[k] == "approved") print k }' >"$aprovados"
+            --jq '.[] | select((.state | ascii_downcase) != "commented" and (.state | ascii_downcase) != "pending") | [.user.login, .state, (.commit_id // "")] | @tsv' \
+            | awk -F'\t' -v head="$head" '$3 == head { u[tolower($1)] = tolower($2) } END { for (k in u) if (u[k] == "approved") print k }' >"$aprovados"
           if grep -Fxqf "$donos" "$aprovados"; then
             echo "Aprovado por um dono."
             exit 0
