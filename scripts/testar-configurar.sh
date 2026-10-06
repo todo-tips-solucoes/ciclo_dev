@@ -954,6 +954,19 @@ rc="$(codigo rodar "$CONF" --projeto "$T" --atualizar </dev/null)"
 grep -q 'BRANCH_PRODUCAO' "$TMP/err" && grep -Fq "$RE_B" "$TMP/err" && grep -Fq 'Corrija o valor no cockpit.config' "$TMP/err" \
   || falha "caso 3: sem chave, conjunto e linha de correção"
 cmp -s "$T/cockpit.config" "$TMP/cfg21" && cmp -s "$T/.cockpit/manifesto.sha256" "$TMP/man21" || falha "caso 3: alterou arquivos"
+# 3b: as duas chaves x cinco valores recusados também no --atualizar
+for k in BRANCH_INTEGRACAO BRANCH_PRODUCAO; do
+  for v in 'main;curl x' '$(x)' '`x`' 'a|b' 'a b'; do
+    T="$(novo_repo)"
+    rodar "$CONF" --projeto "$T" --respostas "$EXEMPLO" >/dev/null 2>&1 || falha "caso 3b: setup"
+    { grep -v "^$k=" "$T/cockpit.config"; printf "%s='%s'\n" "$k" "$v"; } >"$TMP/cfg21b"; cp "$TMP/cfg21b" "$T/cockpit.config"
+    cp "$T/cockpit.config" "$TMP/cfg21"; cp "$T/.cockpit/manifesto.sha256" "$TMP/man21"
+    rc="$(codigo rodar "$CONF" --projeto "$T" --atualizar </dev/null)"
+    [ "$rc" = 1 ] || falha "caso 3b: $k='$v' saiu com $rc (esperado 1)"
+    grep -q "$k" "$TMP/err" && grep -Fq "$RE_B" "$TMP/err" || falha "caso 3b: $k='$v' sem citar chave e conjunto"
+    cmp -s "$T/cockpit.config" "$TMP/cfg21" && cmp -s "$T/.cockpit/manifesto.sha256" "$TMP/man21" || falha "caso 3b: $k='$v' alterou arquivos"
+  done
+done
 # 4: interativo pergunta de novo (no pty do cenário 14)
 if declare -F interativo >/dev/null; then
   T="$(novo_repo)"
@@ -973,8 +986,11 @@ rc="$(codigo rodar "$CONF" --projeto "$T" --respostas "$TMP/r21")"
 # 6: com manifesto anterior, regra de hoje: manifesto continua
 T="$(novo_repo)"
 rodar "$CONF" --projeto "$T" --respostas "$EXEMPLO" >/dev/null 2>&1 || falha "caso 6: setup"
+cp "$T/.cockpit/manifesto.sha256" "$TMP/man6"
 rc="$(codigo rodar "$CONF" --projeto "$T" --respostas "$TMP/r21")"
 [ "$rc" = 0 ] && [ -f "$T/.cockpit/manifesto.sha256" ] || falha "caso 6: manifesto anterior perdido (exit $rc)"
+[ -s "$TMP/man6" ] || falha "caso 6: manifesto do setup vazio"
+if grep -Fxvf "$T/.cockpit/manifesto.sha256" "$TMP/man6" | grep -q .; then falha "caso 6: linhas do manifesto anterior perdidas"; fi
 
 # --------------------------------------------------------------- 11 ---
 cenario "11: qualidade estática"

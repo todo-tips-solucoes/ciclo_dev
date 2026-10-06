@@ -156,7 +156,7 @@ cenário 21, o caso 1 cobre as 10 combinações só em `--respostas`; no `--atua
 com `BRANCH_PRODUCAO='$(x)'`. As outras 9 combinações chave x valor não são exercitadas no
 `--atualizar`. O código (`configurar.sh`, `validar_chave`) já é comum aos três modos; falta só o teste.
 
-- [ ] 5.1.1 Estender o caso 3 do cenário 21 em `scripts/testar-configurar.sh` para as duas chaves e os cinco valores recusados no `--atualizar` (exit 1, chave e conjunto citados, `cockpit.config` e manifesto inalterados), só acrescentando casos
+- [x] 5.1.1 Estender o caso 3 do cenário 21 em `scripts/testar-configurar.sh` para as duas chaves e os cinco valores recusados no `--atualizar` (exit 1, chave e conjunto citados, `cockpit.config` e manifesto inalterados), só acrescentando casos
 
 <!-- converge-key: 4c8f843795d7 -->
 
@@ -169,6 +169,6 @@ manifesto "com as linhas dos destinos listados preservadas". Em `scripts/testar-
 cenário 21, o caso 6 só confere que `.cockpit/manifesto.sha256` existe; um manifesto truncado ou
 vazio passaria. O código (`configurar.sh`, `gravar_manifesto`) preserva as linhas; falta o teste.
 
-- [ ] 5.2.1 No caso 6 do cenário 21 em `scripts/testar-configurar.sh`, guardar o manifesto do setup e conferir que as linhas dos destinos listados continuam no manifesto depois da segunda execução, só acrescentando a checagem
+- [x] 5.2.1 No caso 6 do cenário 21 em `scripts/testar-configurar.sh`, guardar o manifesto do setup e conferir que as linhas dos destinos listados continuam no manifesto depois da segunda execução, só acrescentando a checagem
 
 <!-- converge-key: 0e13ac065203 -->
