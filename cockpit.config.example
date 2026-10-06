@@ -21,6 +21,8 @@ REPO_REMOTO='minha-org/meu-projeto'
 # --- Modelo de branches -----------------------------------------------------
 # BRANCH_PRODUCAO pode repetir BRANCH_INTEGRACAO — "integração = produção" é
 # um modelo válido (Princípio I do cockpit: modelo único), não um caso à parte.
+# Cada nome casa com ^[A-Za-z0-9][A-Za-z0-9._/-]*$ (aceita `/`, ex.: release/2026)
+# e passa em `git check-ref-format --branch`.
 
 BRANCH_INTEGRACAO='staging'
 BRANCH_PRODUCAO='main'

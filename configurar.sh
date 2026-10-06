@@ -62,6 +62,9 @@ RE_KV='^([A-Z][A-Z0-9_]*)=(.*)$'
 # org/repositório genérico (Princípio I): nenhuma parte começa com '-' nem é
 # '.' ou '..' (checado à parte em validar_chave).
 RE_REPO='^[A-Za-z0-9._][A-Za-z0-9._-]*/[A-Za-z0-9._][A-Za-z0-9._-]*$'
+# BRANCH_INTEGRACAO e BRANCH_PRODUCAO (D1): o git aceita metacaractere de shell
+# em nome de branch; a skill rito-dev compõe comando com esses valores.
+RE_BRANCH='^[A-Za-z0-9][A-Za-z0-9._/-]*$'
 RE_URL='^https?://[^[:space:]]+$'
 BOM=$'\xEF\xBB\xBF'
 # Sequências UTF-8 bem formadas (sem overlong, sem surrogate, até U+10FFFF).
@@ -288,9 +291,10 @@ validar_chave() {
       done
       ;;
     BRANCH_INTEGRACAO | BRANCH_PRODUCAO)
-      case "$v" in '' | -* | *'@{'*) erro "Valor inválido para $chave: nome de branch inválido."; return 1 ;; esac
-      git check-ref-format --branch "$v" >/dev/null 2>&1 \
-        || { erro "Valor inválido para $chave: nome de branch inválido."; return 1; }
+      if ! [[ "$v" =~ $RE_BRANCH ]] || ! git check-ref-format --branch "$v" >/dev/null 2>&1; then
+        erro "Valor inválido para $chave: esperado nome de branch válido para o Git, só com caracteres do conjunto aceito $RE_BRANCH."
+        return 1
+      fi
       ;;
     PROJETO_NOME | GERENCIADOR_PACOTES | CMD_*)
       [ -n "${v//[[:space:]]/}" ] || { erro "Valor inválido para $chave: não pode ser vazio."; return 1; }
@@ -938,7 +942,7 @@ aplicar_templates() {
 # gravar_manifesto — um hash por destino gerado. Entradas do manifesto
 # anterior sem template correspondente (template removido do cockpit) são
 # mantidas com o hash antigo e avisadas; o arquivo nunca é apagado. Sem
-# destinos e sem manifesto anterior, não cria manifesto.
+# linha a registrar e sem manifesto anterior, não cria manifesto.
 gravar_manifesto() {
   local i n="${#DEST_REL[@]}" alvo="$RAIZ/$MANIFESTO_REL" ord linha rel h achou
   local -a orfas=()
@@ -954,8 +958,6 @@ gravar_manifesto() {
       orfas+=("$linha")
     done <"$alvo"
   fi
-  [ "$n" -gt 0 ] || [ "${#orfas[@]}" -gt 0 ] || [ -f "$alvo" ] || return 0
-  : >"$STG/manifesto" || falhar "Falha ao escrever em $STG."
   ord="$({
     for ((i = 0; i < n; i++)); do
       if [ -n "${PULAR[i]}" ]; then
@@ -969,6 +971,8 @@ gravar_manifesto() {
     done
     for linha in ${orfas[@]+"${orfas[@]}"}; do printf '%s\n' "$linha"; done
   } | sort -k2)" || falhar "Falha ao calcular o manifesto."
+  [ -n "$ord" ] || [ -f "$alvo" ] || return 0 # sem linha a registrar e sem manifesto anterior
+  : >"$STG/manifesto" || falhar "Falha ao escrever em $STG."
   [ -z "$ord" ] || printf '%s\n' "$ord" >"$STG/manifesto" || falhar "Falha ao escrever em $STG."
   exigir_contido "$alvo" "$MANIFESTO_REL"
   mkdir -p "$RAIZ/.cockpit" || falhar "Falha ao criar .cockpit/."
@@ -1121,7 +1125,10 @@ main() {
       fi
       ;;
   esac
-  validar_todos || exit 1
+  if ! validar_todos; then
+    [ "$MODO" != atualizar ] || erro "Corrija o valor no cockpit.config (ou rode sem --atualizar para responder de novo) e repita: $(comando_de_novo)"
+    exit 1
+  fi
   derivar_prefixos
 
   # Chaves desconhecidas do cockpit.config existente são mantidas na regravação;
