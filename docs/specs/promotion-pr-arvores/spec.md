@@ -86,9 +86,10 @@ quando o conteúdo já é igual.
   sem abrir PR com base em comparação incompleta.
 - Produção à frente da integração com árvores diferentes: segue o comportamento atual (a
   decisão passa a depender só do conteúdo, não da direção).
-- Contagem de commits à frente igual a zero com árvores diferentes: não ocorre por construção
-  quando há conteúdo a promover; se ocorrer, prevalece a decisão pelo conteúdo de hoje (há o que
-  promover).
+- Contagem de commits à frente igual a zero com árvores diferentes (a produção tem algo que a
+  integração não tem e nada da integração falta nela): segue o comportamento de hoje, sai sem PR
+  informando que a produção já contém a integração (D1: com árvores diferentes, o comportamento
+  de hoje continua; FR-003).
 - Comportamento da API do GitHub citado nos artefatos: sem fonte na documentação oficial e sem
   link na research, o dado não entra; nenhum nome de campo é suposto.
 - Prosa dos artefatos: em português do Brasil com acentuação, sem nomear nenhum projeto real.
