@@ -35,10 +35,10 @@
 - [x] CHK018 - Há critério de não regressão (suíte existente e shellcheck)? [Critérios de Aceite, Spec §SC-004] {auto}
 - [x] CHK019 - A aceitação positiva (`main`, `release/2026`) está coberta além dos recusados? [Cenários, Spec §SC-002] {auto}
 - [x] CHK020 - Cada FR tem ao menos um cenário de aceite associado? [Gap, Spec §FR-006..FR-008] {auto} — FR-007/FR-008 cobertos pelas US3-2 e Edge Cases; FR-009 é o próprio teste.
-- [ ] CHK021 - Valores com acento, maiúsculas ou comprimento extremo estão cobertos como recusados/aceitos? [Gap] {humano} — o regex em `LC_ALL=C` os trata, mas o limite de tamanho não é requisito; decidir se interessa.
+- [x] CHK021 - Valores com acento, maiúsculas ou comprimento extremo estão cobertos como recusados/aceitos? [Gap] {humano} — o regex em `LC_ALL=C` os trata, mas o limite de tamanho não é requisito; decidir se interessa. **Decisão do owner (2026-10-06): fica como está** — acento é recusado e maiúscula é aceita pela regra do D1; sem limite de tamanho (nome longo demais falha no próprio git ao criar a branch, B3 do plan); sem caso de teste novo.
 
 ## Notes
 
 - `requirement-coverage.sh` ausente neste repositório; cobertura de cenários conferida manualmente (CHK020).
 - Decisões D1/D2/D3 do owner são normativas; nenhum item as reabre.
-- Único item `{humano}` aberto (CHK021) não bloqueia: sem requisito de tamanho máximo na spec.
+- Único item `{humano}` (CHK021) fechado por decisão do owner: sem requisito de tamanho máximo na spec.
