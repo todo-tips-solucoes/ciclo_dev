@@ -99,7 +99,7 @@ Nos cenários existentes de `scripts/testar-configurar.sh`, sem número novo: o 
 **Acceptance Scenarios**:
 
 1. **Given** o `configurar.sh` e valores `a..b`, `x.lock`, `a/`, `-x`, `.x`, `/x` e `á`, **When** os cenários rodam, **Then** todos são recusados com a mensagem de erro.
-2. **Given** um manifesto anterior que ficaria vazio, **When** o `configurar.sh` roda, **Then** ele não grava manifesto vazio, e no caso 1 nenhum `cockpit.config`, modelo, manifesto ou hook é gravado.
+2. **Given** um manifesto anterior que ficaria vazio, **When** o `configurar.sh` roda, **Then** vale a regra mantida pelo owner na frente `configurar-endurecimento` (D3): o manifesto continua existindo e é regravado sem linhas; e no caso 1 nenhum `cockpit.config`, modelo, manifesto ou hook é gravado.
 
 ---
 
