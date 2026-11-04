@@ -95,7 +95,7 @@ aviso() { printf 'Aviso: %s\n' "$*" >&2; }
 log() { printf '%s\n' "$*"; }
 falhar() { erro "$*"; exit 1; }
 
-# shellcheck disable=SC2317 # chamada indiretamente pelo trap EXIT
+# shellcheck disable=SC2317,SC2329 # chamada indiretamente pelo trap EXIT
 limpar() {
   if [ -n "$STG" ] && [ -d "$STG" ]; then rm -rf "$STG"; fi
 }
