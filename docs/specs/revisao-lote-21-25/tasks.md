@@ -243,3 +243,27 @@ Tier de entrega usado na geração deste backlog: não informado nos args; backl
 | Fora de escopo de D1-D7 | Limite do rodapé do commitlint, custo da varredura de issues, PR de promoção aberta com árvores iguais, pré-existentes do `promotion-pr`, endpoint de commits pesado, head lido da API, regras de nome do git nas skills, disputa da `parallel-work` instalada | Adiados por decisão do owner em `decisoes-do-owner.md` |
 | Cópia instalada de skills | `~/.claude/skills/` | Fora do repositório |
 | Branch com `/` em `rules/branches` | Casamento do nome cru com regras | Não medido; codificação de hoje fica |
+
+
+---
+
+## FASE 9 - Convergência
+
+> Fase gerada automaticamente pela skill `converge` (reconciliação
+> spec-vs-código). Cada tarefa abaixo corresponde a um achado (`Gap`)
+> entre o que `spec.md`/`plan.md`/`tasks.md` descreveram e o estado
+> presente do código. Tarefas sem o prefixo `[Revisar]` são acionáveis
+> (`missing`/`partial`/`contradicts`); tarefas com `[Revisar]` são item de
+> revisão (`unrequested`, FR-013) — nunca "implementar", o código já
+> existe. Append-only: esta fase nunca reescreve fases/tarefas anteriores
+> do arquivo (FR-009).
+
+### 9.1 Rótulo de fonte errado na Decision 4 de `promotion-pr-arvores` `[A]`
+
+Ref: 7.2 (task 7.2.1, FR-009) · tipo: `contradicts` · severidade: `MEDIUM`
+
+A task 7.2.1 pedia registrar em `docs/specs/promotion-pr-arvores/research.md`, Decision 4, a fonte do `gh` ("If a command fails for any reason, the exit code will be 1") para `commits/heads/…` e 5xx. O texto presente diz "vale F4", mas na tabela de fontes desse mesmo arquivo F4 é "Workflow syntax — `permissions`"; a página `gh help exit-codes` é a F6 dali. O rótulo veio da numeração da research desta frente (onde F4 é o `gh` exit code) e aponta para a linha errada no arquivo de destino. Os rótulos M1/M2 também vêm da research desta frente sem referência a ela, ao contrário do que `audit-merge-vermelho/research.md` faz ("frente `revisao-lote-21-25`, M1").
+
+- [ ] 9.1.1 Corrigir `docs/specs/promotion-pr-arvores/research.md`, Decision 4 (Rationale): trocar "vale F4" por "vale F6", e indicar que M1 e M2 são os fatos medidos registrados em `docs/specs/revisao-lote-21-25/research.md`; conferir que nenhuma outra citação F/M do arquivo aponta para a linha errada
+
+<!-- converge-key: d2ac98503187 -->
