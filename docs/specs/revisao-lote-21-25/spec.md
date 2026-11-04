@@ -145,4 +145,4 @@ Nos cenários existentes de `scripts/testar-configurar.sh`, sem número novo: o 
 
 ## Delta Requirements
 
-**Skip**: correção de defeitos e de texto em artefatos de um repositório de modelos, sem comportamento ativo catalogado em `docs/specs/current/` — Paulo Todo, 2026-10-08
+**Skip**: correção de defeitos e de texto em artefatos de um repositório de modelos, sem comportamento ativo catalogado em `docs/specs/current/` — Claude (feature-00c), 2026-10-08
