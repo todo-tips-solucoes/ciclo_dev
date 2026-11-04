@@ -264,6 +264,6 @@ Ref: 7.2 (task 7.2.1, FR-009) · tipo: `contradicts` · severidade: `MEDIUM`
 
 A task 7.2.1 pedia registrar em `docs/specs/promotion-pr-arvores/research.md`, Decision 4, a fonte do `gh` ("If a command fails for any reason, the exit code will be 1") para `commits/heads/…` e 5xx. O texto presente diz "vale F4", mas na tabela de fontes desse mesmo arquivo F4 é "Workflow syntax — `permissions`"; a página `gh help exit-codes` é a F6 dali. O rótulo veio da numeração da research desta frente (onde F4 é o `gh` exit code) e aponta para a linha errada no arquivo de destino. Os rótulos M1/M2 também vêm da research desta frente sem referência a ela, ao contrário do que `audit-merge-vermelho/research.md` faz ("frente `revisao-lote-21-25`, M1").
 
-- [ ] 9.1.1 Corrigir `docs/specs/promotion-pr-arvores/research.md`, Decision 4 (Rationale): trocar "vale F4" por "vale F6", e indicar que M1 e M2 são os fatos medidos registrados em `docs/specs/revisao-lote-21-25/research.md`; conferir que nenhuma outra citação F/M do arquivo aponta para a linha errada
+- [x] 9.1.1 Corrigir `docs/specs/promotion-pr-arvores/research.md`, Decision 4 (Rationale): trocar "vale F4" por "vale F6", e indicar que M1 e M2 são os fatos medidos registrados em `docs/specs/revisao-lote-21-25/research.md`; conferir que nenhuma outra citação F/M do arquivo aponta para a linha errada
 
 <!-- converge-key: d2ac98503187 -->

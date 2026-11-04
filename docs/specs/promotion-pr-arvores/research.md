@@ -65,9 +65,9 @@ Lidas em 2026-10-06 com `ctx_fetch_and_index` (Princípio V). As citações abai
   `x="$(gh api ...)"` herda o código de saída do `gh`), uma guarda: cada SHA lido precisa ser
   hexadecimal não vazio; senão o passo escreve no stderr que não conseguiu ler as árvores e sai
   com `1`, antes de qualquer `gh pr`.
-- **Rationale**: o código de saída do `gh api` em erro HTTP tem duas fontes. Medido (M1, gh
+- **Rationale**: o código de saída do `gh api` em erro HTTP tem duas fontes. Medido (M1, registrado em docs/specs/revisao-lote-21-25/research.md; gh
   2.88.1, 2026-10-08, só leitura): num 404 em rota `rules/branches/…`, o `gh api` com `--jq` grava
-  o corpo JSON do erro no stdout e sai com 1. Para a rota `commits/heads/…` e para 5xx vale F4
+  o corpo JSON do erro no stdout e sai com 1. Para a rota `commits/heads/…` e para 5xx vale F6
   ("If a command fails for any reason, the exit code will be 1",
   https://cli.github.com/manual/gh_help_exit-codes), com a ressalva da própria página de que um
   comando pode ter outros códigos. Sob `set -euo pipefail`, a atribuição com código diferente de 0
@@ -77,7 +77,7 @@ Lidas em 2026-10-06 com `ctx_fetch_and_index` (Princípio V). As citações abai
 - **Alternatives considered**: só o `set -e` — rejeitado pelo motivo acima.
 - **Limite conhecido**: o nome da branch vai no caminho da URL sem codificação, como no `compare`
   de hoje (linha 38). `ponytail:` mesmo limite que o fluxo já tem; codificar os dois caminhos
-  juntos se um nome com `%` ou `#` aparecer. Medido (M2, 2026-10-08, repositório público, branch
+  juntos se um nome com `%` ou `#` aparecer. Medido (M2, registrado em docs/specs/revisao-lote-21-25/research.md, 2026-10-08, repositório público, branch
   com `/`): `commits/heads/<branch com />` devolve o mesmo `commit.tree.sha` com o nome cru, com
   `/` codificado como `%2F` e pela rota `branches/<branch>`.
 
