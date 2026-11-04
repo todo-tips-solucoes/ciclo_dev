@@ -10,7 +10,7 @@
 - [x] CHK002 - Os casos de teste de D7 estão cobertos por um FR explícito (cenários 21-24)? [Completude, Spec §FR-010] {auto}
 - [x] CHK003 - Há critério de aceite para cada user story prioritária (P1 a P3)? [Completude, Spec §User Stories 1-6] {auto}
 - [x] CHK004 - As entidades (review, regra de checks, valor do cockpit.config) estão definidas? [Completude, Spec §Key Entities] {auto}
-- [ ] CHK005 - O requisito de FR-006 define o texto exato da orientação de renomear a branch? [Gap, Spec §FR-006] {auto}
+- [x] CHK005 - O requisito de FR-006 define o texto exato da orientação de renomear a branch? [Gap, Spec §FR-006] {auto} — fechado em contracts/passos.md (texto da linha nova do `--atualizar`)
 
 ## Clareza
 
@@ -37,8 +37,8 @@
 - [x] CHK017 - Reviews com estados mistos em commits diferentes estão cobertas? [Cobertura, Spec §Edge Cases] {auto}
 - [x] CHK018 - Resposta 404 com corpo JSON no stdout está tratada? [Cobertura, Spec §Edge Cases] {auto}
 - [x] CHK019 - Valor com aspas simples e sem aspas estão tratados? [Cobertura, Spec §Edge Cases, FR-003] {auto}
-- [ ] CHK020 - Aspas duplas ou aspas desbalanceadas no `cockpit.config` têm comportamento especificado? [Gap, Spec §FR-003] {auto}
-- [ ] CHK021 - Review `COMMENTED` como último estado de um usuário tem tratamento especificado? [Ambiguity, Spec §FR-002] {auto}
+- [x] CHK020 - Aspas duplas ou aspas desbalanceadas no `cockpit.config` têm comportamento especificado? [Gap, Spec §FR-003] {auto} — fechado em spec.md (FR-003, Edge Cases)
+- [x] CHK021 - Review `COMMENTED` como último estado de um usuário tem tratamento especificado? [Ambiguity, Spec §FR-002] {auto} — fechado em spec.md (FR-002, Edge Cases) e data-model.md
 
 ## Não funcionais, dependências e premissas
 
@@ -46,4 +46,4 @@
 - [x] CHK023 - O requisito de idioma/acentuação e anonimato de projeto real está explícito? [NFR, Spec §FR-011] {auto}
 - [x] CHK024 - A isenção de Delta Requirements tem justificativa e autoria? [Premissa, Spec §Delta Requirements] {auto}
 - [x] CHK025 - As correções de FR-009 mantêm rastreio aos fatos medidos de D1/D6? [Dependência, Spec §FR-009] {auto}
-- [ ] CHK026 - O trade-off de PARAR (falhar fechado) versus seguir com aviso quando o valor está fora da regra reflete o apetite de risco do owner? [Risco, Spec §FR-004, FR-005] {humano}
+- [ ] CHK026 - O trade-off de PARAR (falhar fechado) versus seguir com aviso quando o valor está fora da regra reflete o apetite de risco do owner? [Risco, Spec §FR-004, FR-005] {humano} — confirmado nas decisões D4/D5; revisão do owner na PR (plan.md, Riscos)

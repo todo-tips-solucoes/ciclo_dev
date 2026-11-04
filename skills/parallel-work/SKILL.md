@@ -42,7 +42,10 @@ existe para evitar. Essa forma existe e serve para trabalho exploratório; para 
 
 **Em frente de código a base vai SEMPRE explícita** (Princípio IV da `docs/constitution.md`):
 `--base origin/<branch-de-integracao>`, derivada de `BRANCH_INTEGRACAO`/`BRANCH_PRODUCAO` em
-`cockpit.config` — nunca um nome fixo de branch. Sem a flag, a branch nova sai do `HEAD` da árvore
+`cockpit.config` — nunca um nome fixo de branch. Ao derivar a base, tire o par de aspas simples
+envolvente de `BRANCH_INTEGRACAO` e `BRANCH_PRODUCAO` e confira cada valor com
+`^[A-Za-z0-9][A-Za-z0-9._/-]*$` antes de compor o `--base`; fora da regra, PARE nomeando a chave,
+sem colar o valor num comando. Sem a flag, a branch nova sai do `HEAD` da árvore
 principal — que, num fluxo de worktrees, ninguém mais atualiza; para abrir frente de código,
 **recuse** e peça a base ao chamador em vez de assumir uma topologia de branches. A forma sem
 argumento existe para trabalho exploratório (branch provisória a partir do `HEAD` atual) e não

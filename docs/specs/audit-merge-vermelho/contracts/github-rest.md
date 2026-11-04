@@ -31,8 +31,12 @@ to exist; rules that would apply to a branch with that name will be returned." T
 
 ### Erro
 
-Qualquer falha (rota recusada, permissão) → saída descartada (`2>/dev/null || true`), lista
-vazia → nota "Sem regra de checks obrigatórios legível na branch base: todo check vermelho foi
+Qualquer falha (rota recusada, permissão) → saída descartada: a chamada termina em
+`2>/dev/null || : >"$obrigatorios"`, que trunca o arquivo de obrigatórios. Isso é necessário
+porque, com `--jq`, numa resposta HTTP de erro o `gh api` grava no stdout o corpo JSON do erro,
+sem filtrar, e sai com 1 (medido com gh 2.88.1 em 2026-10-08, 404 numa rota `rules/branches/…`;
+ver `docs/specs/revisao-lote-21-25/research.md`, M1); sem o truncamento esse corpo viraria a
+lista de obrigatórios e esvaziaria os vermelhos. Lista vazia → nota "Sem regra de checks obrigatórios legível na branch base: todo check vermelho foi
 listado." (inalterado).
 
 ## [EXISTENTE] Issues do repositório (checagem de duplicada)
@@ -59,7 +63,7 @@ listado." (inalterado).
 | `[].pull_request` | presente só em PR; item com a chave é descartado (F2) |
 | `[].number` | emitido pelo filtro quando há coincidência (só o "não vazio" importa) |
 
-Filtro: `.[] | select(.pull_request == null and .title == env.TITULO) | .number`.
+Filtro: `.[] | select((has("pull_request") | not) and .title == env.TITULO) | .number`.
 
 ### Erro
 

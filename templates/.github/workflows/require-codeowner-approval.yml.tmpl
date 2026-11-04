@@ -2,8 +2,9 @@
 # ATENÇÃO: este check é forjável por conteúdo do PR (o fluxo que roda é o do merge commit do
 # próprio PR). A garantia real é a regra nativa da branch: aprovações obrigatórias +
 # "Require review from Code Owners", com a opção abaixo para descartar aprovações antigas:
-# "Dismiss stale pull request approvals when new commits are pushed".
-# Aqui só conta aprovação feita sobre o commit atual do PR. Este fluxo nunca aprova nem mergeia nada.
+# "Dismiss stale pull request approvals when new commits are pushed". Essa opção nativa descarta a
+# aprovação só quando entra commit que altera o diff do PR; o check deste fluxo é mais estrito.
+# Aqui só conta aprovação de dono dada no commit atual do PR, e um pedido de mudança posterior a anula. Este fluxo nunca aprova nem mergeia nada.
 name: require-codeowner-approval
 
 on:
@@ -29,6 +30,7 @@ jobs:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
         run: |
           set -euo pipefail
+          export LC_ALL=C
           arquivo="$(mktemp)"
           if ! gh api -H "Accept: application/vnd.github.raw+json" \
             "repos/$REPO/contents/.github/CODEOWNERS?ref=$BASE_SHA" >"$arquivo" 2>/dev/null; then
@@ -49,7 +51,7 @@ jobs:
           aprovados="$(mktemp)"
           gh api --paginate "repos/$REPO/pulls/$PR/reviews" \
             --jq '.[] | select((.state | ascii_downcase) != "commented" and (.state | ascii_downcase) != "pending") | [.user.login, .state, (.commit_id // "")] | @tsv' \
-            | awk -F'\t' -v head="$head" '$3 == head { u[tolower($1)] = tolower($2) } END { for (k in u) if (u[k] == "approved") print k }' >"$aprovados"
+            | awk -F'\t' -v head="$head" '{ e[tolower($1)] = tolower($2); c[tolower($1)] = $3 } END { for (k in e) if (e[k] == "approved" && c[k] == head) print k }' >"$aprovados"
           if grep -Fxqf "$donos" "$aprovados"; then
             echo "Aprovado por um dono."
             exit 0

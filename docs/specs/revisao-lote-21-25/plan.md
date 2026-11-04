@@ -105,6 +105,7 @@ leem chaves do `cockpit.config` com as regras de `configurar.sh`.
   sequência (F3); não há medição própria nesta frente.
 - **Nome cru em `rules/branches`**: continua não medido se casa as regras de uma branch com `/` que
   as tem (M3); a codificação de hoje fica.
+- **Falhar fechado (CHK026)**: PARAR para valor fora da regra, em vez de seguir com aviso, é a decisão D4/D5 do owner, vigente e não reaberta.
 - **Leitura das skills**: US3 e US4 não têm teste automático; a revisão do diff confere a ordem
   "tirar aspas → conferir → compor".
 

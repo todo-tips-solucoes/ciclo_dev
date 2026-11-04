@@ -31,6 +31,7 @@ da linha `*` do `CODEOWNERS` da base.
 | `approved@antigo` → `approved@head` | sim |
 | `approved@head` → `dismissed@head` | não |
 | `approved@<nulo>` | não |
+| `approved@head` → `commented@head` (ou `pending`) | sim (a review `COMMENTED`/`PENDING` é descartada no `--jq` e não altera o último estado; CHK021) |
 
 ## Entity: Regra de checks obrigatórios
 

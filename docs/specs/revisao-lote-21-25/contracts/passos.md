@@ -37,5 +37,9 @@ Listagem de issues (duplicada): sem mudança de chamada; filtro do código
 | `BRANCH_INTEGRACAO` ou `BRANCH_PRODUCAO` recusada no `--atualizar` | 1 | linha de hoje ("Valor inválido para <CHAVE>: … <conjunto>"), linha nova nomeando a chave e dizendo que, se o valor é o nome real da branch, a saída é renomear a branch no remoto para um nome dentro do conjunto e atualizar a chave, e a linha de hoje "Corrija o valor no cockpit.config …"; nenhum arquivo alterado |
 | Mesma recusa com `--respostas` ou no interativo | 1 / pergunta de novo | sem a linha nova (D6 fala só do `--atualizar`) |
 
-Texto final das mensagens: na implementação, em português do Brasil com acentuação, sem repetir o
-valor recusado.
+Texto final da linha nova do `--atualizar` (CHK005), em português do Brasil com acentuação, sem repetir o
+valor recusado (`<CHAVE>` é `BRANCH_INTEGRACAO` ou `BRANCH_PRODUCAO`):
+
+> Se o valor de <CHAVE> é o nome real da branch, renomeie a branch no remoto para um nome dentro do conjunto aceito e atualize a chave <CHAVE> no cockpit.config.
+
+As demais mensagens seguem em português do Brasil com acentuação, sem repetir o valor recusado.

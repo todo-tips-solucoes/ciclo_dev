@@ -293,6 +293,7 @@ validar_chave() {
     BRANCH_INTEGRACAO | BRANCH_PRODUCAO)
       if ! [[ "$v" =~ $RE_BRANCH ]] || ! git check-ref-format --branch "$v" >/dev/null 2>&1; then
         erro "Valor inválido para $chave: esperado nome de branch válido para o Git, só com caracteres do conjunto aceito $RE_BRANCH."
+        [ "$MODO" != atualizar ] || erro "Se o valor de $chave é o nome real da branch, renomeie a branch no remoto para um nome dentro do conjunto aceito e atualize a chave $chave no cockpit.config."
         return 1
       fi
       ;;

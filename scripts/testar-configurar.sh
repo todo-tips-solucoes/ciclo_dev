@@ -7,6 +7,7 @@
 # shellcheck disable=SC2015,SC2016 # `A && B || falha` é o idioma dos cenários
 # (falha() sai); textos em aspas simples são literais de propósito
 set -euo pipefail
+export LC_ALL=C
 
 RAIZ_COCKPIT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
 TMP="$(mktemp -d)"
@@ -925,13 +926,16 @@ RE_B='^[A-Za-z0-9][A-Za-z0-9._/-]*$'
 # respb CHAVE VALOR ARQ — respostas do exemplo com CHAVE trocada.
 respb() { { grep -v "^$1=" "$EXEMPLO"; printf "%s='%s'\n" "$1" "$2"; } >"$3"; }
 # 1: recusados nas duas chaves, em --respostas: exit 1, cita chave e conjunto, nada gravado
+RECUSADOS21=('main;curl x' '$(x)' '`x`' 'a|b' 'a b' 'a..b' 'x.lock' 'a/' '-x' '.x' '/x' 'á')
 for k in BRANCH_INTEGRACAO BRANCH_PRODUCAO; do
-  for v in 'main;curl x' '$(x)' '`x`' 'a|b' 'a b'; do
-    T="$(novo_repo)"; respb "$k" "$v" "$TMP/r21"
+  for v in "${RECUSADOS21[@]}"; do
+    T="$(novo_repo)"; respb "$k" "$v" "$TMP/r21"; : >"$CSTK_LOG_FALSO"
     rc="$(codigo rodar "$CONF" --projeto "$T" --respostas "$TMP/r21")"
     [ "$rc" = 1 ] || falha "caso 1: $k='$v' saiu com $rc (esperado 1)"
     grep -q "$k" "$TMP/err" && grep -Fq "$RE_B" "$TMP/err" || falha "caso 1: $k='$v' sem citar chave e conjunto"
     [ ! -e "$T/cockpit.config" ] && [ ! -e "$T/.cockpit" ] || falha "caso 1: $k='$v' gravou algo"
+    [ -z "$(cd "$T" && find . -path ./.git -prune -o -type f -print)" ] || falha "caso 1: $k='$v' deixou arquivo fora de .git"
+    ! grep -qs 'hooks install' "$CSTK_LOG_FALSO" || falha "caso 1: $k='$v' chamou cstk hooks install"
   done
 done
 # 2: aceitos nas duas chaves
@@ -954,16 +958,18 @@ rc="$(codigo rodar "$CONF" --projeto "$T" --atualizar </dev/null)"
 grep -q 'BRANCH_PRODUCAO' "$TMP/err" && grep -Fq "$RE_B" "$TMP/err" && grep -Fq 'Corrija o valor no cockpit.config' "$TMP/err" \
   || falha "caso 3: sem chave, conjunto e linha de correção"
 cmp -s "$T/cockpit.config" "$TMP/cfg21" && cmp -s "$T/.cockpit/manifesto.sha256" "$TMP/man21" || falha "caso 3: alterou arquivos"
-# 3b: as duas chaves x cinco valores recusados também no --atualizar
+# 3b: as duas chaves x todos os valores recusados também no --atualizar
 for k in BRANCH_INTEGRACAO BRANCH_PRODUCAO; do
-  for v in 'main;curl x' '$(x)' '`x`' 'a|b' 'a b'; do
+  for v in "${RECUSADOS21[@]}"; do
     T="$(novo_repo)"
     rodar "$CONF" --projeto "$T" --respostas "$EXEMPLO" >/dev/null 2>&1 || falha "caso 3b: setup"
     { grep -v "^$k=" "$T/cockpit.config"; printf "%s='%s'\n" "$k" "$v"; } >"$TMP/cfg21b"; cp "$TMP/cfg21b" "$T/cockpit.config"
     cp "$T/cockpit.config" "$TMP/cfg21"; cp "$T/.cockpit/manifesto.sha256" "$TMP/man21"
     rc="$(codigo rodar "$CONF" --projeto "$T" --atualizar </dev/null)"
     [ "$rc" = 1 ] || falha "caso 3b: $k='$v' saiu com $rc (esperado 1)"
-    grep -q "$k" "$TMP/err" && grep -Fq "$RE_B" "$TMP/err" || falha "caso 3b: $k='$v' sem citar chave e conjunto"
+    grep -q "Valor inválido para $k" "$TMP/err" && grep -Fq "$RE_B" "$TMP/err" && grep -Fq 'Corrija o valor no cockpit.config' "$TMP/err" \
+      && grep -Fq "renomeie a branch no remoto" "$TMP/err" && grep -Fq "atualize a chave $k" "$TMP/err" \
+      || falha "caso 3b: $k='$v' sem chave, conjunto, linha de correção e dica de renomear"
     cmp -s "$T/cockpit.config" "$TMP/cfg21" && cmp -s "$T/.cockpit/manifesto.sha256" "$TMP/man21" || falha "caso 3b: $k='$v' alterou arquivos"
   done
 done
@@ -973,6 +979,8 @@ if declare -F interativo >/dev/null; then
   interativo "$(printf '%s' "$MINIMO" | sed 's/^\(proj\\norg\/repo\\n\)dev/\1a|b\\ndev/')" --projeto "$T" \
     || falha "caso 4: interativo falhou: $(tail -3 "$TMP/tty")"
   grep -q 'BRANCH_INTEGRACAO' "$TMP/tty" && grep -q "^BRANCH_INTEGRACAO='dev'\$" "$T/cockpit.config" || falha "caso 4: não perguntou de novo"
+  grep -q 'Valor inválido para BRANCH_INTEGRACAO' "$TMP/tty" || falha "caso 4: sem a mensagem de erro no tty"
+  ! grep -q 'renomeie a branch no remoto' "$TMP/tty" || falha "caso 4: dica de renomear só vale no --atualizar"
 else
   printf '  (script(1) ausente — caso 4 pulado)\n'
 fi
@@ -991,6 +999,14 @@ rc="$(codigo rodar "$CONF" --projeto "$T" --respostas "$TMP/r21")"
 [ "$rc" = 0 ] && [ -f "$T/.cockpit/manifesto.sha256" ] || falha "caso 6: manifesto anterior perdido (exit $rc)"
 [ -s "$TMP/man6" ] || falha "caso 6: manifesto do setup vazio"
 if grep -Fxvf "$T/.cockpit/manifesto.sha256" "$TMP/man6" | grep -q .; then falha "caso 6: linhas do manifesto anterior perdidas"; fi
+# 7: manifesto anterior que ficaria vazio continua existindo e é regravado sem linhas (Decision 8)
+T="$(novo_repo)"
+rodar "$CONF" --projeto "$T" --respostas "$EXEMPLO" >/dev/null 2>&1 || falha "caso 7: setup"
+printf '%s  arquivo-que-nao-existe\n' "$(printf x | sha256sum | cut -d' ' -f1)" >"$T/.cockpit/manifesto.sha256"
+rc="$(codigo rodar "$CONF" --projeto "$T" --respostas "$TMP/r21")"
+[ "$rc" = 0 ] && [ -f "$T/.cockpit/manifesto.sha256" ] || falha "caso 7: manifesto anterior perdido (exit $rc)"
+[ ! -s "$T/.cockpit/manifesto.sha256" ] || falha "caso 7: manifesto deveria ser regravado sem linhas"
+
 
 # --------------------------------------------------------------- 23 ---
 cenario "23: promotion-pr decide pelas árvores"
@@ -1032,11 +1048,18 @@ for ruim in FALHA null; do
   [ "$rc" != 0 ] && grep -q 'Não consegui ler as árvores' "$TMP/err" || falha "caso 5: '$ruim' deveria falhar (saiu $rc)"
   ! grep -qE 'pr (create|edit)' "$TMP/gh23.log" || falha "caso 5: '$ruim' tocou o PR"
 done
-# 6: cabeçalho documenta o merge commit (US3).
-grep -q 'merge commit' "$RAIZ_COCKPIT/templates/.github/workflows/promotion-pr.yml.tmpl" || falha "caso 6: cabeçalho sem merge commit"
+# 6: o cabeçalho (só as linhas de comentário antes de `name:`) documenta as duas afirmações de D2:
+# merge commit como na Fase 9 do rito-dev; com squash o fluxo não abre nem reabre o PR se o conteúdo é igual.
+cab23="$(awk '/^name:/ {exit} /^#/ {sub(/^# ?/, ""); printf "%s ", $0}' "$RAIZ_COCKPIT/templates/.github/workflows/promotion-pr.yml.tmpl")"
+case "$cab23" in *'merge commit (como na Fase 9 do rito-dev)'*) ;; *) falha "caso 6: cabeçalho sem merge commit como na Fase 9 do rito-dev" ;; esac
+case "$cab23" in *'Com squash'*'não abre nem reabre o PR quando já é igual'*) ;; *) falha "caso 6: cabeçalho sem o efeito do squash" ;; esac
 
 # --------------------------------------------------------------- 24 ---
 cenario "24: auditoria de merge vermelho (rota codificada e duplicada sem índice)"
+if ! command -v jq >/dev/null 2>&1; then
+  [ "${COCKPIT_EXIGIR_FERRAMENTAS:-}" != 1 ] || falha "jq ausente no CI"
+  printf '  (jq ausente nesta máquina — cenário pulado, checado no CI)\n'
+else
 T="$(novo_repo)"
 rodar "$CONF" --projeto "$T" --respostas "$EXEMPLO" >/dev/null 2>&1 || falha "render do audit-merge-vermelho falhou"
 awk '/- name: Registrar merge com check vermelho/ {d=1} d && /run: \|/ {r=1; next} r {sub(/^          /, ""); print}' \
@@ -1046,17 +1069,24 @@ G24="$TMP/gh24"; mkdir -p "$G24/bin"
 cat >"$G24/bin/gh" <<'GHFALSO'
 #!/usr/bin/env bash
 # gh falso: registra a chamada; `api` serve a fixture pela rota e aplica o --jq recebido.
-echo "$*" >>"$G24/log"
+todos="$*"
+echo "$todos" >>"$G24/log"
 if [ "$1" = api ]; then
   rota="$2"; jqx=""
   while [ $# -gt 0 ]; do [ "$1" = --jq ] && jqx="$2"; shift; done
   case "$rota" in
     */issues\?*)
+      # a chamada real precisa varrer todas as páginas e todos os estados
+      case " $todos " in *" --paginate "*) ;; *) exit 97 ;; esac
+      case "$rota" in *state=all*) ;; *) exit 97 ;; esac
       [ -z "${G24_FALHA:-}" ] || exit 1
       for p in "$G24"/issues-*.json; do jq -r "$jqx" "$p"; done ;;
     */check-runs\?*) jq -r "$jqx" "$G24/checks.json" ;;
     */status) jq -r "$jqx" "$G24/status.json" ;;
-    */rules/branches/*) jq -r "$jqx" "$G24/rules.json" ;;
+    */rules/branches/*)
+      # forma de M1: corpo JSON do erro no stdout e saída 1
+      [ -z "${G24_REGRAS_ERRO:-}" ] || { printf '{"message":"Not Found","status":"404"}\n'; exit 1; }
+      jq -r "$jqx" "$G24/rules.json" ;;
     *) exit 64 ;;
   esac
 elif [ "$1 $2" = "issue create" ]; then
@@ -1098,6 +1128,14 @@ grep -qF 'rules/branches/feat%2Fa%C3%A7%C3%A3o%2B1%23x ' "$G24/log" || falha "ca
 rm -f "$G24/log"
 rc="$(codigo env G24_FALHA=1 G24="$G24" PATH="$G24/bin:$PATH" REPO=org/repo PR=7 SHA=abc BASE=main URL_PR=u AUTOR_MERGE=m bash "$TMP/auditoria.sh")"
 [ "$rc" != 0 ] && ! grep -q 'issue create' "$G24/log" || falha "caso 4: falha da listagem deveria abortar sem criar (saiu $rc)"
+# 5: regras ilegíveis (corpo de erro no stdout, saída 1) nunca filtram: todos os vermelhos, com a nota
+printf '[]' >"$G24/issues-1.json"
+rm -f "$G24/log" "$G24/corpo"
+rc="$(codigo env G24_REGRAS_ERRO=1 G24="$G24" PATH="$G24/bin:$PATH" REPO=org/repo PR=7 SHA=abc BASE=main URL_PR=u AUTOR_MERGE=m bash "$TMP/auditoria.sh")"
+[ "$rc" = 0 ] && grep -q 'issue create' "$G24/log" || falha "caso 5: regras ilegíveis deveriam gerar issue (saiu $rc)"
+grep -q '^- ci$' "$G24/corpo" && grep -q '^- lint$' "$G24/corpo" && grep -q 'Sem regra de checks obrigatórios legível' "$G24/corpo" || falha "caso 5: issue deveria listar ci e lint com a nota de regra ilegível"
+! grep -q 'Not Found' "$G24/corpo" || falha "caso 5: corpo do erro vazou para a issue"
+fi
 
 # --------------------------------------------------------------- 25 ---
 cenario "25: commitlint sem limite de linha no corpo"
@@ -1133,17 +1171,17 @@ for a; do [ "$prev" = --jq ] && prog="$a"; prev="$a"; done
 for a; do
   case "$a" in
     repos/*/pulls/*/reviews) printf '%s' "$REVIEWS_JSON" | jq -r "$prog"; exit 0 ;;
-    repos/*/pulls/*) printf '{"head":{"sha":"%s"}}' "$HEAD_ATUAL" | jq -r "$prog"; exit 0 ;;
+    repos/*/pulls/*) [ -z "$HEAD_FALHA" ] || exit 1; printf '{"head":{"sha":"%s"}}' "$HEAD_ATUAL" | jq -r "$prog"; exit 0 ;;
   esac
 done
 exit 1
 EOF2
   chmod +x "$TMP/gh22/gh"
   aprova22() { # aprova22 HEAD REVIEWS_JSON
-    codigo env PATH="$TMP/gh22:$PATH" REPO=org-exemplo/repo PR=1 BASE_SHA=B HEAD_ATUAL="$1" REVIEWS_JSON="$2" bash "$TMP/aprov.sh"
+    codigo env PATH="$TMP/gh22:$PATH" REPO=org-exemplo/repo PR=1 BASE_SHA=B HEAD_ATUAL="$1" HEAD_FALHA="${HEAD_FALHA:-}" REVIEWS_JSON="$2" bash "$TMP/aprov.sh"
   }
   H=1111111111111111111111111111111111111111; A=2222222222222222222222222222222222222222
-  rv() { printf '{"user":{"login":"Maria-Exemplo"},"state":"%s","commit_id":"%s"}' "$1" "$2"; }
+  rv() { printf '{"user":{"login":"%s"},"state":"%s","commit_id":%s}' "${3:-Maria-Exemplo}" "$1" "$([ -n "$2" ] && printf '"%s"' "$2" || printf null)"; }
   rc="$(aprova22 "$H" "[$(rv APPROVED "$H")]")"
   [ "$rc" = 0 ] && grep -q 'Aprovado por um dono\.' "$TMP/out" || falha "caso 1: aprovação no head deveria contar (saiu $rc)"
   rc="$(aprova22 "$H" "[$(rv APPROVED "$A")]")"
@@ -1152,6 +1190,26 @@ EOF2
   [ "$rc" = 1 ] || falha "caso 3: pedido de mudança no head após aprovação deveria bloquear (saiu $rc)"
   rc="$(aprova22 "" "[$(rv APPROVED "$H")]")"
   [ "$rc" = 1 ] && grep -q '^::error::' "$TMP/out" || falha "caso 4: head vazio deveria falhar com ::error:: (saiu $rc)"
+  # pedido de mudança posterior preso a commit antigo anula a aprovação no head (D2)
+  rc="$(aprova22 "$H" "[$(rv APPROVED "$H"),$(rv CHANGES_REQUESTED "$A")]")"
+  [ "$rc" = 1 ] || falha "caso 6: pedido de mudança posterior em commit antigo deveria anular a aprovação (saiu $rc)"
+  # dono aprova commit antigo e não dono aprova o head: não passa
+  rc="$(aprova22 "$H" "[$(rv APPROVED "$A"),$(rv APPROVED "$H" Carlos-Exemplo)]")"
+  [ "$rc" = 1 ] || falha "caso 7: aprovação de não dono no head não deveria bastar (saiu $rc)"
+  # reaprovação no head depois de aprovação antiga conta
+  rc="$(aprova22 "$H" "[$(rv APPROVED "$A"),$(rv APPROVED "$H")]")"
+  [ "$rc" = 0 ] || falha "caso 8: reaprovação no head deveria contar (saiu $rc)"
+  # DISMISSED e commit_id nulo não contam
+  rc="$(aprova22 "$H" "[$(rv APPROVED "$H"),$(rv DISMISSED "$H")]")"
+  [ "$rc" = 1 ] || falha "caso 9: review DISMISSED não deveria contar (saiu $rc)"
+  rc="$(aprova22 "$H" "[$(rv APPROVED "")]")"
+  [ "$rc" = 1 ] || falha "caso 10: commit_id nulo não deveria contar (saiu $rc)"
+  # falha do gh ao ler o head falha fechado
+  rc="$(HEAD_FALHA=1 aprova22 "$H" "[$(rv APPROVED "$H")]")"
+  [ "$rc" = 1 ] && grep -q '^::error::' "$TMP/out" || falha "caso 11: falha ao ler o head deveria falhar fechado (saiu $rc)"
+  # COMMENTED posterior à aprovação não a anula (CHK021)
+  rc="$(aprova22 "$H" "[$(rv APPROVED "$H"),$(rv COMMENTED "$H")]")"
+  [ "$rc" = 0 ] || falha "caso 12: COMMENTED posterior não deveria anular a aprovação (saiu $rc)"
   for f in "$FLUXO" "$T/.github/CODEOWNERS"; do
     grep -q 'Require review from Code Owners' "$f" && grep -q 'Dismiss stale pull request approvals when new commits are pushed' "$f" \
       || falha "caso 5: comentário sem as opções nativas em $f"

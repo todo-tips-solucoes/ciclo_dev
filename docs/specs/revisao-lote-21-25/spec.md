@@ -108,6 +108,8 @@ Nos cenários existentes de `scripts/testar-configurar.sh`, sem número novo: o 
 - A rota de regras responde 404 com corpo JSON no stdout e código 1: tratada como regra ilegível, nunca como lista.
 - Reviews de um mesmo usuário com estados mistos (aprovado, pedido de mudança, `DISMISSED`) em commits diferentes: vale o último estado em ordem cronológica.
 - `cockpit.config` com aspas simples em torno do valor, ou sem aspas.
+- `cockpit.config` com aspas duplas ou aspas desbalanceadas: só o par de aspas simples envolvente é removido; o resto permanece no valor, não casa com a regra da chave e a skill PARA nomeando a chave (CHK020).
+- Review `COMMENTED` (ou `PENDING`) é ignorada pelo `--jq` e não altera o último estado do usuário: a aprovação anterior no head continua valendo (CHK021).
 - Branch com `/` no nome: a leitura de regras com nome cru não está medida; fica fora desta frente.
 
 ## Requirements
@@ -115,8 +117,8 @@ Nos cenários existentes de `scripts/testar-configurar.sh`, sem número novo: o 
 ### Functional Requirements
 
 - **FR-001**: O fluxo `audit-merge-vermelho` MUST descartar a saída da consulta das regras da branch base quando ela sai com código diferente de 0, e seguir como regra de checks obrigatórios ilegível listando todos os checks vermelhos com a nota correspondente (D1).
-- **FR-002**: O fluxo `require-codeowner-approval` MUST pegar o último estado de cada usuário em todas as reviews em ordem cronológica e contar aprovação de dono só quando esse estado é aprovado e o `commit_id` da review é o head atual do PR (D2).
-- **FR-003**: A skill `rito-dev` MUST remover o par de aspas simples envolvente de cada valor do `cockpit.config` antes de conferir os valores (D3).
+- **FR-002**: O fluxo `require-codeowner-approval` MUST pegar o último estado de cada usuário em todas as reviews em ordem cronológica e contar aprovação de dono só quando esse estado é aprovado e o `commit_id` da review é o head atual do PR (D2). Review `COMMENTED` (e `PENDING`) é ignorada pelo `--jq` e não altera o último estado do usuário (CHK021).
+- **FR-003**: A skill `rito-dev` MUST remover o par de aspas simples envolvente de cada valor do `cockpit.config` antes de conferir os valores (D3). Só o par de aspas simples envolvente é removido: aspas duplas ou desbalanceadas permanecem no valor, não casam com a regra da chave e PARAM a skill nomeando a chave (CHK020).
 - **FR-004**: A skill `rito-dev` MUST conferir `REPO_REMOTO` com a regra `RE_REPO` do `configurar.sh`, depois de tirar as aspas e antes de compor comando, e PARAR nomeando a chave, sem colar o valor num comando, quando fora da regra (D4).
 - **FR-005**: A skill `parallel-work` versionada MUST aplicar a `BRANCH_INTEGRACAO` e `BRANCH_PRODUCAO` a regra `^[A-Za-z0-9][A-Za-z0-9._/-]*$`, depois de tirar as aspas e antes de compor o `--base`, e PARAR nomeando a chave quando fora da regra (D5).
 - **FR-006**: O `configurar.sh --atualizar` com `BRANCH_*` fora da regra MUST continuar falhando fechado e a mensagem MUST também orientar a renomear a branch no remoto quando o valor é o nome real (D6).

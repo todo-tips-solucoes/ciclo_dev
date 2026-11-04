@@ -36,10 +36,16 @@ Branch sem caractere especial sai igual à entrada, logo a rota de hoje não mud
 
 **Lacuna registrada (não medido)**: F1 não documenta como a API trata `%2F` no segmento
 `{branch}`, e F4 não diz se o `gh` mexe na rota. A codificação é a decisão do owner (D1); que a
-API devolva as regras de `release/2026` com `%2F` não foi medido. O risco é limitado: se a API
-recusar, a chamada já está sob `2>/dev/null || true` e o fluxo cai no aviso de regra ilegível,
-que é exatamente o comportamento de hoje. Verificação final: primeiro merge real em base com
-`/` num projeto-alvo.
+API devolva as regras de `release/2026` com `%2F` não foi medido. Correção (frente
+`revisao-lote-21-25`, M1): a afirmação anterior de que, se a API recusasse, o fluxo "cairia no
+aviso de regra ilegível" estava errada. Com `--jq`, numa resposta HTTP de erro o `gh api` grava
+no stdout o corpo JSON do erro e sai com 1 (medido, gh 2.88.1, 2026-10-08); com `|| true` esse
+corpo virava a lista de obrigatórios e o fluxo saía com "nada a auditar". A chamada agora trunca
+o arquivo de obrigatórios na falha (`|| : >"$obrigatorios"`) e o fluxo lista todos os vermelhos
+com a nota de regra ilegível. Medido (M3): `rules/branches/<branch com />` responde 200 com `[]`
+tanto com o nome cru quanto com `%2F`, numa branch sem regra; se o nome cru casa as regras de uma
+branch que as tem segue **não medido**. Verificação final: primeiro merge real em base com `/`
+num projeto-alvo.
 
 **Alternatives considered**:
 - `jq @uri`: `jq` está na imagem do runner (F7), mas o template não usa `jq` hoje; seria

@@ -29,6 +29,7 @@ jobs:
           AUTOR_MERGE: ${{ github.event.pull_request.merged_by.login }}
         run: |
           set -euo pipefail
+          export LC_ALL=C
           TITULO="Auditoria: PR #$PR mergeado com check vermelho"
           export TITULO
           codificar() {
@@ -48,7 +49,7 @@ jobs:
             --jq '.statuses[] | select(.state == "failure" or .state == "error") | .context' >>"$vermelhos"
           obrigatorios="$(mktemp)"
           gh api "repos/$REPO/rules/branches/$(codificar "$BASE")" \
-            --jq '.[] | select(.type == "required_status_checks") | .parameters.required_status_checks[].context' >"$obrigatorios" 2>/dev/null || true
+            --jq '.[] | select(.type == "required_status_checks") | .parameters.required_status_checks[].context' >"$obrigatorios" 2>/dev/null || : >"$obrigatorios"
           nota="Sem regra de checks obrigatórios legível na branch base: todo check vermelho foi listado."
           if [ -s "$obrigatorios" ]; then
             filtrados="$(mktemp)"
@@ -66,7 +67,7 @@ jobs:
             sort -u "$vermelhos" | sed 's/^/- /'
             printf '\n%s\n' "$nota"
           } >"$corpo"
-          # ponytail: a listagem direta varre todas as páginas de issues a cada merge vermelho; se o volume pesar, filtrar por rótulo ou data (Decision 3 da research).
+          # ponytail: a listagem direta varre todas as páginas de issues e PRs a cada merge vermelho (teto: cresce com o total); se o volume pesar, filtrar por `since` ou `creator` (Decision 3 da research de audit-merge-vermelho), o que exige nova decisão do owner porque muda a regra de D2 daquela frente.
           ja="$(gh api "repos/$REPO/issues?state=all&per_page=100" --paginate \
             --jq '.[] | select((has("pull_request") | not) and .title == env.TITULO) | .number')"
           if [ -n "$ja" ]; then
