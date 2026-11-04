@@ -1,5 +1,7 @@
 # Donos do código deste repositório (gerado pelo cockpit a partir de DONOS_CODEOWNERS).
 # Cada dono precisa de permissão de escrita no repositório; times (@org/time) não são usados.
 # A regra da branch "Require review from Code Owners" é o que garante a aprovação de dono;
-# "Dismiss stale pull request approvals when new commits are pushed" descarta aprovações antigas.
+# "Dismiss stale pull request approvals when new commits are pushed" descarta aprovações quando entra
+# commit que altera o diff do PR; o check require-codeowner-approval é mais estrito: só conta aprovação
+# de dono no commit atual do PR, e um pedido de mudança posterior a anula.
 * {{DONOS_CODEOWNERS}}

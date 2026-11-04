@@ -95,7 +95,7 @@ aviso() { printf 'Aviso: %s\n' "$*" >&2; }
 log() { printf '%s\n' "$*"; }
 falhar() { erro "$*"; exit 1; }
 
-# shellcheck disable=SC2317 # chamada indiretamente pelo trap EXIT
+# shellcheck disable=SC2317,SC2329 # chamada indiretamente pelo trap EXIT
 limpar() {
   if [ -n "$STG" ] && [ -d "$STG" ]; then rm -rf "$STG"; fi
 }
@@ -293,6 +293,7 @@ validar_chave() {
     BRANCH_INTEGRACAO | BRANCH_PRODUCAO)
       if ! [[ "$v" =~ $RE_BRANCH ]] || ! git check-ref-format --branch "$v" >/dev/null 2>&1; then
         erro "Valor inválido para $chave: esperado nome de branch válido para o Git, só com caracteres do conjunto aceito $RE_BRANCH."
+        [ "$MODO" != atualizar ] || erro "Se o valor de $chave é o nome real da branch, renomeie a branch no remoto para um nome dentro do conjunto aceito e atualize a chave $chave no cockpit.config."
         return 1
       fi
       ;;
