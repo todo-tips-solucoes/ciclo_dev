@@ -25,8 +25,9 @@ forma. Toda leitura de fonte externa foi feita com `ctx_fetch_and_index` do `con
 
 **Decision**: função `codificar` dentro do `run:`, com `local LC_ALL=C` para iterar por byte:
 mantém `[A-Za-z0-9._~-]`, troca qualquer outro byte por `%XX` em hexadecimal maiúsculo (F8). O
-resultado entra em `repos/$REPO/rules/branches/<codificado>`; o resto da chamada (filtro `--jq`,
-`2>/dev/null || true`, nota de fallback) fica igual.
+resultado entra em `repos/$REPO/rules/branches/<codificado>`; o filtro `--jq` e a nota de
+fallback ficam iguais. O tratamento da falha mudou na correção da "Lacuna registrada" abaixo: na
+falha, a chamada trunca o arquivo com `|| : >"$obrigatorios"` (modelo l.52).
 
 **Rationale**: atende D1 sem dependência nova (FR-008). Sonda empírica em 2026-10-06 (bash
 5.2.21, com `LC_ALL=C.UTF-8` e `LANG=C.UTF-8`): `main` → `main`; `release/2026` →

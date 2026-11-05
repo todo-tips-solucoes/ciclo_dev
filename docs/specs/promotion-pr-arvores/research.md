@@ -61,20 +61,23 @@ Lidas em 2026-10-06 com `ctx_fetch_and_index` (Princípio V). As citações abai
 
 ## Decision 4: falha na leitura das árvores (FR-005)
 
-- **Decision**: além do `set -euo pipefail` que o passo já tem (a atribuição
-  `x="$(gh api ...)"` herda o código de saída do `gh`), uma guarda: cada SHA lido precisa ser
-  hexadecimal não vazio; senão o passo escreve no stderr que não conseguiu ler as árvores e sai
+- **Decision**: as duas leituras terminam em `|| true` (`promotion-pr.yml.tmpl` l.46-47), que
+  mantém o passo vivo mesmo com o `gh` saindo diferente de 0; por isso a guarda é a única proteção:
+  cada SHA lido precisa ser hexadecimal não vazio; senão o passo escreve no stderr que não conseguiu ler as árvores e sai
   com `1`, antes de qualquer `gh pr`.
 - **Rationale**: o código de saída do `gh api` em erro HTTP tem duas fontes. Medido (M1, registrado em docs/specs/revisao-lote-21-25/research.md; gh
   2.88.1, 2026-10-08, só leitura): num 404 em rota `rules/branches/…`, o `gh api` com `--jq` grava
   o corpo JSON do erro no stdout e sai com 1. Para a rota `commits/heads/…` e para 5xx vale F6
   ("If a command fails for any reason, the exit code will be 1",
   https://cli.github.com/manual/gh_help_exit-codes), com a ressalva da própria página de que um
-  comando pode ter outros códigos. Sob `set -euo pipefail`, a atribuição com código diferente de 0
-  derruba o passo. Sem a guarda, uma resposta sem o campo, lida como vazia ou `null` dos dois lados, daria
+  comando pode ter outros códigos. Com o `|| true`, o código de saída não derruba o passo, e o corpo
+  JSON de erro que M1 descreve não é hexadecimal: a guarda cobre também o erro HTTP. Sem a guarda,
+  uma resposta sem o campo, lida como vazia ou `null` dos dois lados, daria
   "árvores iguais" e sairia 0; de um lado só, daria "diferentes" e abriria PR. As duas violam
-  FR-005. A guarda cumpre FR-005 para a resposta sem o campo, que o código de saída não cobre.
-- **Alternatives considered**: só o `set -e` — rejeitado pelo motivo acima.
+  FR-005. A guarda cumpre FR-005 para a resposta sem o campo e para o erro HTTP.
+- **Alternatives considered**: só o `set -e`, sem `|| true` e sem guarda — rejeitado: a resposta
+  sem o campo sai 0 e daria "árvores iguais", e o erro morreria sem a mensagem que o caso 5 do
+  cenário 23 confere.
 - **Limite conhecido**: o nome da branch vai no caminho da URL sem codificação, como no `compare`
   de hoje (linha 38). `ponytail:` mesmo limite que o fluxo já tem; codificar os dois caminhos
   juntos se um nome com `%` ou `#` aparecer. Medido (M2, registrado em docs/specs/revisao-lote-21-25/research.md, 2026-10-08, repositório público, branch

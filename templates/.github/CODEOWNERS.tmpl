@@ -2,6 +2,8 @@
 # Cada dono precisa de permissão de escrita no repositório; times (@org/time) não são usados.
 # A regra da branch "Require review from Code Owners" é o que garante a aprovação de dono;
 # "Dismiss stale pull request approvals when new commits are pushed" descarta aprovações quando entra
-# commit que altera o diff do PR; o check require-codeowner-approval é mais estrito: só conta aprovação
-# de dono no commit atual do PR, e um pedido de mudança posterior a anula.
+# commit que altera o diff do PR; o check require-codeowner-approval é mais estrito nesse ponto: só conta
+# aprovação de dono dada no commit atual do PR.
+# Nesse check o último estado vale por dono: um pedido de mudança posterior anula só a aprovação do mesmo
+# dono, e a aprovação de outro dono no commit atual continua contando.
 * {{DONOS_CODEOWNERS}}
