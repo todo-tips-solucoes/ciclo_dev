@@ -215,3 +215,20 @@ Os três revisores acharam o mesmo alto; o Edge Case Hunter também testou a cor
   da linha de base seria barrado como instalação (não medido).
 - [x] [Defer] Raiz com `HEAD` destacado no evento `base` deixa a branch de integração vazia e o
   gate sai 2 (falha fechado; raro).
+
+## Rodada 6 (2026-11-05, ponta `96ba664`, só o delta da rodada 5)
+
+Blind Hunter: 1 alto, corrigido. (O Acceptance Auditor desta rodada revisou a versão anterior.)
+
+- [x] [alto] Com a PR mergeada por merge commit, o `merge-base` virava o próprio `HEAD` e a
+  comparação do `.claude/settings.json` ficava vazia; a frente na raiz principal, sem worktree,
+  comparava a branch com ela mesma (Blind). Agora a branch de integração vem do evento `worktree`
+  (não da raiz na Fase 0); `HEAD` contido na integração fora da linha do 1º pai dela (merge
+  commit, contra o `--squash` do rito) sai 2; frente sem worktree própria sai 2. Testados 14
+  casos: squash, merge da integração com e sem fast-forward, merge commit, `enable` não
+  declarado, `false` removido, registro automático, temporário não desfeito.
+- [x] [alto] A branch do `merge-base` era a da raiz principal na Fase 0, que pode não ser a
+  `BRANCH_INTEGRACAO` (raiz em `main` com integração em `staging`, ou numa branch local antiga),
+  e travava o encerramento por mudança de outra frente (Auditor, sobre `96ba664`): resolvido pela
+  mesma correção, já que a branch agora vem do evento `worktree`. "`merge-base` não encontrado"
+  entrou na lista da saída 2 da skill e do `rito-dev`.

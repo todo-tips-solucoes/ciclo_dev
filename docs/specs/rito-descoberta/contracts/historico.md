@@ -33,7 +33,7 @@ São seis campos separados por TAB. TAB e quebra de linha dentro de um campo vir
 | `evento` | `detalhe` |
 |---|---|
 | `base` | caminho do arquivo `.base` e número de linhas da foto |
-| `worktree` | caminho da worktree criada depois do OK; liga a worktree ao gate |
+| `worktree` | o `BRANCH_INTEGRACAO` de onde a worktree nasceu (a 3ª coluna é o caminho); liga a worktree ao gate |
 | `rodada` | rótulo da rodada e a diferença: `criados=N apagados=N alterados=N`, mais um item por linha seguinte, com quatro TABs e `+ <linha>` ou `- <linha>` |
 | `install` / `enable` | `<id>\t<escopo>\t<projeto>\t<versão ou SHA>\t<classe>\t<comando exato>` |
 | `uninstall` / `disable` | os mesmos campos do `install` / `enable` que desfaz |
@@ -132,7 +132,9 @@ código, 2026-11-05: comparar só o que a frente toca; pasta de cache marcada ó
 desinstalada):
 
 1. Saída 2 (falha fechado): fora de repositório git; branch que não é `<frente>` nem termina em
-   `/<frente>`; worktree atual fora do log (evento `worktree` ou projeto de install); `.log` ou
+   `/<frente>`; frente na raiz do evento `base`, sem worktree própria; worktree atual fora do log
+   (evento `worktree` ou projeto de install); evento `worktree` sem a branch de integração; branch
+   já contida na integração por merge commit (o rito manda `--squash`); `.log` ou
    `.base` ausente, ilegível ou vazio; log sem `base` ou sem `gate0` com `OK`; linha mal formada.
    Foto que falha dá saída 1.
 2. Saída 1 com `pendente\t<linha>`: `install`/`enable` temporário sem desfazer.
@@ -142,7 +144,7 @@ desinstalada):
    habilitado no `.claude/settings.json` commitado da worktree); `enabledPlugins` diferente da base
    (ids temporários no usuário, no `installed_plugins.json` e na raiz; no `.claude/settings.json`
    commitado no `HEAD` das raízes da frente, mapa inteiro igual ao do `merge-base` com a branch de
-   integração do evento `base`, salvo permanentes; ids temporários na working tree e na
+   integração do evento `worktree`, salvo permanentes; ids temporários na working tree e na
    `settings.local.json` delas; `false` só vale como ausente quando a referência não tem a chave,
    nunca no `HEAD`); `merge-base` não encontrado sai 2; linhas `marketplace` temporárias diferentes da base; pasta de
    versão de id temporário sem plugin instalado e sem `.orphaned_at`.
