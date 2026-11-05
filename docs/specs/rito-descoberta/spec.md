@@ -239,3 +239,9 @@ projetos-alvo ganha a política e a linha literal "Instalação pelo agente: des
 ## Delta Requirements
 
 **Skip**: frente só de Markdown e instruções, sem comportamento ativo catalogado em `docs/specs/current/` para alterar — rito-descoberta, 2026-11-05
+
+## Clarifications
+
+### Session 2026-11-05
+
+Nenhuma pergunta aberta: a spec deriva de `decisoes-do-owner.md` (normativo, D1-D19/E1-E8) e nao ha ambiguidade material. Dados factuais da CLI `claude plugin` seguem como pendencia roteada para a research do plan (FR-020).
