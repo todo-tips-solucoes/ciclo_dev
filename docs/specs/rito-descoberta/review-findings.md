@@ -168,7 +168,7 @@ corrigidos.
   (Auditor): Scenario 10 pelo critério do gate (pasta sumida ou `orfa`), Scenario 7 com `ad1ce2b`,
   FR-019, caso-limite da spec e R3 alinhados.
 - [x] [alto] O Claude Code registra sozinho, na 1ª sessão da worktree, os plugins habilitados na
-  principal (medido: 19 de 23 worktrees do `bos_v1`), e a presença os tratava como install fora do
+  principal (medido: 19 de 23 worktrees de um projeto-alvo desta máquina), e a presença os tratava como install fora do
   log (Edge): id herdado (instalado ou habilitado na raiz principal na linha de base) fica isento.
   `false` em `enabledPlugins` conta como ausente, para o `disable` que grava `false` (não medido).
 
