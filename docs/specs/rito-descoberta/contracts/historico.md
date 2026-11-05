@@ -33,6 +33,7 @@ São seis campos separados por TAB. TAB e quebra de linha dentro de um campo vir
 | `evento` | `detalhe` |
 |---|---|
 | `base` | caminho do arquivo `.base` e número de linhas da foto |
+| `worktree` | caminho da worktree criada depois do OK; liga a worktree ao gate |
 | `rodada` | rótulo da rodada e a diferença: `criados=N apagados=N alterados=N`, mais um item por linha seguinte, com quatro TABs e `+ <linha>` ou `- <linha>` |
 | `install` / `enable` | `<id>\t<escopo>\t<projeto>\t<versão ou SHA>\t<classe>\t<comando exato>` |
 | `uninstall` / `disable` | os mesmos campos do `install` / `enable` que desfaz |
@@ -66,9 +67,9 @@ Imprime a foto em stdout, ordenada byte a byte, uma linha por item no formato `t
 
 | `tipo` | Fonte | `valor` |
 |---|---|---|
-| `meta` | arquivos sob as raízes de metadados de D9 (exclusões abaixo) | `tamanho mtimeMs ctimeMs inode` |
+| `meta` | arquivos sob as raízes de metadados de D9 (exclusões abaixo); cache de plugins por pasta de versão | `tamanho mtimeMs ctimeMs inode`; `link:<alvo>` para symlink que sai da raiz; `dir` ou `orfa` (marca `.orphaned_at`) para pasta de versão do cache |
 | `hash` | arquivos de conteúdo de D9, `crontab -l`, chave `mcpServers` de `~/.claude.json` e as `mcpServers` de cada projeto em `projects` | sha256 ou `ausente` |
-| `plugin` | `installed_plugins.json`: `id\|scope\|projectPath` | `version gitCommitSha` |
+| `plugin` | `installed_plugins.json` (formato `version` 2), só escopo `user` e o projeto da raiz: `id\|scope\|projectPath` | `version gitCommitSha` |
 | `enabled` | `enabledPlugins` de `installed_plugins.json`, das settings de usuário e das `settings.json` e `settings.local.json` do projeto | JSON canônico |
 | `marketplace` | `known_marketplaces.json`: nome | `repo` da source; URL ou caminho só como `sha256:<hash>` |
 | `catalogo` | `git rev-parse HEAD` no `installLocation` de cada marketplace | SHA |
@@ -91,6 +92,7 @@ Lista fechada de mudanças que não são desvio, quando aparecem na diferença e
 
 - sincronização de `skills/synced` do Claude Code (já fora da foto, por exclusão);
 - mudança da linha `catalogo` do marketplace `claude-plugins-official` (atualização automática);
+- mudança do alvo `link:` de `~/.local/bin/claude` (atualização automática do Claude Code);
 - arquivos `-shm`, `-wal` e `-journal` do SQLite sob `<raiz>/.claude` (já fora da foto).
 
 Qualquer outra mudança sem comando declarado é desvio: o evento `desvio` é gravado e a frente para.
@@ -124,16 +126,18 @@ ruído conhecido) ou `desvio` (qualquer outra). A linha de base existente nunca 
 Aplica-se quando a branch tem `docs/specs/<frente>/decisoes-do-owner.md`, isto é, na trilha
 completa. Roda dentro da worktree, antes do "Encerrar".
 
-`node historico.mjs gate <frente>` (decisão do owner na revisão de código, 2026-11-05: comparar só
-o que a frente toca):
+`node historico.mjs gate <frente>`, dentro da worktree da frente (decisões do owner na revisão de
+código, 2026-11-05: comparar só o que a frente toca; pasta de cache marcada órfã conta como
+desinstalada):
 
-1. Saída 2 (falha fechado): `.log` ou `.base` ausente, ilegível ou vazio; log sem `base` ou
-   `gate0`; linha mal formada. Foto que falha dá saída 1.
+1. Saída 2 (falha fechado): fora de repositório git; branch que não é `<frente>` nem termina em
+   `/<frente>`; worktree atual fora do log (evento `worktree` ou projeto de install); `.log` ou
+   `.base` ausente, ilegível ou vazio; log sem `base` ou sem `gate0` com `OK`; linha mal formada.
+   Foto que falha dá saída 1.
 2. Saída 1 com `pendente\t<linha>`: `install`/`enable` temporário sem desfazer.
-3. Saída 1 com linhas `-`/`+`: a foto da raiz do evento `base`, mais as settings das worktrees da
-   frente, difere do `.base` no escopo da frente: linhas dos ids temporários do log (`plugin`
-   completa, entradas em `enabled`, `meta` do cache, `marketplace`) e presença das linhas `plugin`
-   com `projectPath` numa raiz da frente. Id permanente é diferença esperada; atualização
-   automática de plugin que já existia e outras frentes ficam fora.
+3. Saída 1 com linhas `-`/`+`: plugin com `projectPath` numa raiz da frente (fora a raiz do evento
+   `base`) que não seja tripla permanente; entradas dos ids temporários em `enabledPlugins` (working
+   tree e `HEAD`) diferentes da base; linhas `marketplace` temporárias diferentes da base; pasta de
+   versão de id temporário sem plugin instalado e sem `.orphaned_at`.
 
 Saída diferente de 0 impede o "Encerrar" e volta ao owner.

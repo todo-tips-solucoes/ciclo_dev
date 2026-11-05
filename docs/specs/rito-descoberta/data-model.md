@@ -79,8 +79,8 @@ Antes do OK não existe arquivo (FR-005).
 ### State Transitions
 
 `listado no Gate 0` → `instalado` (linha `install` no histórico) → `conferido` (SHA ou versão
-batem) → `desinstalado` (linha `uninstall`, só para `temporária`). SHA divergente depois do
-install: `desinstalado` e a frente para (D17).
+batem) → `desinstalado` (linha `uninstall`, só para `temporária`). Depois do install, o mapa e o
+conteúdo são reverificados no SHA instalado; reprovado: `desinstalado` e a frente para (revisão de código de 2026-11-05, decisão do owner; ver `review-findings.md`).
 
 ## Entity: Estado de plugin (verificação de D7)
 

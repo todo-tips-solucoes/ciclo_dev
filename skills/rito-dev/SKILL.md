@@ -258,16 +258,18 @@ gh pr list --base <BRANCH_PRODUCAO> --head <BRANCH_INTEGRACAO>   # existe PR de 
 
 ## Fase 11 — Encerramento
 
-**Gate de instalações temporárias** (antes do "Encerrar"; vale quando a branch tem
-`docs/specs/<frente>/decisoes-do-owner.md`, isto é, na trilha completa). Rode dentro da worktree:
+**Gate de instalações temporárias** (antes do "Encerrar"; vale quando o registro
+`docs/specs/<frente>/decisoes-do-owner.md` veio da skill `rito-descoberta`, com os 14 títulos dela,
+isto é, na trilha completa). Rode dentro da worktree da frente:
 
 ```bash
 node ~/.claude/skills/rito-descoberta/historico.mjs gate <frente>
 ```
 
-- Saída 0: pode encerrar. Saída 1: há `install`/`enable` temporário sem desfazer, ou o estado real
-  difere da linha de base no que a frente toca (imprime as linhas). Saída 2: `.log` ou `.base`
-  ausente, ilegível, vazio ou mal formado (**falha fechado**). Diferente de 0, não encerre.
+- Saída 0: pode encerrar. Saída 1: há `install`/`enable` temporário sem desfazer, o estado real
+  difere da linha de base no que a frente toca (imprime as linhas) ou a foto falhou. Saída 2: fora
+  da worktree da frente, ou `.log`/`.base` ausente, ilegível, vazio ou mal formado (**falha
+  fechado**). Diferente de 0, não encerre.
 - Detalhes do escopo comparado na seção "Gate da Fase 11" da skill `rito-descoberta`.
 
 Qualquer diferença impede o "Encerrar" e volta ao dev/owner.

@@ -182,11 +182,11 @@ não muda: a skill nova é instalada sem alteração nele.
    - Estados conforme `data-model.md`, "Estado de plugin": campos de `claude plugin list --json`,
      mais o `gitCommitSha` de `installed_plugins.json` (`research.md`, Decisions 1 a 3).
    - Na worktree, quando é lá que o agente roda.
-   - Antes do install, o clone do catálogo está no SHA registrado e sem alteração local
-     (`git status --porcelain` vazio).
-   - Depois do install, confere `gitCommitSha` e o conteúdo do `installPath`: só
-     `.claude-plugin/` e os `.md` de agentes, sem `hooks/` nem `.mcp.json`. Divergente:
-     desinstala com `-s project` e para.
+   - Antes do install, o clone do catálogo está sem alteração local (`git status --porcelain`
+     vazio); HEAD diferente do último SHA conferido reverifica o mapa (revisão de código de 2026-11-05, decisão do owner; ver `review-findings.md`).
+   - Depois do install, reverifica o mapa e o conteúdo no `gitCommitSha` instalado (lista fechada:
+     `.claude-plugin/plugin.json`, `README.md`, `LICENSE*` e os `.md` do array `agents`).
+     Reprovado: desinstala com `-s project` e para (revisão de código de 2026-11-05, decisão do owner; ver `review-findings.md`).
    - Nunca `update` como correção.
 9. **Política de instalação** (D15 a D19, FR-010 a FR-013)
    - A linha de autorização é lida em `origin/<base>` (Decision 13).
@@ -278,7 +278,7 @@ Não há camadas de dados; as bordas são entre artefatos.
 
 | # | Risco | Tratamento |
 |---|---|---|
-| R1 | O install com `@marketplace` atualiza o catálogo antes da busca (U2) e pode mover o clone do SHA registrado no S3 | O SHA é conferido depois do install (D17): divergente, desinstala e para. O achado vai ao owner antes do S3 (`research.md`, Decision 4) |
+| R1 | O install com `@marketplace` atualiza o catálogo antes da busca (U2) e pode mover o clone do SHA registrado no S3 | Resolvido na revisão: o mapa e o conteúdo são reverificados no SHA instalado; reprovado, desinstala e para (emenda 2.0.0 ajustada; `review-findings.md`) |
 | R2 | `projectPath` do install dentro da worktree não verificado na doc | O S3 mede; o estado diferente do esperado volta ao owner |
 | R3 | Sobra no cache depois do uninstall não verificada | O S3 falha e o achado volta ao owner (D18) |
 | R4 | `gitCommitSha` não documentado (só medido em 2.1.318) | Campo ausente dá "desconhecido": nada é executado |

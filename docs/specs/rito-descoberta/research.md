@@ -126,6 +126,10 @@ o estado.
 - **Não verificado**: se a source de marketplace aceita `sha`, e o que faz o install com o nome
   do plugin sozinho (a linha da tabela de U2 foi cortada).
 
+**Resolvido na revisão de código (2026-11-05)**: o owner decidiu reverificar o mapa e o conteúdo no
+SHA instalado, em vez de desinstalar e parar, e a emenda 2.0.0 foi ajustada antes do merge (ver
+`review-findings.md`). Texto original do achado, mantido como histórico:
+
 **Achado para o owner, sem reabrir D16**: o comando aprovado no S3,
 `claude plugin install voltagent-core-dev@voltagent-subagents -s project`, pode mover o catálogo.
 Se mover, a foto mostra o HEAD novo do catálogo e o `gitCommitSha` diverge. Pelo D17, o agente

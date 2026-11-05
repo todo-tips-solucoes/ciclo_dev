@@ -98,3 +98,59 @@ Depois de juntar os duplicados: 4 altos, 2 decididos pelo owner; os demais corri
 
 - O Edge Case Hunter gravou 9 fotos de teste (`f0` a `f8`) na raiz da worktree, contra a ordem de
   escrever só no scratchpad. Conteúdo inofensivo (HOME falso); removidas antes do commit.
+
+## Rodada 2 (2026-11-05, ponta `ad1ce2b`)
+
+Depois de juntar os duplicados: 6 altos, nenhum crítico. O owner decidiu 3 pontos; o resto foi
+corrigido.
+
+### Decididos pelo owner
+
+- [x] **Foto da Fase 0 com rotatividade alta** (Edge F): 39 `.in_use/<pid>` em 24h no cache,
+  `plugin.json` reescrito por install de outra sessão e `~/.local/bin/claude` reapontado pela
+  atualização automática viravam desvio em quase toda rodada. Resposta: "Granularidade por versão
+  (Recomendado)". Feito: cache por pasta de versão (`dir`/`orfa`), linhas `plugin` só do escopo
+  `user` e do projeto da raiz, symlink que sai da raiz vira `link:<alvo>`, reapontamento do
+  `claude` no ruído conhecido.
+- [x] **Uninstall deixa a pasta do cache** (Edge A): medido, a CLI marca `.orphaned_at` e coleta
+  depois. Resposta: "Pasta marcada órfã = desinstalado (Recomendado)". Feito no gate e no S3.
+- [x] **Fase 11 desta frente sem log** (Auditor, Edge): a Fase 0 da `rito-descoberta` foi manual,
+  antes da skill. Resposta: "Exceção declarada (Recomendado)". Só esta frente encerra sem o
+  `gate`; a verificação do S3 (par install/uninstall e estado conferido) faz o papel dele. O gate
+  vale para registro com os 14 títulos da skill e worktree ligada ao log pelo evento `worktree`.
+
+### Corrigidos
+
+- [x] [alto] Linha iniciada por TAB era tratada como item de rodada e um `install` com a 1ª coluna
+  vazia sumia (Blind, Edge, Auditor): só `^\t{4}[+-] ` logo depois de `rodada`; o resto sai 2.
+- [x] [alto] Gate ignorava a worktree onde roda e não pegava install fora do log (Blind): a
+  worktree atual entra nas raízes, precisa aparecer no log (evento `worktree` novo) e nenhum
+  plugin pode ficar com `projectPath` nela, salvo permanente.
+- [x] [alto] Ids temporários eram comparados em todos os projetos e no cache compartilhado
+  (Blind, Edge, Auditor): presença só nas raízes da frente (fora a raiz principal); cache só como
+  pasta de versão sem plugin instalado e sem marca de órfã.
+- [x] [alto] "Só agentes" contornável por `skills/` e `commands/` (Blind): lista fechada de
+  arquivos (`plugin.json`, `README.md`, `LICENSE*`, os `.md` do array `agents`) e frontmatter só
+  com `name`, `description`, `tools`, `model` e `color` (medido nos 166 agentes do catálogo).
+- [x] Classe do desfazer diferente da abertura tirava o id do gate: falha fechado; a classe vem da
+  abertura.
+- [x] `gate0` contava sem `OK`; branch atual não conferida; `installed_plugins.json` fora do formato
+  `version` 2 dava foto vazia; `git status` acima de 1 MiB derrubava a foto (`maxBuffer`);
+  `mcpServers: {}` vazio virava desvio; settings commitadas não eram lidas (agora `HEAD` também).
+- [x] Checagem 5: `marketplace add`/`remove` só temporária; flags `--location`, `--prefix`,
+  `--user`, `-i`, `-f`, `--find-links`, a palavra `global` e pacote por URL ou `git+` reprovam;
+  origem de id, escopo e projeto para pacote.
+- [x] Nome reusado de Fase 0 concluída (log com `gate0`) para e pede outro nome.
+- [x] Política: SHA de plugin vale depois da conferência pós-install.
+- [x] `contracts/decisoes-do-owner.md`, `contracts/historico.md`, `quickstart.md`, `research.md`,
+  `plan.md`, `data-model.md` e `spec.md` (FR-016) alinhados às decisões; `tasks.md` 6.1.2 anotada.
+- [x] Texto do `rito-dev` (saída 1 inclui foto que falhou) e do template (`enable`/`disable`).
+
+### Adiados
+
+- [x] [Defer] `docs/constitution.md` diz "Nenhum script do cockpit MUST executar…" (RFC 2119
+  invertido), texto já na `main` desde a 1.1.0 — emenda futura.
+- [x] [Defer] Caminhos literais sob `.claude/` (por exemplo `.claude/settings.json`) passam na
+  checagem 3: o owner os vê no Gate 0; a trava técnica é da `modo-autonomo`.
+- [x] [Defer] `perm` isenta a tripla inteira; a classe certa depende do log e da tabela do 1º
+  commit.

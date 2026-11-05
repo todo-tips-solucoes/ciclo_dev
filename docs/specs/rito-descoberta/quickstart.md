@@ -97,7 +97,8 @@ O log de teste fica no scratchpad da sessão, nunca em `~/.claude/cockpit`.
 
 1. Rode `git -C ~/.claude/plugins/marketplaces/voltagent-subagents rev-parse HEAD`.
 2. Repita o Scenario 3.
-3. **Expected**: o HEAD é o SHA registrado; se não for, "mapa não verificado" e o rito para.
+3. **Expected**: o clone está limpo. HEAD igual ao último SHA conferido: o mapa vale. HEAD diferente:
+   o mapa é reverificado no HEAD atual e o SHA novo vai ao registro (revisão de código de 2026-11-05, decisão do owner; ver `review-findings.md`).
    O mapa tem N > 0 citações, todas aprovadas.
 
 ## Scenario 10: S3, ciclo de instalação temporária (pós-merge)
@@ -115,7 +116,9 @@ O log de teste fica no scratchpad da sessão, nunca em `~/.claude/cockpit`.
    - `pendentes` termina com 0.
 
 Risco conhecido (`research.md`, Decision 4): o install com `@marketplace` atualiza o catálogo
-antes da busca. SHA divergente ou sobra no cache fazem o smoke falhar, e o achado volta ao owner.
+antes da busca. O SHA instalado é reverificado (mapa e conteúdo só de agentes); reprovado, o smoke
+falha. A pasta de versão no cache, depois do uninstall, precisa sumir ou ter a marca `.orphaned_at`;
+sem ela, é sobra e o smoke falha (revisão de código de 2026-11-05, decisão do owner; ver `review-findings.md`).
 
 ## Scenario 11: S5, guarda de escrita (pós-merge)
 

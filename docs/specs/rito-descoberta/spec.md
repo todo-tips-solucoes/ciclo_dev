@@ -196,7 +196,9 @@ projetos-alvo ganha a política e a linha literal "Instalação pelo agente: des
   quando a skill falta (E4, D10).
 - **FR-016**: O `rito-dev` MUST ter, na Fase 11 antes do "Encerrar", o gate de instalações
   temporárias: cada install temporário do log com uninstall posterior e estado real (id, escopo,
-  projeto, versão, SHA, `enabledPlugins`, cache) igual à linha de base (D18).
+  projeto, versão, SHA, `enabledPlugins`, cache) igual à linha de base (D18), comparado só no que a
+  frente toca, com pasta de cache marcada `.orphaned_at` contando como desinstalada (decisões do
+  owner na revisão de código de 2026-11-05; ver `review-findings.md`).
 - **FR-017**: O `README.md` MUST começar o fluxo por `/rito-descoberta` (E5).
 - **FR-018**: O IV de `templates/docs/constitution.md.semente.tmpl` MUST trazer a política e a linha
   literal "Instalação pelo agente: desligada" como padrão (E8, D19).

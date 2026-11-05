@@ -125,9 +125,9 @@ produção verde e só então diagnostique.
 
 ## Fase 11 — Encerramento
 
-Antes, na trilha completa, confira o gate de instalações temporárias: cada `install` temporário do
-histórico da frente tem `uninstall` depois dele e o estado real é igual à linha de base no que a
-frente toca (`historico.mjs gate <frente>`, na seção "Gate da Fase 11" da skill `rito-descoberta`);
+Antes, na trilha completa, confira o gate de instalações temporárias: cada `install` ou `enable`
+temporário do histórico da frente tem `uninstall` ou `disable` depois dele e o estado real é igual
+à linha de base no que a frente toca (`historico.mjs gate <frente>`, na seção "Gate da Fase 11" da skill `rito-descoberta`);
 saída diferente de 0, inclusive sem histórico ou linha de base, impede o encerramento.
 
 Remova a worktree e a branch da frente e atualize a base (`{{BRANCH_INTEGRACAO}}`, ou

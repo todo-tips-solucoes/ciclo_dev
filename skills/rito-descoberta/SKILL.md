@@ -45,7 +45,8 @@ A única escrita antes do Gate 0 é o histórico, declarado ao owner no início.
   depois `mv` para o `.base` e cópia para o `.ultima`; o evento `base` vai ao log. Ela nunca é
   recriada.
 - **Nome já usado**: `.log` existente cujo evento `base` traz outra raiz ou outra branch é de outra
-  frente ou de outro projeto com o mesmo nome: **pare** e peça outro nome ao owner. Não retome.
+  frente ou de outro projeto com o mesmo nome; `.log` que já tem `gate0` é de Fase 0 concluída.
+  Nos dois casos, **pare** e peça outro nome ao owner. Não retome.
 - **Rodada**: antes e depois de cada rodada de subagentes e de cada comando que o owner rodar, tire
   uma foto nova e compare com o `.ultima`. Grave a diferença como evento `rodada` (`criados`,
   `apagados`, `alterados`, um item por linha) e substitua o `.ultima` pela foto nova.
@@ -53,8 +54,10 @@ A única escrita antes do Gate 0 é o histórico, declarado ao owner no início.
   `desvio`; a Fase 0 **para** e volta ao owner.
 - **Ruído conhecido** (lista fechada): sincronização de `skills/synced` (já fora da foto); mudança
   da linha `catalogo` do marketplace `claude-plugins-official` (atualização automática do Claude
-  Code); arquivos `-shm`, `-wal` e `-journal` do SQLite sob `<raiz>/.claude` (já fora da foto).
-  Qualquer outro é desvio.
+  Code); mudança do alvo `link:` de `~/.local/bin/claude` (atualização automática do Claude Code);
+  arquivos `-shm`, `-wal` e `-journal` do SQLite sob `<raiz>/.claude` (já fora da foto). Qualquer
+  outro é desvio. Ficam fora da foto por construção: o que acontece dentro de uma pasta de versão
+  do cache de plugins (`.in_use/`, arquivos reescritos) e os plugins de outros projetos.
 - **Retomada de sessão interrompida**: com `.log`, `.base` e `.ultima` existentes e da mesma raiz,
   tire uma foto nova, compare com o `.ultima` e grave a diferença como `rodada` ou `desvio`. Não
   recrie a linha de base.
@@ -139,8 +142,11 @@ de concluir.
      `claude plugin marketplace add <dono>/<repositório>`, com Desfazer
      `claude plugin marketplace remove <nome>`; gerenciador de pacote com versão exata e as flags
      obrigatórias dos canais.
-   - Reprova também: comando da lista "Proibido sempre" (política de instalação) e as flags `-g`,
-     `--global`, `--registry`, `--index-url`, `--extra-index-url` e `--trusted-host`.
+   - `marketplace add` e `marketplace remove` só com `Classe` `temporária`.
+   - Reprova também: comando da lista "Proibido sempre" (política de instalação); as flags `-g`,
+     `--global`, `--location`, `--prefix`, `--user`, `--registry`, `-i`, `--index-url`,
+     `--extra-index-url`, `-f`, `--find-links` e `--trusted-host`; a palavra `global` (como em
+     `yarn global add`); e pacote indicado por URL ou repositório (`://`, `git+`).
    - O agente executa o valor da célula do 1º commit byte a byte, nunca reescrito.
 6. **Commit.** Logo depois do commit, o arquivo é o único do 1º commit da branch:
    `git log --reverse --format=%H origin/<BRANCH_INTEGRACAO>..HEAD | head -1` devolve um SHA, e
@@ -162,16 +168,18 @@ Máquina de `hostname`, branch de `git branch --show-current`. O `detalhe` depen
 | `evento` | `detalhe` |
 |---|---|
 | `base` | caminho do `.base` e número de linhas da foto |
+| `worktree` | caminho da worktree criada depois do OK (a 3ª coluna também é ela) |
 | `rodada` | rótulo e `criados=N apagados=N alterados=N`; um item por linha seguinte, começando por quatro TABs: `+ <linha>` (só na nova) ou `- <linha>` (só na velha; alterada é o par `-`/`+`) |
 | `install` / `enable` | `<id>\t<escopo>\t<projeto>\t<versão ou SHA>\t<classe>\t<comando exato>` (cada parte é uma coluna TAB, da 6ª à 11ª do log) |
 | `uninstall` / `disable` | os mesmos campos do `install` / `enable` que desfaz |
 | `desvio` | o que mudou sem comando declarado; a frente para |
-| `gate0` | `OK` e o texto literal do owner |
+| `gate0` | `OK` seguido do texto literal do owner; sem o `OK` no início, o gate não conta |
 
 Origem dos campos do `install`: `id` é `<plugin>@<marketplace>`, ou `marketplace:<nome>` para
 marketplace; `escopo` é o valor literal do `-s` (`project`), ou `global` para marketplace; `projeto`
-é o caminho absoluto da raiz onde o comando rodou, ou `-` para marketplace; classe e comando vêm da
-tabela do 1º commit. Grave com `printf` (nunca `echo` sem `-e`, que deixa `\t` literal).
+é o caminho absoluto da raiz onde o comando rodou, ou `-` para marketplace. Para pacote, `id` é
+`<gerenciador>:<pacote>`, `escopo` é `project` e `projeto` é a raiz. Classe e comando vêm da
+tabela do 1º commit; o desfazer repete a classe da abertura (classe diferente falha fechado). Grave com `printf` (nunca `echo` sem `-e`, que deixa `\t` literal).
 
 **Ordem**: a linha `install` ou `enable` vai ao log **antes** de executar o comando. Se o comando
 falhar, confira o estado real; nada instalado, grave o `uninstall` ou `disable` correspondente com
@@ -179,39 +187,52 @@ o comando `nada a desfazer: <motivo>`; algo instalado, execute o Desfazer e grav
 
 A foto (`historico.mjs foto [--raiz <dir>]`) sai em stdout ordenada, uma linha `tipo\tchave\tvalor`
 (`meta`, `hash`, `plugin`, `enabled`, `marketplace`, `catalogo`, `git`); só lê, nunca imprime
-conteúdo de arquivo e roda o `git` com `--no-optional-locks`. A diferença entre duas fotos é o
+conteúdo de arquivo e roda o `git` com `--no-optional-locks`. O cache de plugins entra por pasta de
+versão (`dir`, ou `orfa` quando a CLI a marcou com `.orphaned_at` no uninstall); as linhas `plugin`
+são só do escopo `user` e do projeto da raiz; symlink que sai da raiz vira `link:<alvo>`, sem ser
+seguido. A diferença entre duas fotos é o
 `diff` delas: linha só na nova é criada, só na velha é apagada, mesma chave com valor diferente é
 alterada. A foto falha (saída 1) com `--raiz` fora de repositório git, `HOME` vazio ou relativo,
-`installed_plugins.json` inválido, `git` com erro, ou com `CLAUDE_CODE_PLUGIN_CACHE_DIR` ou
+`installed_plugins.json` inválido ou fora do formato `version` 2, `git` com erro, ou com `CLAUDE_CODE_PLUGIN_CACHE_DIR` ou
 `CLAUDE_CONFIG_DIR` definido (cita a variável).
 
 `historico.mjs pendentes <log>` lista cada `install` ou `enable` temporário sem `uninstall` ou
 `disable` posterior com o mesmo id, escopo e projeto: sai 0 sem pendentes, 1 com pendentes
 (imprimindo-os) e 2 com log ausente, ilegível, vazio ou sem evento `base`, ou com qualquer linha
 mal formada (menos de 6 colunas, evento desconhecido, ou `install`/`uninstall`/`enable`/`disable`
-sem 11 colunas ou com classe diferente de `permanente`/`temporária`). Desfazer sem abertura
-anterior é ignorado; abertura repetida é fechada pelo desfazer mais recente.
+sem 11 colunas ou com classe diferente de `permanente`/`temporária`, linha iniciada por TAB que não
+seja item de `rodada`, desfazer com classe diferente da abertura). Desfazer sem abertura anterior é
+ignorado; abertura repetida é fechada pelo desfazer mais recente.
 
 ## Gate da Fase 11 (trilha completa)
 
-Vale quando a branch tem `docs/specs/<frente>/decisoes-do-owner.md`. Roda dentro da worktree, antes
-do "Encerrar":
+Vale quando o registro da frente veio desta skill (os 14 títulos exatos da seção "Itens do
+registro"). Roda dentro da worktree da frente, antes do "Encerrar":
 
 ```bash
 node ~/.claude/skills/rito-descoberta/historico.mjs gate <frente>
 ```
 
-Saída 0 libera o "Encerrar"; qualquer outra impede e volta ao owner. O `gate`:
+Saída 0 libera o "Encerrar"; qualquer outra impede e volta ao owner. O `gate` (decisão do owner:
+compara só o que a frente toca):
 
-1. **Falha fechado (saída 2)** com `.log` ou `.base` ausente, ilegível ou vazio, log sem `base` ou
-   sem `gate0`, ou linha mal formada; foto que falha dá saída 1.
+1. **Falha fechado (saída 2)**: fora de repositório git, branch atual que não é `<frente>` nem
+   termina em `/<frente>`, worktree atual ausente do log (evento `worktree` ou projeto de algum
+   install), `.log` ou `.base` ausente, ilegível ou vazio, log sem `base` ou sem `gate0` com `OK`,
+   linha mal formada. Foto que falha dá saída 1.
 2. **Pendentes (saída 1)**: imprime cada `install`/`enable` temporário sem desfazer (`pendente\t…`).
-3. **Estado real igual à linha de base, só no que a frente toca (saída 1, imprime `-`/`+`)**: a foto
-   da raiz do evento `base` (mais as settings das worktrees da frente) é comparada ao `.base` nas
-   linhas dos ids **temporários** do log (`plugin` completa, entradas deles em `enabled`, `meta` do
-   cache deles e `marketplace` deles) e na **presença** das linhas `plugin` com `projectPath` numa
-   raiz da frente. Id **permanente** é diferença esperada (aparece no diff da PR); atualização
-   automática de plugin que já existia e outras frentes ficam fora.
+3. **Diferença no escopo da frente (saída 1, imprime `-`/`+`)**:
+   - nenhum plugin com `projectPath` numa raiz da frente (a worktree atual e os projetos do log,
+     fora a raiz do evento `base`), salvo a tripla listada como **permanente**;
+   - as entradas dos ids **temporários** em `enabledPlugins` (settings do usuário, da raiz e das
+     raízes da frente, na working tree **e no `HEAD` commitado**) iguais às da linha de base;
+   - as linhas `marketplace` dos marketplaces temporários iguais às da linha de base;
+   - nenhuma pasta de versão de id temporário no cache sem plugin instalado e sem a marca de órfã
+     (`.orphaned_at`): pasta marcada conta como desinstalada (decisão do owner); sem a marca, é
+     sobra.
+
+   Plugins de outros projetos, atualização automática de plugin que já existia e o que acontece
+   dentro das pastas do cache ficam fora.
 
 **Worktree removida antes do uninstall**: recrie-a no mesmo caminho (`git worktree add <caminho>
 <branch>`), rode o Desfazer dali com `-s project`, grave-o no log e só então remova a worktree.
@@ -298,10 +319,12 @@ Roda na raiz onde o agente vai ser usado (na worktree, quando é lá).
    conteúdo só de agentes. Reprovado: desinstala com `-s project` e **para**. Aprovado: o SHA
    instalado vai ao log, na rodada seguinte ao install.
 
-**Conteúdo só de agentes**: o `installPath` tem só `.claude-plugin/`, arquivos `.md` e `LICENSE*`,
-sem `hooks/`, `.mcp.json` nem executável; e o `.claude-plugin/plugin.json` não tem as chaves
-`hooks`, `mcpServers`, `lspServers`, `commands`, `skills` nem `outputStyles` (só metadados e
-`agents`). Qualquer outra coisa reprova o plugin.
+**Conteúdo só de agentes** (lista fechada): o `installPath` tem só `.claude-plugin/plugin.json`,
+`README.md`, `LICENSE*` e os `.md` citados no array `agents` do `plugin.json`; nenhum outro arquivo
+nem diretório (`commands/`, `skills/`, `hooks/`, `output-styles/`, `.mcp.json`, executável). O
+`plugin.json` não tem as chaves `hooks`, `mcpServers`, `lspServers`, `commands`, `skills` nem
+`outputStyles`. O frontmatter de cada agente só tem `name`, `description`, `tools`, `model` e
+`color`. Qualquer outra coisa reprova o plugin.
 
 Dados que a documentação oficial não confirma ficam como **pendência**, sem afirmar: o campo
 `gitCommitSha` (só medido), o `projectPath` gravado por um install dentro de worktree, a sobra de
@@ -326,7 +349,8 @@ THIRD-PARTY-NOTICES do projeto). O agente **nunca edita** essa linha, em constit
 
 **Lista.** O agente só executa `install` e `enable` de item da seção `Instalações previstas` do
 Gate 0, com o **comando byte a byte igual ao registrado** (nunca reescrito), no escopo, na versão
-ou SHA e na classe listados.
+ou SHA e na classe listados. Para plugin, o SHA instalado vale depois da conferência pós-install
+(o `install` não fixa SHA; o catálogo é atualizado antes de buscar o plugin).
 
 **Desvio.** Item fora da lista, flag diferente, escopo diferente ou mudança de classe: **para** e
 pede OK ao owner; grave o evento `desvio`.
@@ -335,7 +359,7 @@ pede OK ao owner; grave o evento `desvio`.
 
 - Plugin do mapa: `-s project`; marketplace conferido por nome e `repo`; só plugin com apenas
   `agents/` (sem hooks nem `.mcp.json`) e `tools:` dentro da regra de proibidos.
-- Pacotes: versão exata; `--ignore-scripts` em npm, pnpm e yarn (yarn berry: `enableScripts` em
+- Pacotes: versão exata, sem escopo global nem registro alternativo (checagem 5); `--ignore-scripts` em npm, pnpm e yarn (yarn berry: `enableScripts` em
   false), salvo postinstall listado pelo nome; pip com `--only-binary=:all:` e `--require-hashes`;
   registro conferido (um `.npmrc` ou `.yarnrc.yml` do repositório pode redirecioná-lo).
 - `marketplace add` e `marketplace remove` entram na lista como classe **temporária**, por gravarem
@@ -373,7 +397,8 @@ owner. Até aqui, **nenhuma escrita além do log**.
 
 1. Crie a worktree pelo `/parallel-work <prefixo>/<frente> --base origin/<BRANCH_INTEGRACAO> --short-name <frente>`
    (`<prefixo>` é o de feature de `PREFIXOS_BRANCH`; base sempre explícita; chamada da raiz da
-   árvore principal).
+   árvore principal). Grave no log o evento `worktree` com o caminho dela: é o que liga a worktree
+   ao gate da Fase 11.
 2. Grave `docs/specs/<frente>/decisoes-do-owner.md` na worktree, com a seção `Histórico` vinda do
    log, nas regras da cópia versionada.
 3. **Valide** pelas checagens 1 a 5 da seção "Validação do registro" (títulos, seções não vazias,

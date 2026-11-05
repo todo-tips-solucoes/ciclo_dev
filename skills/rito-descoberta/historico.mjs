@@ -4,18 +4,18 @@
 // Uso:
 //   node historico.mjs foto [--raiz <dir>]   → impressão digital das raízes (tipo\tchave\tvalor)
 //   node historico.mjs pendentes <log>       → installs/enables temporários sem desfazer posterior
-//   node historico.mjs gate <frente>         → gate da Fase 11 (pendentes + estado real = base, no escopo)
+//   node historico.mjs gate <frente>         → gate da Fase 11, rodado dentro da worktree da frente
 //   node historico.mjs frente <nome>         → valida o nome da frente (^[a-z0-9][a-z0-9-]*$, até 64)
 //
 // Códigos de saída: foto 0 ok / 1 falha fechado; pendentes 0 nenhum / 1 há pendentes / 2 log
 // ausente, ilegível, vazio, sem evento base ou com linha mal formada; gate 0 pode encerrar / 1
-// pendente ou diferença / 2 log ou base com problema; frente 0 válido / 2 inválido.
-// Uso errado: 64. Contrato: seção "Formato do histórico" da SKILL.md. Nunca imprime conteúdo de
-// arquivo. O git roda com --no-optional-locks: a foto não toca o índice.
+// pendente, diferença ou foto que falhou / 2 log, base ou worktree com problema; frente 0 válido /
+// 2 inválido. Uso errado: 64. Contrato: seção "Formato do histórico" da SKILL.md. Nunca imprime
+// conteúdo de arquivo. O git roda com --no-optional-locks: a foto não toca o índice.
 
 import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { existsSync, readdirSync, readFileSync, realpathSync, statSync } from 'node:fs';
+import { existsSync, lstatSync, readdirSync, readFileSync, readlinkSync, realpathSync, statSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { basename, isAbsolute, join, resolve, sep } from 'node:path';
 
@@ -24,33 +24,63 @@ const limpa = (s) => String(s).replace(/[\t\r\n]+/g, ' ');
 const sha = (buf) => createHash('sha256').update(buf).digest('hex');
 const cmp = (a, b) => Buffer.compare(Buffer.from(a), Buffer.from(b));
 const objeto = (v) => v !== null && typeof v === 'object' && !Array.isArray(v);
+const norma = (p) => { try { return realpathSync(p); } catch { return String(p).replace(/\/+$/, ''); } };
+const dentro = (p, raiz) => p === raiz || p.startsWith(raiz + sep);
 
 function git(raiz, args) {
   try {
     return execFileSync('git', ['--no-optional-locks', '-C', raiz, ...args],
-      { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
+      { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], maxBuffer: 256 * 1024 * 1024 });
   } catch { return null; }
 }
 
-// Arquivos sob `dir`, pulando `pula`. Segue symlink (diretório só uma vez por caminho real);
-// symlink quebrado e diretório ilegível viram linha própria, nunca somem.
+// Arquivos sob `dir` (só metadados), pulando `pula`. Symlink que fica dentro da raiz é seguido
+// (diretório uma vez por caminho real); o que sai da raiz vira `link:<alvo>`, sem seguir. Symlink
+// quebrado e diretório ilegível viram linha própria, nunca somem.
 function arquivos(dir, pula) {
   const out = [];
+  const raiz = norma(dir);
   const vistos = new Set();
+  const meta = (s) => `${s.size} ${s.mtimeMs} ${s.ctimeMs} ${s.ino}`;
   const anda = (d) => {
-    try { const real = realpathSync(d); if (vistos.has(real)) return; vistos.add(real); } catch { /* abaixo */ }
+    const real = norma(d);
+    if (vistos.has(real)) return;
+    vistos.add(real);
     let ents;
     try { ents = readdirSync(d, { withFileTypes: true }); } catch { out.push([d, 'ilegivel']); return; }
     for (const e of ents) {
       const p = join(d, e.name);
       if (pula.includes(p)) continue;
+      if (e.isSymbolicLink()) {
+        let alvo;
+        try { alvo = realpathSync(p); } catch { out.push([p, 'link-quebrado']); continue; }
+        if (!dentro(alvo, raiz)) { out.push([p, `link:${readlinkSync(p)}`]); continue; }
+      }
       let s;
       try { s = statSync(p); } catch { out.push([p, 'link-quebrado']); continue; }
       if (s.isDirectory()) anda(p);
-      else out.push([p, `${s.size} ${s.mtimeMs} ${s.ctimeMs} ${s.ino}`]);
+      else out.push([p, meta(s)]);
     }
   };
   anda(dir);
+  return out;
+}
+
+// Cache de plugins por pasta de versão: cache/<marketplace>/<plugin>/<versão> → `dir`, ou `orfa`
+// quando a CLI a marcou com `.orphaned_at` (desinstalada, coletada depois).
+function versoes(cache) {
+  const out = [];
+  const lista = (d) => { try { return readdirSync(d, { withFileTypes: true }).filter((e) => e.isDirectory()); } catch { return null; } };
+  const mkts = lista(cache);
+  if (mkts === null) return [[cache, existsSync(cache) ? 'ilegivel' : 'ausente']];
+  for (const m of mkts) {
+    for (const p of lista(join(cache, m.name)) || []) {
+      for (const v of lista(join(cache, m.name, p.name)) || []) {
+        const d = join(cache, m.name, p.name, v.name);
+        out.push([d, existsSync(join(d, '.orphaned_at')) ? 'orfa' : 'dir']);
+      }
+    }
+  }
   return out;
 }
 
@@ -64,6 +94,23 @@ function lerJson(p, obrigatorio) {
 
 const canon = (v) => JSON.stringify(v, (_, x) => (objeto(x)
   ? Object.fromEntries(Object.entries(x).sort(([a], [b]) => cmp(a, b))) : x));
+
+// installed_plugins.json no formato conhecido (version 2), como lista de entradas; ausente → null.
+function instalados(HOME) {
+  const ip = lerJson(join(HOME, '.claude', 'plugins', 'installed_plugins.json'), true);
+  if (ip === undefined) return null;
+  if (!objeto(ip) || ip.version !== 2 || !objeto(ip.plugins ?? {})) {
+    falha('installed_plugins.json em formato não reconhecido (esperado version 2) (falha fechado)');
+  }
+  const out = [];
+  for (const [id, ents] of Object.entries(ip.plugins ?? {})) {
+    for (const e of [].concat(ents)) {
+      if (!objeto(e)) falha(`installed_plugins.json: entrada inválida em ${limpa(id)} (falha fechado)`);
+      out.push({ id, scope: e.scope ?? '-', projectPath: e.projectPath ?? '-', version: e.version ?? '-', sha: e.gitCommitSha ?? '-' });
+    }
+  }
+  return { ip, out };
+}
 
 function foto(raiz, HOME) {
   for (const v of ['CLAUDE_CODE_PLUGIN_CACHE_DIR', 'CLAUDE_CONFIG_DIR']) {
@@ -87,7 +134,7 @@ function foto(raiz, HOME) {
   const raizesMeta = [
     [join(claude, 'skills'), [join(claude, 'skills', 'synced')]],
     [join(claude, 'agents'), []], [join(claude, 'commands'), []], [join(claude, 'hooks'), []],
-    [join(claude, 'CLAUDE.md'), []], [join(claude, 'plugins', 'cache'), []],
+    [join(claude, 'CLAUDE.md'), []],
     [projClaude, [join(projClaude, 'feature-00c-state'), join(projClaude, 'enforcement-log.jsonl')]],
     [resolve(raiz, hooks.trim()), []],
     [join(HOME, '.ssh'), []], [join(HOME, '.config', 'gh'), []], [join(HOME, '.local', 'bin'), []],
@@ -99,6 +146,7 @@ function foto(raiz, HOME) {
     const itens = s.isDirectory() ? arquivos(r, pula) : [[r, `${s.size} ${s.mtimeMs} ${s.ctimeMs} ${s.ino}`]];
     for (const [f, v] of itens) if (!sqlite(f)) add('meta', f, v);
   }
+  for (const [d, v] of versoes(join(claude, 'plugins', 'cache'))) add('meta', d, v);
 
   // hash: conteúdo, só o sha256 vai à saída.
   for (const f of [join(claude, 'settings.json'), join(projClaude, 'settings.json'),
@@ -110,25 +158,20 @@ function foto(raiz, HOME) {
   add('hash', 'crontab -l', cron);
   const cj = lerJson(join(HOME, '.claude.json'), false);
   add('hash', '~/.claude.json#mcpServers', objeto(cj) && cj.mcpServers !== undefined ? sha(canon(cj.mcpServers)) : 'ausente');
+  const vazio = (v) => v === undefined || v === null || (objeto(v) && !Object.keys(v).length);
   const locais = objeto(cj) && objeto(cj.projects)
-    ? Object.fromEntries(Object.entries(cj.projects).filter(([, p]) => objeto(p) && p.mcpServers !== undefined)
+    ? Object.fromEntries(Object.entries(cj.projects).filter(([, p]) => objeto(p) && !vazio(p.mcpServers))
       .map(([k, p]) => [k, p.mcpServers])) : {};
   add('hash', '~/.claude.json#projects.mcpServers', sha(canon(locais)));
 
-  // plugin e enabled.
-  const ip = lerJson(join(claude, 'plugins', 'installed_plugins.json'), true);
-  if (ip === undefined) add('plugin', '-', 'ausente');
+  // plugin (só escopo user e o projeto da raiz) e enabled.
+  const inst = instalados(HOME);
+  if (inst === null) add('plugin', '-', 'ausente');
   else {
-    if (!objeto(ip)) falha('installed_plugins.json não é um objeto (falha fechado)');
-    const plugins = ip.plugins === undefined ? {} : ip.plugins;
-    if (!objeto(plugins)) falha('installed_plugins.json: "plugins" não é um objeto (falha fechado)');
-    for (const [id, ents] of Object.entries(plugins)) {
-      for (const e of [].concat(ents)) {
-        if (!objeto(e)) falha(`installed_plugins.json: entrada inválida em ${limpa(id)} (falha fechado)`);
-        add('plugin', `${id}|${e.scope ?? '-'}|${e.projectPath ?? '-'}`, `${e.version ?? '-'} ${e.gitCommitSha ?? '-'}`);
-      }
+    for (const e of inst.out) {
+      if (e.scope === 'user' || norma(e.projectPath) === raiz) add('plugin', `${e.id}|${e.scope}|${e.projectPath}`, `${e.version} ${e.sha}`);
     }
-    if (ip.enabledPlugins !== undefined) add('enabled', 'installed_plugins.json', canon(ip.enabledPlugins));
+    if (inst.ip.enabledPlugins !== undefined) add('enabled', 'installed_plugins.json', canon(inst.ip.enabledPlugins));
   }
   for (const f of [join(claude, 'settings.json'), join(projClaude, 'settings.json'), join(projClaude, 'settings.local.json')]) {
     const s = lerJson(f, false);
@@ -155,7 +198,7 @@ function foto(raiz, HOME) {
   return linhas.sort(cmp).join('\n') + '\n';
 }
 
-const EVENTOS = new Set(['base', 'rodada', 'install', 'uninstall', 'enable', 'disable', 'desvio', 'gate0']);
+const EVENTOS = new Set(['base', 'rodada', 'worktree', 'install', 'uninstall', 'enable', 'disable', 'desvio', 'gate0']);
 const ABRE = { install: 'install', enable: 'enable' };
 const FECHA = { uninstall: 'install', disable: 'enable' };
 
@@ -166,16 +209,22 @@ function lerLog(log) {
   const linhas = [];
   let base = null;
   let gate0 = false;
+  let anterior = null;
   for (const bruta of txt.split('\n')) {
     const l = bruta.replace(/\r$/, '').normalize('NFC');
-    if (!l || l.startsWith('\t')) continue; // continuação de rodada
+    if (!l) continue;
+    if (l.startsWith('\t')) { // só item de rodada: quatro TABs e "+ " ou "- ", logo depois de uma rodada
+      if (anterior !== 'rodada' || !/^\t{4}[+-] /.test(l)) falha(`linha mal formada (falha fechado): ${limpa(l)}`, 2);
+      continue;
+    }
     const c = l.split('\t');
     if (c.length < 6 || !EVENTOS.has(c[4])) falha(`linha mal formada (falha fechado): ${limpa(l)}`, 2);
+    anterior = c[4];
     if ((ABRE[c[4]] || FECHA[c[4]]) && (c.length !== 11 || !['permanente', 'temporária'].includes(c[9]))) {
       falha(`linha de ${c[4]} mal formada (11 colunas TAB, classe permanente|temporária): ${limpa(l)}`, 2);
     }
     if (c[4] === 'base' && !base) base = c;
-    if (c[4] === 'gate0') gate0 = true;
+    if (c[4] === 'gate0' && /^OK\b/.test(c[5])) gate0 = true;
     linhas.push(c);
   }
   if (!base) falha(`log sem evento base (falha fechado): ${log}`, 2);
@@ -183,12 +232,17 @@ function lerLog(log) {
 }
 
 // install/enable temporários ainda sem uninstall/disable com a mesma tripla id, escopo, projeto.
+// Desfazer com classe diferente da abertura, ou a mesma tripla aberta como permanente e
+// temporária, falha fechado (saída 2).
 function abertosDe(linhas) {
   const abertos = [];
+  const classe = new Map();
   for (const c of linhas) {
     const tipo = ABRE[c[4]] ?? FECHA[c[4]];
     if (!tipo) continue;
     const chave = `${tipo}|${c[5]}|${c[6]}|${c[7]}`;
+    if (classe.has(chave) && classe.get(chave) !== c[9]) falha(`classe divergente para ${limpa(chave)} (falha fechado)`, 2);
+    classe.set(chave, c[9]);
     if (ABRE[c[4]]) { if (c[9] === 'temporária') abertos.push({ chave, l: c.join('\t') }); }
     else {
       const i = abertos.map((a) => a.chave).lastIndexOf(chave);
@@ -204,13 +258,26 @@ function pendentes(log) {
   process.exit(abertos.length ? 1 : 0);
 }
 
-// Gate da Fase 11: sem pendentes e, no escopo da frente, o estado real igual à linha de base.
-// Escopo: ids temporários do log (plugin, enabled, cache, marketplace), e presença dos plugins com
-// projectPath numa raiz da frente. Ids permanentes são diferença esperada (vão no diff da PR).
+// Gate da Fase 11, rodado dentro da worktree da frente (decisão do owner: só o que a frente toca).
+// Compara: nenhum plugin com projectPath numa raiz da frente (worktree atual e projetos do log, fora
+// a raiz do evento base), salvo a tripla permanente; entradas dos ids temporários em enabledPlugins
+// (working tree e HEAD das raízes da frente) iguais às da base; marketplaces temporários iguais aos
+// da base; nenhuma pasta de versão de id temporário sem a marca de órfã e sem plugin instalado.
 function gate(frente, HOME) {
+  const aqui = git(process.cwd(), ['rev-parse', '--show-toplevel']);
+  const ramo = git(process.cwd(), ['branch', '--show-current']);
+  if (aqui === null || ramo === null) falha('gate fora de repositório git: rode dentro da worktree da frente', 2);
+  const b = ramo.trim();
+  if (b !== frente && !b.endsWith(`/${frente}`)) falha(`branch atual (${limpa(b)}) não é da frente ${frente} (falha fechado)`, 2);
+
   const dir = join(HOME, '.claude', 'cockpit');
   const { linhas, base, gate0 } = lerLog(join(dir, `historico-${frente}.log`));
-  if (!gate0) falha('log sem evento gate0 (falha fechado)', 2);
+  if (!gate0) falha('log sem evento gate0 com OK (falha fechado)', 2);
+  const wt = norma(aqui.trim());
+  const doLog = new Set(linhas.filter((c) => c[4] === 'worktree' || ABRE[c[4]] || FECHA[c[4]])
+    .flatMap((c) => [norma(c[2]), ...(ABRE[c[4]] || FECHA[c[4]] ? [norma(c[7])] : [])]));
+  if (!doLog.has(wt)) falha(`a worktree atual não aparece no log da frente (evento worktree ausente?) (falha fechado)`, 2);
+
   const abertos = abertosDe(linhas);
   if (abertos.length) {
     for (const a of abertos) process.stdout.write(`pendente\t${a.l}\n`);
@@ -220,55 +287,74 @@ function gate(frente, HOME) {
   try { baseTxt = readFileSync(join(dir, `historico-${frente}.base`), 'utf8'); } catch { falha('.base ausente ou ilegível (falha fechado)', 2); }
   if (!baseTxt.trim()) falha('.base vazio (falha fechado)', 2);
 
-  const raiz = base[2];
-  const perm = new Set();
+  const raiz = norma(base[2]);
+  const permTripla = new Set();
+  const permId = new Set();
   const temp = new Set();
-  const raizes = new Set([raiz]);
+  const raizes = new Set([wt]);
   for (const c of linhas) {
-    raizes.add(c[2]);
     if (!ABRE[c[4]] && !FECHA[c[4]]) continue;
-    (c[9] === 'permanente' ? perm : temp).add(c[5]);
-    if (c[7] !== '-') raizes.add(c[7]);
+    if (c[7] !== '-') raizes.add(norma(c[7]));
+    if (!ABRE[c[4]]) continue; // a classe vem da abertura
+    if (c[9] === 'permanente') { permId.add(c[5]); permTripla.add(`${c[5]}|${norma(c[7])}`); } else temp.add(c[5]);
   }
-  for (const id of perm) temp.delete(id);
+  for (const id of permId) temp.delete(id);
+  raizes.delete(raiz);
 
+  const dif = [];
+  // 1. presença: nada instalado nas raízes da frente, salvo permanente listado.
+  const inst = instalados(HOME);
+  const todos = inst === null ? [] : inst.out;
+  for (const e of todos) {
+    const p = norma(e.projectPath);
+    if (raizes.has(p) && !permTripla.has(`${e.id}|${p}`)) dif.push(`+ plugin\t${e.id}|${e.scope}|${p}`);
+  }
+
+  // 2. enabled e marketplace dos ids temporários: iguais à base.
   const usuario = join(HOME, '.claude', 'settings.json');
-  const cache = join(HOME, '.claude', 'plugins', 'cache') + sep;
   const tipoArq = (k) => (k === 'installed_plugins.json' ? k : k === usuario ? 'usuario' : `projeto:${basename(k)}`);
   const escopo = (txt) => {
     const out = new Set();
     for (const l of txt.split('\n')) {
       const [tipo, chave = '', valor = ''] = l.split('\t');
-      if (tipo === 'plugin') {
-        const [id, , pp] = chave.split('|');
-        if (perm.has(id)) continue;
-        if (temp.has(id)) out.add(l);
-        else if (raizes.has(pp)) out.add(`plugin\t${chave}`); // só presença: auto-update não conta
-      } else if (tipo === 'enabled') {
+      if (tipo === 'enabled') {
         let obj;
         try { obj = JSON.parse(valor); } catch { continue; }
         if (!objeto(obj)) continue;
         for (const id of temp) if (id in obj) out.add(`enabled\t${tipoArq(chave)}\t${id}=${JSON.stringify(obj[id])}`);
-      } else if (tipo === 'meta' && chave.startsWith(cache)) {
-        const [mkt, plugin] = chave.slice(cache.length).split(sep);
-        if (temp.has(`${plugin}@${mkt}`)) out.add(l);
       } else if (tipo === 'marketplace' && temp.has(`marketplace:${chave}`)) out.add(l);
     }
     return out;
   };
-
   let atual = foto(raiz, HOME);
-  for (const r of raizes) { // settings das worktrees da frente, comparadas às da raiz na base
-    if (r === raiz || r === '-') continue;
+  for (const r of raizes) { // settings das raízes da frente: working tree e o que foi commitado
     for (const f of ['settings.json', 'settings.local.json']) {
-      const s = lerJson(join(r, '.claude', f), false);
-      if (objeto(s) && s.enabledPlugins !== undefined) atual += `enabled\t${join(r, '.claude', f)}\t${canon(s.enabledPlugins)}\n`;
+      const caminho = join(r, '.claude', f);
+      const s = lerJson(caminho, false);
+      if (objeto(s) && s.enabledPlugins !== undefined) atual += `enabled\t${caminho}\t${canon(s.enabledPlugins)}\n`;
     }
+    const commitado = git(r, ['show', 'HEAD:.claude/settings.json']);
+    let s = null;
+    try { s = commitado === null ? null : JSON.parse(commitado); } catch { falha(`HEAD:.claude/settings.json inválido em ${r} (falha fechado)`, 2); }
+    if (objeto(s) && s.enabledPlugins !== undefined) atual += `enabled\t${join(r, '.claude', 'settings.json')}\t${canon(s.enabledPlugins)}\n`;
   }
   const esperado = escopo(baseTxt);
   const real = escopo(atual);
-  const dif = [...[...esperado].filter((l) => !real.has(l)).map((l) => `- ${l}`),
-    ...[...real].filter((l) => !esperado.has(l)).map((l) => `+ ${l}`)].sort(cmp);
+  for (const l of esperado) if (!real.has(l)) dif.push(`- ${l}`);
+  for (const l of real) if (!esperado.has(l)) dif.push(`+ ${l}`);
+
+  // 3. cache: pasta de versão de id temporário sem marca de órfã e sem plugin instalado é sobra
+  // (salvo se já era assim na base).
+  const cache = join(HOME, '.claude', 'plugins', 'cache');
+  const ids = new Set(todos.map((e) => e.id));
+  const naBase = new Set(baseTxt.split('\n').filter((l) => l.endsWith('\tdir')).map((l) => l.split('\t')[1]));
+  for (const [d, v] of versoes(cache)) {
+    const [mkt, plugin] = d.slice(cache.length + 1).split(sep);
+    const id = `${plugin}@${mkt}`;
+    if (temp.has(id) && v === 'dir' && !ids.has(id) && !naBase.has(d)) dif.push(`+ cache\t${d}\tsobra sem plugin instalado`);
+  }
+
+  dif.sort(cmp);
   for (const l of dif) process.stdout.write(l + '\n');
   process.exit(dif.length ? 1 : 0);
 }
@@ -290,7 +376,7 @@ if (cmd === 'foto') {
   }
   const topo = git(raiz, ['rev-parse', '--show-toplevel']);
   if (topo === null) falha(`--raiz não é repositório git (ou o git a recusou): ${raiz}`);
-  process.stdout.write(foto(topo.trim(), HOME));
+  process.stdout.write(foto(norma(topo.trim()), HOME));
 } else if (cmd === 'pendentes' && args.length === 1) pendentes(args[0]);
 else if (cmd === 'gate' && args.length === 1) { validaFrente(args[0]); gate(args[0], casa()); }
 else if (cmd === 'frente' && args.length === 1) validaFrente(args[0]);

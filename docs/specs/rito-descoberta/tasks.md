@@ -166,7 +166,7 @@ Ref: plan.md; FR-017
 Ref: quickstart.md Scenarios 1-7; FR-019, FR-021, SC-001, SC-002, SC-007
 
 - [x] 6.1.1 Rodar `scripts/verificar-agnostico.sh` e conferir que passa (o CI usa lista mais ampla: juiz final)
-- [x] 6.1.2 Conferir que o diff contra a base so tem caminhos previstos (SC-007) e que `decisoes-do-owner.md` e `docs/constitution.md` nao mudaram nesta construcao
+- [x] 6.1.2 Conferir que o diff contra a base so tem caminhos previstos (SC-007) e que `decisoes-do-owner.md` e `docs/constitution.md` nao mudaram nesta construcao (na revisao de codigo, o texto da emenda 2.0.0 foi ajustado com sign-off do owner; ver `review-findings.md`)
 - [x] 6.1.3 Conferir que nenhum processo em background ficou da worktree e que nada foi instalado (`~/.claude/skills/rito-descoberta` ausente)
 - [ ] 6.1.4 Rodar `bmad-code-review` ate zerar achados alto/critico e declarar a trilha no corpo da PR (delegada a sessao pai, antes da PR)
 
