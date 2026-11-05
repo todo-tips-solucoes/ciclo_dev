@@ -65,6 +65,27 @@ terceiro precisa ser copiado, a cópia é exceção declarada, nunca o caminho p
 - Ferramentas externas MUST ser instaladas e atualizadas pela pessoa, pelos canais oficiais de
   cada uma, nunca por um script do projeto.
 - Toda cópia de código de terceiro MUST vir acompanhada do aviso de licença com o texto original.
+- Nenhum script do projeto MUST instalar ou atualizar código de terceiro: ele verifica e imprime o
+  comando oficial, e quem executa é a pessoa.
+
+Instalação pelo agente: desligada
+
+Enquanto a linha acima disser `desligada`, o agente só imprime os comandos. O projeto a liga por
+emenda própria, e a linha é lida na base de integração, nunca na worktree. Com ela `ligada`, valem
+os MUST abaixo, e só numa frente de trilha completa:
+
+- O agente MUST instalar só o que consta da seção "Instalações previstas" do
+  `docs/specs/<frente>/decisoes-do-owner.md` aprovado no Gate 0, com o comando exato de instalar, o
+  comando exato de desfazer, o escopo, a versão ou SHA e a classe (permanente ou temporária). Item
+  fora da lista, opção diferente da registrada ou mudança de classe MUST parar e pedir OK do owner.
+- Toda instalação e desinstalação feita pelo agente MUST ir ao histórico da frente, com versão ou
+  SHA e classe.
+- Instalação temporária MUST ser desfeita ao fim do uso, no máximo na Fase 11 do rito, e a frente
+  MUST NOT ser encerrada com temporária pendente. Nada permanente é global.
+- O agente MUST NOT executar script remoto, executor que baixa e roda na hora, aceitação de comando
+  declarado pelo marketplace, nem atualização de plugin, de marketplace ou de ferramenta.
+- O agente MUST NOT reinstalar, atualizar nem remover o que já estava instalado antes da frente e
+  MUST NOT alterar a linha "Instalação pelo agente" de nenhuma constituição.
 
 ### IV-bis. Identidade de commit declarada
 

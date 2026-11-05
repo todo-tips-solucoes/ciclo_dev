@@ -49,6 +49,9 @@ na sessão da árvore principal.
 5. **Expected**: sintaxe ok; `diff` vazio no passo 2 (controle negativo); `pendentes` termina
    com 1 e depois com 0; com o log ausente, termina com 2.
 
+6. Retomada (FR-022): com `.log` e `.base` existentes, tire foto nova e confira que a diferença
+   vira `rodada` ou `desvio` e que a base não é recriada.
+
 O log de teste fica no scratchpad da sessão, nunca em `~/.claude/cockpit`.
 
 ## Scenario 6: Templates continuam passando nos testes do configurador (FR-015, FR-018)
@@ -77,6 +80,9 @@ O log de teste fica no scratchpad da sessão, nunca em `~/.claude/cockpit`.
    git log --format=%h origin/main..HEAD -- docs/constitution.md
    ```
    A saída precisa ser só `bf2eb06`.
+
+> **Regra**: os Scenarios 8 a 11 (S1 a S5) só rodam depois do merge, com a instalação feita pelo
+> owner. O agente não os executa durante a construção.
 
 ## Scenario 8: S1, cópia das skills (pós-merge)
 

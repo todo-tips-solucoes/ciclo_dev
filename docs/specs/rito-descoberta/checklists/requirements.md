@@ -18,7 +18,7 @@
 - [x] CHK007 - Os proibidos de instalacao estao listados de forma enumerada e nao vaga? [Clareza, Spec §FR-011] {auto}
 - [x] CHK008 - O limite de 500 caracteres da descricao do `/feature-00c` esta quantificado? [Clareza, Spec §FR-006] {auto}
 - [x] CHK009 - A fonte da linha "Instalacao pelo agente" (`origin/<base>`, nao a worktree) esta inequivoca? [Clareza, Spec §FR-013] {auto}
-- [ ] CHK010 - "Ruido conhecido" do fingerprint do historico e definido (lista ou criterio)? [Ambiguity, Spec §Edge Cases, FR-014] {auto}
+- [x] CHK010 - "Ruido conhecido" do fingerprint do historico e definido (lista ou criterio)? [Ambiguity, Spec §Edge Cases, FR-014] {auto} (contracts/historico.md, "Ruído conhecido")
 
 ## Consistencia
 
@@ -30,21 +30,20 @@
 
 - [x] CHK014 - Cada SC tem valor mensuravel (100%, 0 itens, 0 arquivos)? [Mensurabilidade, Spec §SC-001..SC-007] {auto}
 - [x] CHK015 - O SC-004 cobre a pasta de cache, alem do estado de plugins? [Mensurabilidade, Spec §SC-004] {auto}
-- [x] CHK016 - Todos os FR tem cenario associado segundo o gate de cobertura? [Cobertura, gate requirement-coverage: requirements=21 covered=21 errors=0] {auto}
-- [ ] CHK017 - O SC-005 define como o gate encontra o par install/uninstall no log (chave de correspondencia)? [Gap, Spec §SC-005] {auto}
+- [x] CHK016 - Todos os FR tem cenario associado segundo o gate de cobertura? [Cobertura, gate requirement-coverage: requirements=22 covered=22 errors=0] {auto}
+- [x] CHK017 - O SC-005 define como o gate encontra o par install/uninstall no log (chave de correspondencia)? [Gap, Spec §SC-005] {auto} (contracts/historico.md, "Correspondência")
 
 ## Edge cases e fontes
 
 - [x] CHK018 - Ha tratamento para linha de base ausente (falha fechada) e fonte oficial indisponivel? [Edge Case, Spec §Edge Cases] {auto}
 - [x] CHK019 - Os dados factuais da CLI tem origem rastreavel e pendencia explicita (Principio VI)? [Rastreabilidade, Spec §FR-020, research Decision 5] {auto}
-- [ ] CHK020 - Ha requisito para sessao interrompida no meio da Fase 0 (retomada do historico)? [Gap, Spec §FR-014] {auto}
+- [x] CHK020 - Ha requisito para sessao interrompida no meio da Fase 0 (retomada do historico)? [Gap, Spec §FR-022] {auto} (FR-022; contracts/historico.md, "Retomada")
 
 ## Julgamento do owner
 
-- [ ] CHK021 - A regra "instalacao global temporaria: uma por vez entre frentes paralelas" e suficiente como controle de concorrencia? [Risco, Spec §Edge Cases] {humano}
-- [ ] CHK022 - A dispensa do gate em docs, trivial e hotfix com incidente reflete o apetite de risco do owner? [Risco, Spec §FR-015] {humano}
+- [x] CHK021 - A regra "instalacao global temporaria: uma por vez entre frentes paralelas" e suficiente como controle de concorrencia? [Risco, Spec §Edge Cases] {humano} (D18: "Temporarias globais rodam uma por vez entre frentes paralelas")
+- [x] CHK022 - A dispensa do gate em docs, trivial e hotfix com incidente reflete o apetite de risco do owner? [Risco, Spec §FR-015] {humano} (D10: gate dispensado em docs, trivial e hotfix com incidente)
 
 ## Notes
 
-- Gaps abertos: CHK010 (ambiguidade, vai a decisao do plan/tasks, sem editar decisoes-do-owner.md), CHK017 e CHK020 (viram tarefas de especificacao em `/create-tasks`).
-- Itens `{humano}` ficam `[ ]` ate o owner.
+- Nao restam gaps nem itens `{humano}` abertos: CHK010, CHK017 e CHK020 foram fechados na fase 1 de tasks.md; CHK021 e CHK022 seguem D18 e D10 do owner.

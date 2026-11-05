@@ -188,6 +188,8 @@ projetos-alvo ganha a política e a linha literal "Instalação pelo agente: des
   sem executá-lo.
 - **FR-014**: A skill MUST manter o histórico da Fase 0 conforme D9 (log por frente e máquina,
   linha de base, diferenças por rodada, impressão digital das raízes listadas, `$HOME` como `~`).
+  O ruído conhecido é a lista fechada de `contracts/historico.md` (seção "Ruído conhecido"); qualquer
+  outra mudança sem comando declarado é desvio.
 - **FR-015**: O `rito-dev` (`skills/rito-dev/SKILL.md` e `templates/docs/rito-dev.md.tmpl`) MUST ter
   o gate da Fase 0 na description e na Fase 1, obrigatório na trilha completa e dispensado em
   docs, trivial e hotfix com incidente, parando com "rito-descoberta ausente: rode instalar.sh"
@@ -205,6 +207,9 @@ projetos-alvo ganha a política e a linha literal "Instalação pelo agente: des
   `--prune`, `-y`, `--accept-command`, comportamento em worktree, fixação de ref) e de
   `--ignore-scripts`/`--require-hashes` MUST vir de fonte oficial via `ctx_fetch_and_index` na
   research do plan; até lá fica como pendência, nunca afirmado.
+- **FR-022**: Ao retomar uma Fase 0 interrompida, a skill MUST ler o `.log` e o `.base` da frente,
+  tirar nova foto e registrar a diferença como evento `rodada` ou `desvio`; a linha de base
+  existente MUST NOT ser recriada.
 - **FR-021**: O registro SDD completo (spec, plan, research, tasks) MUST viver em
   `docs/specs/rito-descoberta/` (E6).
 
@@ -231,7 +236,8 @@ projetos-alvo ganha a política e a linha literal "Instalação pelo agente: des
 - **SC-004**: Após o ciclo de smoke S3, a diferença entre o estado de plugins antes e depois é
   vazia (0 itens), incluindo a pasta de cache.
 - **SC-005**: 100% dos installs temporários do log têm uninstall posterior no gate da Fase 11; 1
-  faltando impede o encerramento.
+  faltando impede o encerramento. A chave de correspondência é a tripla `id`, `escopo` e `projeto`
+  do log (`contracts/historico.md`, seção "Correspondência de `install` e `uninstall`").
 - **SC-006**: 0 comandos de instalação executados fora da lista aprovada em um ciclo de smoke,
   inclusive no caso negativo.
 - **SC-007**: Diff da PR contém somente caminhos previstos (0 arquivos fora).

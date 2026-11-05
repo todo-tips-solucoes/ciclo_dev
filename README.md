@@ -4,9 +4,11 @@ Cockpit de instalação e configuração de um ciclo de desenvolvimento agêntic
 agnóstico ao projeto:
 
 ```
-/parallel-work  →  /feature-00c  →  bmad-code-review  →  /rito-dev  →  registro na PR
-   worktree        pipeline SDD      revisão do diff      PR→CI→gate     specs + achados
+/rito-descoberta  →  /parallel-work  →  /feature-00c  →  bmad-code-review  →  /rito-dev  →  registro na PR
+  Fase 0, Gate 0       worktree          pipeline SDD      revisão do diff      PR→CI→gate     specs + achados
 ```
+
+A Fase 0 (`/rito-descoberta`) é dispensada em docs, trivial e hotfix com incidente real.
 
 Dois comandos: `instalar.sh` (uma vez por máquina) e `configurar.sh` (uma vez por projeto).
 

@@ -72,6 +72,16 @@ Imprime a foto em stdout, ordenada byte a byte, uma linha por item no formato `t
 - **Cache fora do lugar**: com `CLAUDE_CODE_PLUGIN_CACHE_DIR` definido, a foto falha e cita a
   variável.
 
+## Ruído conhecido
+
+Lista fechada de mudanças que não são desvio, quando aparecem na diferença entre duas fotos:
+
+- sincronização de `skills/synced` do Claude Code (já fora da foto, por exclusão);
+- atualização automática de `known_marketplaces.json` do marketplace oficial;
+- arquivos `-shm` e `-wal` do SQLite.
+
+Qualquer outra mudança sem comando declarado é desvio: o evento `desvio` é gravado e a frente para.
+
 **Diferença entre duas fotos**: `diff` das duas saídas. Uma linha só na nova é criada, uma só na
 velha é apagada, e a mesma chave com valor diferente é alterada.
 
@@ -80,6 +90,19 @@ velha é apagada, e a mesma chave com valor diferente é alterada.
 Lista cada `install` de classe `temporária` sem `uninstall` posterior com o mesmo `id`, `escopo`
 e `projeto`. Termina com código 0 quando não há pendentes, 1 quando há (e imprime cada um) e 2
 quando o log está ausente ou ilegível.
+
+## Correspondência de `install` e `uninstall`
+
+A chave de correspondência é a tripla `id`, `escopo` e `projeto` do log.
+
+- `uninstall` sem `install` anterior com a mesma chave é ignorado.
+- `install` repetido com a mesma chave: cada `uninstall` fecha o último `install` ainda aberto.
+
+## Retomada de sessão interrompida
+
+Ao retomar a Fase 0, a skill lê o `.log` e o `.base` da frente e tira uma foto nova. A diferença
+contra a última foto registrada vira um evento `rodada` (explicada por comando declarado ou
+ruído conhecido) ou `desvio` (qualquer outra). A linha de base existente nunca é recriada.
 
 ## Gate da Fase 11 (`rito-dev`)
 
