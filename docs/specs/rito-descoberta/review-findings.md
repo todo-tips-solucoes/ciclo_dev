@@ -232,3 +232,28 @@ Blind Hunter: 1 alto, corrigido. (O Acceptance Auditor desta rodada revisou a ve
   e travava o encerramento por mudança de outra frente (Auditor, sobre `96ba664`): resolvido pela
   mesma correção, já que a branch agora vem do evento `worktree`. "`merge-base` não encontrado"
   entrou na lista da saída 2 da skill e do `rito-dev`.
+
+## Rodada 7 (2026-11-05, ponta `41c298b`, só o delta da rodada 6)
+
+Acceptance Auditor: nenhum alto. Blind Hunter: 1 alto. Edge Case Hunter: 3 altos (um igual ao do
+Blind). Todos tratados.
+
+- [x] [alto] Branch absorvida pela integração depois do squash (`pull --rebase`, `reset --hard`,
+  push em fast-forward) ficava com `merge-base` = `HEAD` na linha do 1º pai e a comparação vazia
+  (Blind, Edge): o evento `worktree` passa a gravar `<BRANCH_INTEGRACAO> <SHA de nascimento>`;
+  `merge-base` = `HEAD` só passa com `HEAD` = nascimento (antes do 1º commit da frente, que é
+  sempre o registro); senão sai 2 e volta ao owner.
+- [x] [alto] PR por merge commit seguida de um commit novo escapava da guarda, porque o
+  `merge-base` virava a ponta antiga da branch (Edge): o `merge-base` precisa sempre estar na
+  linha do 1º pai da integração; fora dela sai 2.
+- [x] [alto] `gh pr merge --squash --delete-branch` rodado da worktree pode trocá-la para a branch
+  de integração e apagar a da frente, e o gate não passava mais (Edge, simulado): a mensagem de
+  saída 2 e a skill trazem a recuperação (recriar a branch no SHA que o `gh` informou). O merge da
+  Fase 7 não mudou: o encerramento é da skill `parallel-work`.
+- [x] "confira à mão" virou "volta ao owner", a mesma regra das outras saídas diferentes de 0.
+
+Testes da rodada: squash limpo 0; `enable` não declarado 1; merge commit seguido de commit novo 2;
+`pull --rebase` e `reset --hard` depois do squash 2; troca de branch pelo `gh` 2; regressão das
+rodadas anteriores (registro automático, temporário não desfeito, cache sem marca e com marca,
+temporário na working tree, merge da integração com plugin de outra frente, `false` removido) sem
+mudança.

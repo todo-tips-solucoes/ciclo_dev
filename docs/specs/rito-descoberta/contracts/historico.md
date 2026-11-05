@@ -33,7 +33,7 @@ São seis campos separados por TAB. TAB e quebra de linha dentro de um campo vir
 | `evento` | `detalhe` |
 |---|---|
 | `base` | caminho do arquivo `.base` e número de linhas da foto |
-| `worktree` | o `BRANCH_INTEGRACAO` de onde a worktree nasceu (a 3ª coluna é o caminho); liga a worktree ao gate |
+| `worktree` | `<BRANCH_INTEGRACAO> <SHA de nascimento>` (a 3ª coluna é o caminho); liga a worktree ao gate |
 | `rodada` | rótulo da rodada e a diferença: `criados=N apagados=N alterados=N`, mais um item por linha seguinte, com quatro TABs e `+ <linha>` ou `- <linha>` |
 | `install` / `enable` | `<id>\t<escopo>\t<projeto>\t<versão ou SHA>\t<classe>\t<comando exato>` |
 | `uninstall` / `disable` | os mesmos campos do `install` / `enable` que desfaz |
@@ -133,8 +133,10 @@ desinstalada):
 
 1. Saída 2 (falha fechado): fora de repositório git; branch que não é `<frente>` nem termina em
    `/<frente>`; frente na raiz do evento `base`, sem worktree própria; worktree atual fora do log
-   (evento `worktree` ou projeto de install); evento `worktree` sem a branch de integração; branch
-   já contida na integração por merge commit (o rito manda `--squash`); `.log` ou
+   (evento `worktree` ou projeto de install); evento `worktree` sem a branch de integração e o SHA
+   de nascimento; `merge-base` fora da linha do 1º pai da integração (PR por merge commit); branch
+   absorvida pela integração depois de ter commits (merge commit,
+   fast-forward, `pull --rebase` ou `reset` depois do squash); `.log` ou
    `.base` ausente, ilegível ou vazio; log sem `base` ou sem `gate0` com `OK`; linha mal formada.
    Foto que falha dá saída 1.
 2. Saída 1 com `pendente\t<linha>`: `install`/`enable` temporário sem desfazer.

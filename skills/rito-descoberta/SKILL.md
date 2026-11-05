@@ -168,7 +168,7 @@ Máquina de `hostname`, branch de `git branch --show-current`. O `detalhe` depen
 | `evento` | `detalhe` |
 |---|---|
 | `base` | caminho do `.base` e número de linhas da foto |
-| `worktree` | o `BRANCH_INTEGRACAO` de onde a worktree nasceu; a 3ª coluna é o caminho dela |
+| `worktree` | `<BRANCH_INTEGRACAO> <SHA de nascimento>` (o `HEAD` da worktree logo depois de criada); a 3ª coluna é o caminho dela |
 | `rodada` | rótulo e `criados=N apagados=N alterados=N`; um item por linha seguinte, começando por quatro TABs: `+ <linha>` (só na nova) ou `- <linha>` (só na velha; alterada é o par `-`/`+`) |
 | `install` / `enable` | `<id>\t<escopo>\t<projeto>\t<versão ou SHA>\t<classe>\t<comando exato>` (cada parte é uma coluna TAB, da 6ª à 11ª do log) |
 | `uninstall` / `disable` | os mesmos campos do `install` / `enable` que desfaz |
@@ -224,9 +224,10 @@ compara só o que a frente toca):
 1. **Falha fechado (saída 2)**: fora de repositório git, branch atual que não é `<frente>` nem
    termina em `/<frente>`, frente rodando na raiz do evento `base` (sem worktree própria),
    worktree atual ausente do log (evento `worktree` ou projeto de algum install), evento
-   `worktree` sem a branch de integração, `merge-base` com ela não encontrado, branch já contida na
-   integração por merge commit (o rito
-   manda `--squash`: confira à mão), `.log` ou `.base` ausente, ilegível ou vazio, log sem `base`
+   `worktree` sem a branch de integração e o SHA de nascimento, `merge-base` com ela não encontrado
+   ou fora da linha do 1º pai dela (PR por merge commit),
+   branch absorvida pela integração depois de ter commits (merge commit, fast-forward, `pull
+   --rebase` ou `reset` depois do squash: volta ao owner), `.log` ou `.base` ausente, ilegível ou vazio, log sem `base`
    ou sem `gate0` com `OK`, linha mal formada. Foto que falha dá saída 1.
 2. **Pendentes (saída 1)**: imprime cada `install`/`enable` temporário sem desfazer (`pendente\t…`).
 3. **Diferença no escopo da frente (saída 1, imprime `-`/`+`)**:
@@ -249,6 +250,11 @@ compara só o que a frente toca):
 
    Plugins de outros projetos, atualização automática de plugin que já existia e o que acontece
    dentro das pastas do cache ficam fora.
+
+**Worktree tirada da branch pelo merge**: rodado de dentro da worktree, o `gh pr merge
+--delete-branch` da Fase 7 pode trocá-la para a branch de integração e apagar a da frente. Recrie a
+da frente no SHA que ele informou (`Deleted branch … (was <SHA>)`) com `git switch -c <branch>
+<SHA>` e rode o gate de novo.
 
 **Worktree removida antes do uninstall**: recrie-a no mesmo caminho (`git worktree add <caminho>
 <branch>`), rode o Desfazer dali com `-s project`, grave-o no log e só então remova a worktree.
@@ -414,8 +420,9 @@ owner. Até aqui, **nenhuma escrita além do log**.
 
 1. Crie a worktree pelo `/parallel-work <prefixo>/<frente> --base origin/<BRANCH_INTEGRACAO> --short-name <frente>`
    (`<prefixo>` é o de feature de `PREFIXOS_BRANCH`; base sempre explícita; chamada da raiz da
-   árvore principal). Grave no log o evento `worktree`, com o caminho dela na 3ª coluna e o
-   `BRANCH_INTEGRACAO` no detalhe: é o que liga a worktree ao gate da Fase 11.
+   árvore principal). Grave no log o evento `worktree`, com o caminho dela na 3ª coluna e, no
+   detalhe, o `BRANCH_INTEGRACAO` e o SHA de nascimento (`git -C <worktree> rev-parse HEAD` logo
+   depois de criada), separados por espaço: é o que liga a worktree ao gate da Fase 11.
 2. Grave `docs/specs/<frente>/decisoes-do-owner.md` na worktree, com a seção `Histórico` vinda do
    log, nas regras da cópia versionada.
 3. **Valide** pelas checagens 1 a 5 da seção "Validação do registro" (títulos, seções não vazias,

@@ -268,7 +268,9 @@ function gate(frente, HOME) {
   const ramo = git(process.cwd(), ['branch', '--show-current']);
   if (aqui === null || ramo === null) falha('gate fora de repositório git: rode dentro da worktree da frente', 2);
   const b = ramo.trim();
-  if (b !== frente && !b.endsWith(`/${frente}`)) falha(`branch atual (${limpa(b)}) não é da frente ${frente} (falha fechado)`, 2);
+  if (b !== frente && !b.endsWith(`/${frente}`)) {
+    falha(`branch atual (${limpa(b)}) não é da frente ${frente} (falha fechado). Se o \`gh pr merge --delete-branch\` trocou a worktree de branch, recrie a da frente no SHA que ele informou ("Deleted branch … (was <SHA>)") com \`git switch -c <branch> <SHA>\` e rode o gate de novo`, 2);
+  }
 
   const dir = join(HOME, '.claude', 'cockpit');
   const { linhas, base, gate0 } = lerLog(join(dir, `historico-${frente}.log`));
@@ -301,9 +303,9 @@ function gate(frente, HOME) {
   for (const id of permId) temp.delete(id);
   if (wt === raiz) falha('a frente roda na raiz do evento base, sem worktree própria (falha fechado)', 2);
   raizes.delete(raiz);
-  // Branch de integração de cada worktree (detalhe do evento worktree).
-  const integracao = new Map();
-  for (const c of linhas) if (c[4] === 'worktree') integracao.set(norma(c[2]), c[5]);
+  // Detalhe do evento worktree: "<BRANCH_INTEGRACAO> <SHA de nascimento>".
+  const nascimento = new Map();
+  for (const c of linhas) if (c[4] === 'worktree') nascimento.set(norma(c[2]), c[5].trim().split(/\s+/));
 
   // enabledPlugins por arquivo: rótulo -> mapa. Base e foto atual cobrem usuário, installed_plugins
   // e as settings da raiz principal.
@@ -330,17 +332,25 @@ function gate(frente, HOME) {
       const txt = git(r, ['show', `${rev}:.claude/settings.json`]);
       try { return txt === null ? null : mapa(JSON.parse(txt)); } catch { return falha(`${rev}:.claude/settings.json inválido em ${r} (falha fechado)`, 2); }
     };
-    const integ = integracao.get(r) ?? '';
-    if (!/^[A-Za-z0-9._/-]+$/.test(integ)) falha(`evento worktree sem a branch de integração para ${r} (falha fechado)`, 2);
+    const [integ = '', origem = ''] = nascimento.get(r) ?? [];
+    if (!/^[A-Za-z0-9._/-]+$/.test(integ) || !/^[0-9a-f]{40}$/.test(origem)) {
+      falha(`evento worktree sem "<branch de integração> <SHA de nascimento>" para ${r} (falha fechado)`, 2);
+    }
     const ref = git(r, ['rev-parse', '--verify', '-q', `origin/${integ}`]) ?? git(r, ['rev-parse', '--verify', '-q', integ]);
     const head = git(r, ['rev-parse', 'HEAD']);
     const mb = ref === null || head === null ? null : git(r, ['merge-base', 'HEAD', ref.trim()]);
     if (mb === null) falha(`merge-base de ${r} com ${limpa(integ)} não encontrado (falha fechado)`, 2);
-    if (mb.trim() === head.trim()) { // HEAD já contido na integração: só vale se for a própria linha dela
-      const linha = git(r, ['rev-list', '--first-parent', ref.trim()]);
-      if (linha === null || !linha.split('\n').includes(head.trim())) {
-        falha(`a branch de ${r} já está contida em ${limpa(integ)} por merge commit (o rito manda --squash): confira à mão (falha fechado)`, 2);
-      }
+    // O merge-base precisa estar na linha do 1º pai da integração (squash e merge da integração na
+    // branch ficam nela); fora dela, a PR entrou por merge commit.
+    const linha = git(r, ['rev-list', '--first-parent', ref.trim()]);
+    if (linha === null || !new Set(linha.split('\n')).has(mb.trim())) {
+      falha(`a branch de ${r} entrou em ${limpa(integ)} por merge commit (o rito manda --squash): volta ao owner (falha fechado)`, 2);
+    }
+    // HEAD contido na integração: só é legítimo antes do 1º commit da frente (HEAD = nascimento).
+    // Depois disso, a branch foi absorvida (merge commit, fast-forward, pull --rebase ou reset após o
+    // squash) e a comparação ficaria vazia.
+    if (mb.trim() === head.trim() && head.trim() !== origem) {
+      falha(`a branch de ${r} foi absorvida por ${limpa(integ)} (merge commit, fast-forward, pull --rebase ou reset depois do squash): volta ao owner (falha fechado)`, 2);
     }
     return { head: commitado('HEAD'), mb: commitado(mb.trim()), working: mapa(lerJson(join(r, '.claude', 'settings.json'), false)), local: mapa(lerJson(join(r, '.claude', 'settings.local.json'), false)) };
   };
