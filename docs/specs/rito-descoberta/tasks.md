@@ -268,8 +268,8 @@ Instalada em `~/.claude/skills/` e usada num projeto-alvo, a skill fica sem as r
 caminhos, cabeçalho exato de "Instalações previstas", formas de comando permitidas, conferência do
 1º commit), e a validação que falha fechado (FR-007, cenário 4 da US1) não tem como rodar.
 
-- [ ] 8.1.1 Trazer para `skills/rito-descoberta/` as 6 checagens de `contracts/decisoes-do-owner.md` (no `SKILL.md` ou em arquivo ao lado, citado por caminho relativo à skill), sem depender de `docs/specs/rito-descoberta/`
-- [ ] 8.1.2 Conferir por `grep` que nenhum caminho `docs/specs/rito-descoberta/` resta no `SKILL.md` como fonte normativa
+- [x] 8.1.1 Trazer para `skills/rito-descoberta/` as 6 checagens de `contracts/decisoes-do-owner.md` (no `SKILL.md` ou em arquivo ao lado, citado por caminho relativo à skill), sem depender de `docs/specs/rito-descoberta/`
+- [x] 8.1.2 Conferir por `grep` que nenhum caminho `docs/specs/rito-descoberta/` resta no `SKILL.md` como fonte normativa
 
 <!-- converge-key: e37d18f29eb7 -->
 
@@ -284,8 +284,8 @@ pelas colunas TAB 5 a 9 (id, escopo, projeto, versão ou SHA, classe). Se o deta
 outro separador, o install temporário não entra na conta e o gate da Fase 11 passa sem a
 desinstalação.
 
-- [ ] 8.2.1 Trazer para a skill o formato do log: 6 campos TAB; detalhe de `install`/`uninstall` em campos TAB na ordem que `pendentes` lê; linhas de continuação da `rodada` começando por TAB; eventos `base`, `rodada`, `desvio`, `gate0`
-- [ ] 8.2.2 Conferir, com um log de exemplo no diretório temporário da sessão, que `historico.mjs pendentes` termina com 1 para install temporário aberto e com 0 depois do uninstall
+- [x] 8.2.1 Trazer para a skill o formato do log: 6 campos TAB; detalhe de `install`/`uninstall` em campos TAB na ordem que `pendentes` lê; linhas de continuação da `rodada` começando por TAB; eventos `base`, `rodada`, `desvio`, `gate0`
+- [x] 8.2.2 Conferir, com um log de exemplo no diretório temporário da sessão, que `historico.mjs pendentes` termina com 1 para install temporário aberto e com 0 depois do uninstall
 
 <!-- converge-key: 79f07982eda4 -->
 
@@ -298,8 +298,8 @@ para os comandos do gate de instalações temporárias. Só que `skills/rito-des
 traz `historico.mjs pendentes` nem a comparação da foto com a `.base`: hoje esses comandos estão
 apenas na Fase 11 de `skills/rito-dev/SKILL.md`.
 
-- [ ] 8.3.1 Acrescentar a `skills/rito-descoberta/SKILL.md` os dois comandos do gate da Fase 11 e a regra de falha fechado sem `.log` ou `.base`, mantendo a remissão do template (plan.md) sem placeholder nem título novo
-- [ ] 8.3.2 Rodar `scripts/testar-configurar.sh` em primeiro plano, com timeout, e conferir o cenário 15
+- [x] 8.3.1 Acrescentar a `skills/rito-descoberta/SKILL.md` os dois comandos do gate da Fase 11 e a regra de falha fechado sem `.log` ou `.base`, mantendo a remissão do template (plan.md) sem placeholder nem título novo
+- [x] 8.3.2 Rodar `scripts/testar-configurar.sh` em primeiro plano, com timeout, e conferir o cenário 15
 
 <!-- converge-key: ef4fd96af3e4 -->
 
@@ -314,8 +314,8 @@ do projeto, marketplace conferido por nome e repositório, SHA conferido e desin
 diverge; pacote com versão exata e sem scripts de ciclo de vida, salvo exceção listada) e o "dentro
 da worktree e antes da remoção dela" da temporária.
 
-- [ ] 8.4.1 Ressalvar o MUST que já existia para a instalação pelo agente sob a política ligada, sem nomear ferramenta de projeto real (Princípio I)
-- [ ] 8.4.2 Acrescentar o MUST de canais e o "dentro da worktree e antes da remoção dela", espelhando o IV 2.0.0 de `docs/constitution.md`
-- [ ] 8.4.3 Rodar `scripts/testar-configurar.sh` (cenários 15 e 17) e conferir que `grep -cFx 'Instalação pelo agente: desligada'` na semente dá 1
+- [x] 8.4.1 Ressalvar o MUST que já existia para a instalação pelo agente sob a política ligada, sem nomear ferramenta de projeto real (Princípio I)
+- [x] 8.4.2 Acrescentar o MUST de canais e o "dentro da worktree e antes da remoção dela", espelhando o IV 2.0.0 de `docs/constitution.md`
+- [x] 8.4.3 Rodar `scripts/testar-configurar.sh` (cenários 15 e 17) e conferir que `grep -cFx 'Instalação pelo agente: desligada'` na semente dá 1
 
 <!-- converge-key: ce9451eaac36 -->

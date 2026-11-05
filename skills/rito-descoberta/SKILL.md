@@ -37,8 +37,7 @@ A única escrita antes do Gate 0 é o histórico, declarado ao owner no início.
 - Arquivos por frente e por máquina, com `umask 077` e o diretório em `0700`:
   `~/.claude/cockpit/historico-<frente>.log` (só acréscimo, `>>`) e
   `~/.claude/cockpit/historico-<frente>.base`.
-- Formato das linhas, dos eventos e da foto: `docs/specs/rito-descoberta/contracts/historico.md`.
-  Seis campos separados por TAB: instante UTC, máquina, worktree, branch, evento, detalhe.
+- Formato das linhas, dos eventos e da foto: seção "Formato do histórico" abaixo.
 - **Linha de base**: a 1ª saída de `node ~/.claude/skills/rito-descoberta/historico.mjs foto --raiz <raiz>`
   vai para o `.base`, e o evento `base` vai ao log. Ela nunca é recriada.
 - **Rodada**: antes e depois de cada rodada de subagentes e de cada comando que o owner rodar, tire
@@ -94,15 +93,88 @@ arquivo é criado.
 Além das decisões, colete: escopo, fora do escopo, caminhos previstos, agente de stack da frente
 (D2), smoke, irreversibilidade, dependências novas, instalações previstas e pendências.
 
-O registro tem 14 títulos `## ` exatos, descritos em `docs/specs/rito-descoberta/data-model.md`
-(entidade "Registro da Fase 0") e validados pelo contrato
-`docs/specs/rito-descoberta/contracts/decisoes-do-owner.md`:
+O registro tem 14 títulos `## ` exatos, validados pelas checagens da seção "Validação do registro":
 `Escopo`, `Fora do escopo`, `Caminhos previstos`, `Decisões`, `Mapa papel→agente`,
 `Regra de proibidos`, `Instalações previstas`, `Smoke`, `Telas`, `Irreversibilidade`,
 `Dependências novas`, `Histórico`, `Pendências para a research do plan` e `OK do owner`.
 
 `Caminhos previstos` é um bloco ```` ```text ````, uma linha por caminho, literal ou `dir/**`,
 relativo à raiz. `Irreversibilidade` nunca fica vazia: `Nenhuma.` explícito quando for o caso.
+
+## Validação do registro (falha fechado)
+
+Antes do commit, todas as 6 checagens; qualquer falha impede a Fase 0 de concluir.
+
+1. **Títulos.** Cada um dos 14 títulos aparece em exatamente uma linha inteira
+   (`grep -cFx '## <título>'` igual a 1). H1: `# Decisões do owner — <frente>`.
+2. **Seção não vazia.** Entre um título e o próximo há ao menos uma linha não branca.
+3. **Caminhos previstos.** A seção tem um bloco ```` ```text ```` com uma ou mais linhas; cada linha
+   casa com `^[A-Za-z0-9._-]+(/[A-Za-z0-9._-]+)*(/\*\*)?$`; nenhum segmento é `.` ou `..`; sem `/`
+   inicial, `~`, espaço nem outro curinga. Bloco ausente, vazio ou com linha inválida reprova.
+4. **Irreversibilidade.** Não vazia; sem irreversibilidade, começa por `Nenhuma`.
+5. **Instalações previstas.** `Nenhuma.` ou tabela com o cabeçalho exato
+   `| Instalar | Desfazer | Escopo | Versão ou SHA | Classe |`. Em cada linha: `Classe` é
+   `permanente` ou `temporária`; `Versão ou SHA` é versão exata ou SHA de 40 hexadecimais; comando
+   de plugin com `-s project`; nenhum comando da lista "Proibido sempre" (política de instalação);
+   `Instalar` e `Desfazer` sem metacaractere de shell (`;`, `|`, `&`, `>`, `<`, `` ` ``, `$(`,
+   quebra de linha) e numa das formas permitidas: `claude plugin install|uninstall|enable
+   <plugin>@<marketplace> -s project`, sem outra flag; `claude plugin marketplace add|remove
+   <fonte ou nome>`; gerenciador de pacote com versão exata e as flags dos canais. Outra forma
+   reprova. O agente executa o comando byte a byte igual à célula do 1º commit.
+6. **Commit.** O arquivo é o único do 1º commit da branch:
+   `git log --reverse --format=%H origin/<BRANCH_INTEGRACAO>..HEAD | head -1` e
+   `git show --name-only <sha>`.
+
+A lista de caminhos válida é a do 1º commit; caminho acrescentado depois não amplia o limite (D11).
+
+## Formato do histórico
+
+Seis campos separados por TAB; TAB e quebra de linha dentro de um campo viram espaço:
+
+```text
+<ISO-8601 UTC>\t<máquina>\t<worktree ou raiz>\t<branch>\t<evento>\t<detalhe>
+```
+
+Máquina de `hostname`, branch de `git branch --show-current`. O `detalhe` depende do evento:
+
+| `evento` | `detalhe` |
+|---|---|
+| `base` | caminho do `.base` e número de linhas da foto |
+| `rodada` | rótulo e `criados=N apagados=N alterados=N`; um item por linha seguinte, começando por TAB: `\t\t\t\t+ <linha>` |
+| `install` | `<id>\t<escopo>\t<projeto>\t<versão ou SHA>\t<classe>\t<comando exato>` (cada parte é uma coluna TAB, da 6ª à 11ª do log; `pendentes` lê id, escopo, projeto e classe) |
+| `uninstall` | os mesmos campos do `install` |
+| `desvio` | o que mudou sem comando declarado; a frente para |
+| `gate0` | `OK` e o texto literal do owner |
+
+Separador diferente de TAB no detalhe do `install` faz o gate da Fase 11 não enxergar o item.
+
+A foto (`historico.mjs foto [--raiz <dir>]`) sai em stdout ordenada, uma linha `tipo\tchave\tvalor`
+(`meta`, `hash`, `plugin`, `enabled`, `marketplace`, `catalogo`, `git`); só lê e nunca imprime
+conteúdo de arquivo. A diferença entre duas fotos é o `diff` delas: linha só na nova é criada, só
+na velha é apagada, mesma chave com valor diferente é alterada. Com `CLAUDE_CODE_PLUGIN_CACHE_DIR`
+definido a foto falha e cita a variável.
+
+`historico.mjs pendentes <log>` lista cada `install` temporário sem `uninstall` posterior com a
+mesma tripla id, escopo e projeto: sai 0 sem pendentes, 1 com pendentes (imprimindo-os), 2 com log
+ausente ou ilegível. `uninstall` sem `install` anterior é ignorado; `install` repetido é fechado
+pelo `uninstall` mais recente.
+
+## Gate da Fase 11 (trilha completa)
+
+Vale quando a branch tem `docs/specs/<frente>/decisoes-do-owner.md`. Roda dentro da worktree, antes
+do "Encerrar":
+
+```bash
+node ~/.claude/skills/rito-descoberta/historico.mjs pendentes ~/.claude/cockpit/historico-<frente>.log
+node ~/.claude/skills/rito-descoberta/historico.mjs foto --raiz <raiz do evento base>
+```
+
+1. `pendentes` termina com 0.
+2. As linhas `plugin`, `enabled` e `meta` de `~/.claude/plugins/cache` da foto são iguais às de
+   `~/.claude/cockpit/historico-<frente>.base`. A raiz é a do evento `base`.
+3. `.log` ou `.base` ausente ou ilegível **falha fechado**: não encerre.
+
+Qualquer diferença impede o "Encerrar" e volta ao owner.
 
 ## Mapa papel→agente (D2, D4, D12)
 
@@ -249,9 +321,8 @@ owner. Até aqui, **nenhuma escrita além do log**.
    (base sempre explícita, chamada da raiz da árvore principal).
 2. Grave `docs/specs/<frente>/decisoes-do-owner.md` na worktree, com a seção `Histórico` vinda do
    log (`$HOME` vira `~`).
-3. **Valide pelo contrato** (as 6 checagens de `contracts/decisoes-do-owner.md`: títulos,
-   seções não vazias, caminhos, irreversibilidade, instalações, commit). Falhou: **pare**; não
-   commite.
+3. **Valide** pelas 6 checagens da seção "Validação do registro" (títulos, seções não vazias,
+   caminhos, irreversibilidade, instalações, commit). Falhou: **pare**; não commite.
 4. Commite **só esse arquivo** (`git add` por caminho; Conventional Commits em português; identidade
    conforme `docs/CICLO-GIT.md`). É o 1º commit da branch. Telas, se houver, vão no 2º commit.
 5. Na worktree, rode `cstk hooks install --project-path <worktree>` (Princípio IV) e
