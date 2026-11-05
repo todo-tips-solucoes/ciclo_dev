@@ -1,6 +1,6 @@
 ---
 name: rito-dev
-description: "Rito oficial de desenvolvimento do projeto-alvo — do git pull até a PR mergeada, validada no ambiente de integração e promovida a produção. Use SEMPRE que a tarefa envolver desenvolver, customizar, corrigir ou alterar código do projeto-alvo, ou quando o dev pedir para 'seguir o rito', 'abrir PR', 'promover para produção', 'subir para produção' ou iniciar qualquer feature/fix/chore/docs. Lê os parâmetros do projeto em `cockpit.config` na raiz — nenhum nome de branch, repositório ou comando é fixo nesta skill."
+description: "Rito oficial de desenvolvimento do projeto-alvo — do git pull até a PR mergeada, validada no ambiente de integração e promovida a produção. Use SEMPRE que a tarefa envolver desenvolver, customizar, corrigir ou alterar código do projeto-alvo, ou quando o dev pedir para 'seguir o rito', 'abrir PR', 'promover para produção', 'subir para produção' ou iniciar fix/chore/docs/hotfix. Frente nova de trilha completa ('frente nova', 'nova feature', 'iniciar frente') NÃO começa aqui: começa por `/rito-descoberta` (Fase 0, Gate 0), e este rito segue a partir da Fase 1 com o OK do Gate 0 dado. Lê os parâmetros do projeto em `cockpit.config` na raiz — nenhum nome de branch, repositório ou comando é fixo nesta skill."
 ---
 
 # Rito de Desenvolvimento (cockpit)
@@ -97,6 +97,15 @@ Leia `PREFIXOS_BRANCH` do `cockpit.config` agora; ausente ou em branco, vale
 lendo-o: exatamente cinco prefixos, sem repetição, cada um casando com `^[a-z0-9][a-z0-9._-]*$`.
 Se algo falhar, PARE nomeando `PREFIXOS_BRANCH` ao dev, antes de compor qualquer comando, e nunca
 cole o valor num comando para testá-lo.
+
+**Gate da Fase 0 (trilha completa).** A trilha vem da constituição do projeto. Na trilha completa:
+
+- sem `~/.claude/skills/rito-descoberta/SKILL.md`, o rito **PARA** com
+  `rito-descoberta ausente: rode instalar.sh`;
+- com a skill presente e sem `docs/specs/<frente>/decisoes-do-owner.md` na branch, conduza o dev a
+  `/rito-descoberta`, que conduz a Fase 0 e cria a worktree; este rito segue da Fase 2, dentro dela.
+
+**Dispensado** em docs, trivial e hotfix com incidente real.
 
 A partir de `origin/<BRANCH_INTEGRACAO>` conferido: `<prefixo de feature>/<slug>` ·
 `<prefixo de fix>/<slug>` · `<prefixo de chore>/<slug>` · `<prefixo de docs>/<slug>`
@@ -248,6 +257,24 @@ gh pr list --base <BRANCH_PRODUCAO> --head <BRANCH_INTEGRACAO>   # existe PR de 
    produção verde, só depois diagnostique. Avise o dev/owner.
 
 ## Fase 11 — Encerramento
+
+**Gate de instalações temporárias** (antes do "Encerrar"; vale quando a branch tem
+`docs/specs/<frente>/decisoes-do-owner.md`; docs, trivial e hotfix com incidente dispensam a Fase 0, não têm o registro e não rodam o gate; com a única exceção
+registrada na seção "Gate da Fase 11" da skill `rito-descoberta`). Rode dentro da worktree da frente:
+
+```bash
+node ~/.claude/skills/rito-descoberta/historico.mjs gate <frente>
+```
+
+- Saída 0: pode encerrar. Saída 1: há `install`/`enable` temporário sem desfazer, o estado real
+  difere da linha de base no que a frente toca (imprime as linhas) ou a foto falhou. Saída 2: fora
+  da worktree da frente, ou `.log`/`.base` ausente, ilegível, vazio ou mal formado (**falha
+  fechado**; inclui frente sem worktree própria, `merge-base` não encontrado e branch absorvida pela
+  integração ou rebaseada: merge commit, fast-forward, `pull --rebase`, `reset` ou rebase; o rito
+  manda squash na PR e merge da integração). Diferente de 0, não encerre.
+- Detalhes do escopo comparado na seção "Gate da Fase 11" da skill `rito-descoberta`.
+
+Qualquer diferença impede o "Encerrar" e volta ao dev/owner.
 
 Rode a etapa **"Encerrar"** da skill `/parallel-work` (guards, exit codes e passo a
 passo completos de remoção da worktree e da branch estão lá — não duplicados

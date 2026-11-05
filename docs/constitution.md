@@ -1,5 +1,26 @@
 <!--
 Sync Impact Report
+- Version: 1.1.0 → 2.0.0 [MAJOR: Princípio IV redefinido; nenhum princípio removido]
+- Emenda 2.0.0 (sign-off do owner em 2026-11-05, na sessão da Fase 0 da frente rito-descoberta;
+  registrado em docs/specs/rito-descoberta/decisoes-do-owner.md e citado no corpo da PR):
+  * Princípio IV — os scripts do cockpit continuam só verificando e imprimindo; o AGENTE, numa
+    frente de trilha completa, passa a poder instalar o que o owner autorizou item a item no Gate 0
+    da Fase 0, e desinstala ao fim o que não for necessário ao funcionamento do código. Motivo: o
+    owner decidiu (D7 = B) que o agente execute a instalação dos plugins do mapa papel→agente, com
+    a regra "caso tenha sido instalado apenas para algum teste, deve obrigatoriamente desinstalar".
+    O risco de cadeia de suprimentos que motivou a 1.1.0 continua recusado para scripts e para
+    canal sem volta (script remoto); fica aceito só para o item listado, com comando de desfazer.
+  * Ajuste antes do merge (sign-off do owner em 2026-11-05, na revisão bmad-code-review da PR):
+    o plugin instalado deixa de ser comparado ao SHA registrado e passa a ter o conteúdo
+    reverificado no SHA instalado; o MUST NOT de atualização ressalva a atualização do catálogo
+    que o próprio install de item listado faz. Motivo: a documentação oficial diz que o install
+    com `@marketplace` atualiza o catálogo antes de buscar o plugin, o que tornava a regra
+    impossível de cumprir. A versão continua 2.0.0, porque a emenda ainda não estava mergeada.
+- Artefatos a alinhar na mesma PR: skills/rito-descoberta/SKILL.md, skills/rito-dev/SKILL.md,
+  templates/docs/rito-dev.md.tmpl, templates/docs/constitution.md.semente.tmpl, README.md.
+  instalar.sh e configurar.sh não mudam: continuam só imprimindo.
+
+Emenda anterior:
 - Version: 1.0.0 → 1.1.0 [MINOR: regras reescritas nos Princípios I e IV; nenhum princípio removido]
 - Emenda 1.1.0 (sign-off do owner em 2026-09-28, na sessão; registrado no corpo da PR #1):
   * Princípio I — os termos proibidos passam a viver FORA do repositório (variável de Actions
@@ -99,13 +120,17 @@ não commita. A rastreabilidade exige autor identificado, não autor único.
 - Entrar na tabela, sair dela ou mudar a própria identidade MUST ser emenda desta constituição.
 - O agente MUST NOT alterar a identidade configurada por conta própria.
 
-### IV. Ferramentas Externas São Dependências, Não Cópias — e Ninguém as Instala Pelo Usuário
+### IV. Ferramentas Externas São Dependências, Não Cópias — Script Nunca Instala; o Agente Instala Só o Autorizado
 
 O cockpit compõe `cstk`, `context-mode` e `ponytail`; não os reimplementa nem os embute. A única
-cópia é a skill `bmad-code-review`, sob licença MIT, com o aviso preservado. E o cockpit **nunca
-instala nem atualiza código de terceiro por conta própria**: ele verifica o estado da máquina e
-imprime, exato, o comando oficial — quem executa é a pessoa. O risco de cadeia de suprimentos de
-um canal sem assinatura é de quem decide executar, não de um script que decide por ela.
+cópia é a skill `bmad-code-review`, sob licença MIT, com o aviso preservado. **Nenhum script do
+cockpit instala nem atualiza código de terceiro**: ele verifica o estado da máquina e imprime,
+exato, o comando oficial — quem executa é a pessoa. Numa frente de trilha completa, o **agente**
+pode instalar o que o owner autorizou item a item no Gate 0 da Fase 0, pelo comando exato
+registrado, e desinstala ao fim tudo o que não for necessário ao funcionamento do código. O risco
+de cadeia de suprimentos é de quem autoriza cada item, nunca de um script que decide pela pessoa.
+
+Instalação pelo agente: ligada
 
 **MUST:**
 
@@ -128,6 +153,28 @@ um canal sem assinatura é de quem decide executar, não de um script que decide
 - Toda cópia de código de terceiro MUST constar de `THIRD-PARTY-NOTICES.md` com a licença verbatim.
 - O instalador MUST falhar com mensagem clara quando `cstk --version` não responder — a etapa de
   implementação do ciclo não existe sem ele.
+- O agente MUST instalar só numa frente de trilha completa e só o que consta da seção
+  "Instalações previstas" do `docs/specs/<frente>/decisoes-do-owner.md` aprovado no Gate 0, com o
+  comando exato de instalar, o comando exato de desfazer, o escopo, a versão ou SHA e a classe
+  (permanente ou temporária). Item fora da lista, opção diferente da registrada ou mudança de
+  classe MUST parar e pedir OK do owner.
+- Toda instalação e desinstalação feita pelo agente MUST ir ao histórico da frente, com versão ou
+  SHA e classe.
+- Plugin instalado pelo agente MUST ficar no escopo do projeto, vir de marketplace conferido por
+  nome e repositório e ter o conteúdo reverificado no SHA instalado (só agentes, sem hooks nem
+  servidor MCP, e a regra de proibidos aplicada aos agentes mapeados); reprovado, MUST ser
+  desinstalado e a frente MUST parar. Pacote MUST ter versão exata e não rodar scripts de ciclo de
+  vida do gerenciador, salvo exceção listada pelo nome no Gate 0.
+- Instalação temporária MUST ser desfeita ao fim do uso, no máximo na Fase 11 do rito, dentro da
+  worktree e antes da remoção dela; a frente MUST NOT ser encerrada com temporária pendente.
+  Permanente é só o que tem essa classe no Gate 0 e aparece no diff da PR; nada permanente é global.
+- O agente MUST NOT executar script remoto (download canalizado para o shell, bootstrap sem
+  assinatura), executor que baixa e roda na hora, aceitação de comando declarado pelo marketplace,
+  nem atualização de plugin, de marketplace ou do próprio `cstk`, salvo a atualização do catálogo
+  que o próprio `install` de item listado faz antes de buscar o plugin.
+- O agente MUST NOT reinstalar, atualizar nem remover o que já estava instalado antes da frente,
+  MUST NOT reclassificar instalação sem OK do owner e MUST NOT alterar a linha "Instalação pelo
+  agente" de nenhuma constituição.
 
 ### V. Fonte Oficial Antes de Afirmar (NON-NEGOTIABLE)
 
@@ -186,4 +233,4 @@ A emenda é redigida diretamente e entra na PR da frente que a motivou, **antes*
 `/feature-00c` dessa frente rodar `plan` — o orquestrador lê a constituição como pré-requisito e
 valida o plano contra ela; ele não a produz.
 
-**Version**: 1.1.0 | **Ratified**: 2026-09-25 (owner, sign-off explícito na sessão) | **Last Amended**: 2026-09-28 (emenda 1.1.0, sign-off do owner na sessão)
+**Version**: 2.0.0 | **Ratified**: 2026-09-25 (owner, sign-off explícito na sessão) | **Last Amended**: 2026-11-05 (emenda 2.0.0, sign-off do owner na sessão)
