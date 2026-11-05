@@ -1,0 +1,33 @@
+# Revisão retroativa da PR #27 (`bmad-code-review`)
+
+Intervalo `04c66fd..d317d89` (squash da #27 na `main`), modo `full` contra `spec.md` e
+`decisoes-do-owner.md`. Rodada exigida pelo Princípio II da constituição, que não rodou antes da
+abertura da PR. Camadas: Blind Hunter, Edge Case Hunter e Acceptance Auditor (2026-11-04).
+
+Resultado: nenhum achado crítico ou alto. 1 `decision-needed`, 13 `patch`, 5 `defer`, 7 descartados. A decisão e as 13 correções vão para a frente `correcao-revisao-27` (C1 a C14 em `docs/specs/correcao-revisao-27/decisoes-do-owner.md`).
+
+### Review Findings
+
+- [x] [Review][Decision] `rito-dev` não desfaz o apóstrofo escapado e para em qualquer chave — o `configurar.sh` grava `'` interno como `'\''` (`escapar_aspas`, l.575); o passo 1 da `rito-dev` só tira o par externo, então um `CMD_*` com apóstrofo vira comando com aspa aberta na Fase 9. A frase "aspas duplas ou desbalanceadas … PARAM a skill" vale para todo valor, mas só `BRANCH_*` e `REPO_REMOTO` têm regra: `CMD_TEST='pytest -k "not slow"'` pararia a skill. Médio. Fontes: blind+edge. Decisão do owner (2026-11-04): corrigir agora, na frente de correção (C14).
+- [x] [Review][Patch] Comentários dizem que o check é "mais estrito" e que "um pedido de mudança posterior a anula", sem dizer que só conta o do mesmo dono [templates/.github/workflows/require-codeowner-approval.yml.tmpl:5-7, templates/.github/CODEOWNERS.tmpl:4-6] — o awk agrupa por login: aprovação de um dono no head + pedido de mudança de outro dono no head = check verde. Médio. Fontes: blind+edge.
+- [x] [Review][Patch] Research afirma que `set -euo pipefail` derruba o passo na leitura das árvores, mas o código usa `|| true` [docs/specs/promotion-pr-arvores/research.md:64-65,73-76; docs/specs/revisao-lote-21-25/research.md:136-137] — `templates/.github/workflows/promotion-pr.yml.tmpl:46-47`; a guarda hexadecimal é a única proteção também no erro HTTP. Médio. Fonte: auditor.
+- [x] [Review][Patch] Guarda de head vazio sem caso que dependa dela [scripts/testar-configurar.sh:1191-1192,1208-1209] — os casos 4 e 11 usam review com `commit_id` = H e conferem só `^::error::`; sem a guarda (l.47-50 do modelo) passariam pela "Aprovação pendente". Falta head vazio + review com `commit_id` nulo e conferir "Não consegui ler o commit atual do PR". Médio. Fonte: blind.
+- [x] [Review][Patch] Casos 6, 7, 9 e 10 do cenário 22 conferem só `rc=1` [scripts/testar-configurar.sh:1195-1210] — `rc=1` também sai do `gh` falso em rota não casada (l.1177); conferir "Aprovação pendente". Baixo. Fonte: blind.
+- [x] [Review][Patch] `gh` falso do cenário 22 não exige `--paginate` nas reviews [scripts/testar-configurar.sh:1173] — o "último estado" depende da paginação; o 24 já exige a flag. Baixo. Fonte: edge.
+- [x] [Review][Patch] Nenhum teste confere `export LC_ALL=C` nos dois modelos alterados [templates/.github/workflows/audit-merge-vermelho.yml.tmpl, require-codeowner-approval.yml.tmpl] — o `LC_ALL=C` global da suíte (l.10) esconde a remoção (FR-011). Baixo. Fonte: edge.
+- [x] [Review][Patch] Caso 1 do cenário 21 não confere a ausência da dica de renomear em `--respostas` [scripts/testar-configurar.sh:933-938] — só o caso 4 (pty, pulado sem `script(1)`) confere. Baixo. Fontes: blind+edge.
+- [x] [Review][Patch] Caso 1 do cenário 21 não olha `.git/hooks` nem `core.hooksPath` [scripts/testar-configurar.sh:937-938] — a asserção negativa do hook se apoia só no log do `cstk` falso. Baixo. Fonte: blind.
+- [x] [Review][Patch] Caso 7 do cenário 21 chama `sha256sum` direto e herda `$TMP/r21` do caso anterior [scripts/testar-configurar.sh:1005-1006] — usar literal de 64 hexadecimais e respostas próprias (Princípio VII). Baixo. Fontes: blind+auditor.
+- [x] [Review][Patch] Rótulos de fonte ambíguos na spec [docs/specs/revisao-lote-21-25/spec.md:76,126] — US5 cita "research F3" (é a F3 de `codeowner-aprovacao-atual`; nesta research a opção nativa é F2) e FR-008 cita "Decision 3 da research" sem a frente. Baixo. Fonte: blind.
+- [x] [Review][Patch] Research de `audit-merge-vermelho` ainda diz que `2>/dev/null || true` "fica igual" [docs/specs/audit-merge-vermelho/research.md:29] — contradiz a correção da mesma Decision (l.40-45) e o código. Baixo. Fonte: auditor.
+- [x] [Review][Patch] `parallel-work` manda derivar o `--base` antes da conferência [skills/parallel-work/SKILL.md:3,16] — a conferência só aparece na l.45-49. Baixo. Fonte: auditor.
+- [x] [Review][Patch] Research afirma que cada caso novo de D7 falha com a correção revertida [docs/specs/revisao-lote-21-25/research.md:164] — só o 6 do 22, o 5 do 24 e o 6 do 23 são regressão; os demais fixam guardas que já existiam. Baixo. Fontes: blind+auditor. Corrigido na `correcao-revisao-27`: a medição mostrou que o 6 do 23 passa com a #27 revertida e que o 3b do 21 falha; vale a medição (Decision 12 da research de `correcao-revisao-27`, aprovada pelo owner em 2026-11-05).
+- [x] [Review][Defer] Rotas de regras e de status combinado sem `--paginate` [templates/.github/workflows/audit-merge-vermelho.yml.tmpl:48-52] — deferred, pre-existing; paginação da rota não conferida na doc oficial.
+- [x] [Review][Defer] Lista vazia legítima e regra ilegível caem na mesma nota [templates/.github/workflows/audit-merge-vermelho.yml.tmpl:53-59] — deferred, pre-existing; gera ruído, não silêncio.
+- [x] [Review][Defer] Pedido de mudança de outro dono não derruba o check [templates/.github/workflows/require-codeowner-approval.yml.tmpl:54] — deferred: comportamento definido por D2 (por usuário); mudar é decisão nova do owner.
+- [x] [Review][Defer] Formas que o `ler_kv` aceita e a `rito-dev` não trata (aspas duplas como delimitador, `export`, comentário, CRLF) [skills/rito-dev/SKILL.md:20-24] — deferred, pre-existing; `cockpit.config` editado à mão.
+- [x] [Review][Defer] Prosa sem acentuação no `tasks.md` [docs/specs/revisao-lote-21-25/tasks.md:12-14,182-241] — deferred, pre-existing; vem do modelo do `create-tasks` do cstk e está em todos os `tasks.md`.
+
+Descartados (7): `gh` falsos sem `set -euo pipefail` (fixtures, não `.sh`); head lido da API e não do evento (fora de escopo em `decisoes-do-owner.md`); regex das skills aceita nomes que o git recusa (fora de escopo); dica de renomear para nomes que o git proíbe (texto condicional, "Se o valor … é o nome real"); `plan.md`/`tasks.md` da `audit-merge-vermelho` citam `|| true` (registro histórico); "agravante" do head com corpo de erro (`|| head=""` zera o valor e a guarda dispara, conferido); caso 9 com `DISMISSED` em duas entradas (forma diferente da real, mas o resultado é o mesmo).
+
+Informativo para o owner: a US6 AS2 da spec foi reescrita pelo agente na execução (dec-012), alinhada ao D3 da `configurar-endurecimento`.

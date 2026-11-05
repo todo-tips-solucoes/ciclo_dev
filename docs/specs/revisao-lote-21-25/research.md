@@ -133,8 +133,9 @@ demais chaves).
 - `docs/specs/promotion-pr-arvores/research.md`, Decision 4: a falta de código de saída documentado
   dá lugar ao que há: medido para 404 em `rules/branches` (M1: corpo no stdout, sai com 1); para a
   rota `commits/heads/…` e para 5xx vale F4 ("exit code will be 1"), com a ressalva da própria
-  página de que um comando pode ter outros códigos. Sob `set -euo pipefail` a atribuição com código
-  diferente de 0 derruba o passo; a guarda de SHA hexadecimal segue para resposta sem o campo. O
+  página de que um comando pode ter outros códigos. As leituras terminam em `|| true`, que mantém o
+  passo vivo; a guarda de SHA hexadecimal é a única proteção, para a resposta sem o campo e para o
+  erro HTTP (o corpo JSON de erro não é hexadecimal). O
   "Limite conhecido" registra M2 para `/`.
 
 **Rationale**: D6 ao pé da letra; cada afirmação com fonte da tabela acima (Princípio V).
@@ -161,12 +162,25 @@ demais chaves).
   de `promotion-pr-arvores`: merge commit como na Fase 9 do `rito-dev`, e com squash o fluxo não
   abre nem reabre o PR quando o conteúdo já é igual.
 
-**Rationale**: SC-002 pede que cada caso falhe se a correção for revertida: o caso de regras
-ilegíveis falha com o `|| true` de hoje (lista vira o JSON, sai "nada a auditar"); os casos de
-pedido de mudança antigo falham com o filtro `$3 == head` antes do estado; a exigência de
-`--paginate`/`state=all` falha se a chamada perder uma das duas. Os valores `a..b`, `x.lock` e
-`a/` casam com `RE_BRANCH` e só são recusados pelo `git check-ref-format --branch` (l.294), que já
-está no código: o teste fixa essa guarda.
+**Rationale**: SC-002 pede que cada caso falhe se a correção for revertida. Medido (M2 da research
+de `correcao-revisao-27`, 2026-11-04), com os arquivos de produção da #27 voltados ao estado anterior,
+só três pontos falham:
+
+- o caso 6 do cenário 22 (D2: filtro `$3 == head` antes do estado);
+- o caso 5 do cenário 24 (D1: regras ilegíveis, com o `|| true` de então a lista vira o JSON e sai
+  "nada a auditar");
+- a asserção da dica de renomear no caso 3b do cenário 21 (D6).
+
+Os demais casos de D7 fixam guardas ou textos que já existiam, inclusive o caso 6 do cenário 23
+(cabeçalho da `promotion-pr-arvores`, da #21, que a #27 não alterou), a exigência de
+`--paginate`/`state=all` e os valores `a..b`, `x.lock` e `a/`, que casam com `RE_BRANCH` e só são
+recusados pelo `git check-ref-format --branch` (l.294), que já está no código.
+
+Divergência registrada: a lista do owner em C13 (`decisoes-do-owner.md`) cita o 6 do cenário 22, o
+5 do 24 e o 6 do 23. A medição confirma os dois primeiros, mostra que o 6 do 23 passa com a #27
+revertida e que o 3b do 21 falha. Vale a medição (Decision 12 da research de `correcao-revisao-27`, aprovada pelo owner em
+2026-11-05); o número de casos de regressão continua
+três.
 
 ## Decision 8: manifesto anterior que ficaria vazio (D7, cenário 21)
 

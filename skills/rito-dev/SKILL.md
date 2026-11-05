@@ -20,8 +20,14 @@ build` porque `CMD_BUILD` está faltando; nunca infira `main` porque
 Logo depois de ler o arquivo, antes de compor qualquer comando, trate cada valor nesta ordem:
 
 1. Remova o par de aspas simples envolvente (o configurador grava os valores entre aspas simples).
-   Só esse par sai: aspas duplas ou desbalanceadas permanecem no valor, não casam com a regra da
-   chave e PARAM a skill nomeando a chave.
+   Só esse par sai. Depois, troque cada `'\''` por `'`: é o inverso exato de como o configurador
+   grava um apóstrofo interno (`escapar_aspas`), nesta ordem (primeiro o par, depois a troca).
+   Exemplo: `CMD_BUILD='echo '\''oi'\'' "x"'` vira `echo 'oi' "x"`.
+   Aspas duplas ou desbalanceadas só PARAM a skill nas chaves que têm regra, `BRANCH_INTEGRACAO`,
+   `BRANCH_PRODUCAO` e `REPO_REMOTO` (passos 2 e 3) e `PREFIXOS_BRANCH` (Fase 1): nelas, as aspas
+   permanecem no valor, não casam com a regra da chave, e a skill para nomeando a chave. Nas demais
+   chaves (`CMD_*` e as outras), aspas duplas fazem parte do valor, como em
+   `CMD_LINT='eslint "src/**/*.ts"'`.
 2. Confira `BRANCH_INTEGRACAO` e `BRANCH_PRODUCAO`: ambos devem casar com
    `^[A-Za-z0-9][A-Za-z0-9._/-]*$`.
 3. Confira `REPO_REMOTO`: deve casar com `^[A-Za-z0-9._][A-Za-z0-9._-]*/[A-Za-z0-9._][A-Za-z0-9._-]*$`,
