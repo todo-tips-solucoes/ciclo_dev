@@ -188,13 +188,13 @@ Ref: quickstart.md Scenarios 8-11; decisoes-do-owner.md Smoke
 
 ```mermaid
 flowchart TD
-    F1[Fase 1 - Fundacao e requisitos (gaps do checklist)]
-    F2[Fase 2 - Auxiliar historico.mjs]
-    F3[Fase 3 - Skill rito-descoberta (SKILL.md)]
-    F4[Fase 4 - Gates no rito-dev (skill e template)]
-    F5[Fase 5 - Semente de constituicao e README]
-    F6[Fase 6 - Verificacoes de construcao e PR]
-    F7[Fase 7 - Pos-merge documental (smoke S1-S5)]
+    F1["Fase 1 - Fundacao e requisitos (gaps do checklist)"]
+    F2["Fase 2 - Auxiliar historico.mjs"]
+    F3["Fase 3 - Skill rito-descoberta (SKILL.md)"]
+    F4["Fase 4 - Gates no rito-dev (skill e template)"]
+    F5["Fase 5 - Semente de constituicao e README"]
+    F6["Fase 6 - Verificacoes de construcao e PR"]
+    F7["Fase 7 - Pos-merge documental (smoke S1-S5)"]
 
     F1 --> F2
     F1 --> F3

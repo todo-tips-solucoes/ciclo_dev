@@ -30,6 +30,12 @@ remoto_sha="$(gh api repos/{{REPO_REMOTO}}/branches/{{BRANCH_INTEGRACAO}} --jq .
 
 ## Fase 1 — Branch
 
+Na trilha completa, a frente começa pela skill `rito-descoberta` (Fase 0, Gate 0), **antes** de
+criar a branch: sem ela instalada, pare com `rito-descoberta ausente: rode instalar.sh`; sem
+`docs/specs/<frente>/decisoes-do-owner.md` na branch, rode `/rito-descoberta`, que conduz a Fase 0 e
+cria a worktree, e siga daqui pela Fase 2, dentro dela. Docs, trivial e hotfix com incidente real
+dispensam essa fase e seguem abaixo.
+
 Crie a branch a partir de `origin/{{BRANCH_INTEGRACAO}}` conferido, em worktree, com base explícita:
 `{{PREFIXO_FEATURE}}/<slug>`, `{{PREFIXO_FIX}}/<slug>`, `{{PREFIXO_CHORE}}/<slug>` ou `{{PREFIXO_DOCS}}/<slug>`. `{{PREFIXO_HOTFIX}}/<slug>` sai de
 `{{BRANCH_PRODUCAO}}` e só com incidente real.
@@ -39,10 +45,6 @@ Crie a branch a partir de `origin/{{BRANCH_INTEGRACAO}}` conferido, em worktree,
 ```
 
 Em hotfix, a base é `origin/{{BRANCH_PRODUCAO}}`. Entre na worktree antes de editar qualquer arquivo.
-
-Na trilha completa, a frente começa pela skill `rito-descoberta` (Fase 0, Gate 0): sem ela instalada,
-pare com `rito-descoberta ausente: rode instalar.sh`; sem `docs/specs/<frente>/decisoes-do-owner.md`
-na branch, rode `/rito-descoberta`. Docs, trivial e hotfix com incidente real dispensam essa fase.
 
 ## Fase 2 — Desenvolver
 
@@ -124,9 +126,9 @@ produção verde e só então diagnostique.
 ## Fase 11 — Encerramento
 
 Antes, na trilha completa, confira o gate de instalações temporárias: cada `install` temporário do
-histórico da frente tem `uninstall` depois dele e o estado real é igual à linha de base (comandos na
-skill `rito-descoberta`); sem histórico ou linha de base, não encerre. Qualquer diferença impede o
-encerramento.
+histórico da frente tem `uninstall` depois dele e o estado real é igual à linha de base no que a
+frente toca (`historico.mjs gate <frente>`, na seção "Gate da Fase 11" da skill `rito-descoberta`);
+saída diferente de 0, inclusive sem histórico ou linha de base, impede o encerramento.
 
 Remova a worktree e a branch da frente e atualize a base (`{{BRANCH_INTEGRACAO}}`, ou
 `{{BRANCH_PRODUCAO}}` quando a Fase 9 foi no-op ou em hotfix).

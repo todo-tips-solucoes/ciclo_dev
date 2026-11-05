@@ -10,6 +10,12 @@ Sync Impact Report
     a regra "caso tenha sido instalado apenas para algum teste, deve obrigatoriamente desinstalar".
     O risco de cadeia de suprimentos que motivou a 1.1.0 continua recusado para scripts e para
     canal sem volta (script remoto); fica aceito só para o item listado, com comando de desfazer.
+  * Ajuste antes do merge (sign-off do owner em 2026-11-05, na revisão bmad-code-review da PR):
+    o plugin instalado deixa de ser comparado ao SHA registrado e passa a ter o conteúdo
+    reverificado no SHA instalado; o MUST NOT de atualização ressalva a atualização do catálogo
+    que o próprio install de item listado faz. Motivo: a documentação oficial diz que o install
+    com `@marketplace` atualiza o catálogo antes de buscar o plugin, o que tornava a regra
+    impossível de cumprir. A versão continua 2.0.0, porque a emenda ainda não estava mergeada.
 - Artefatos a alinhar na mesma PR: skills/rito-descoberta/SKILL.md, skills/rito-dev/SKILL.md,
   templates/docs/rito-dev.md.tmpl, templates/docs/constitution.md.semente.tmpl, README.md.
   instalar.sh e configurar.sh não mudam: continuam só imprimindo.
@@ -155,7 +161,8 @@ Instalação pelo agente: ligada
 - Toda instalação e desinstalação feita pelo agente MUST ir ao histórico da frente, com versão ou
   SHA e classe.
 - Plugin instalado pelo agente MUST ficar no escopo do projeto, vir de marketplace conferido por
-  nome e repositório e ter o SHA instalado conferido contra o registrado; divergente, MUST ser
+  nome e repositório e ter o conteúdo reverificado no SHA instalado (só agentes, sem hooks nem
+  servidor MCP, e a regra de proibidos aplicada aos agentes mapeados); reprovado, MUST ser
   desinstalado e a frente MUST parar. Pacote MUST ter versão exata e não rodar scripts de ciclo de
   vida do gerenciador, salvo exceção listada pelo nome no Gate 0.
 - Instalação temporária MUST ser desfeita ao fim do uso, no máximo na Fase 11 do rito, dentro da
@@ -163,7 +170,8 @@ Instalação pelo agente: ligada
   Permanente é só o que tem essa classe no Gate 0 e aparece no diff da PR; nada permanente é global.
 - O agente MUST NOT executar script remoto (download canalizado para o shell, bootstrap sem
   assinatura), executor que baixa e roda na hora, aceitação de comando declarado pelo marketplace,
-  nem atualização de plugin, de marketplace ou do próprio `cstk`.
+  nem atualização de plugin, de marketplace ou do próprio `cstk`, salvo a atualização do catálogo
+  que o próprio `install` de item listado faz antes de buscar o plugin.
 - O agente MUST NOT reinstalar, atualizar nem remover o que já estava instalado antes da frente,
   MUST NOT reclassificar instalação sem OK do owner e MUST NOT alterar a linha "Instalação pelo
   agente" de nenhuma constituição.

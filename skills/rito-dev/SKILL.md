@@ -1,6 +1,6 @@
 ---
 name: rito-dev
-description: "Rito oficial de desenvolvimento do projeto-alvo — do git pull até a PR mergeada, validada no ambiente de integração e promovida a produção. Use SEMPRE que a tarefa envolver desenvolver, customizar, corrigir ou alterar código do projeto-alvo, ou quando o dev pedir para 'seguir o rito', 'abrir PR', 'promover para produção', 'subir para produção' ou iniciar qualquer feature/fix/chore/docs. Frente nova de trilha completa começa por `/rito-descoberta` (Fase 0, Gate 0): este rito segue a partir da Fase 1 com o OK do Gate 0 dado, e não captura o pedido de frente nova antes da Fase 0. Lê os parâmetros do projeto em `cockpit.config` na raiz — nenhum nome de branch, repositório ou comando é fixo nesta skill."
+description: "Rito oficial de desenvolvimento do projeto-alvo — do git pull até a PR mergeada, validada no ambiente de integração e promovida a produção. Use SEMPRE que a tarefa envolver desenvolver, customizar, corrigir ou alterar código do projeto-alvo, ou quando o dev pedir para 'seguir o rito', 'abrir PR', 'promover para produção', 'subir para produção' ou iniciar fix/chore/docs/hotfix. Frente nova de trilha completa ('frente nova', 'nova feature', 'iniciar frente') NÃO começa aqui: começa por `/rito-descoberta` (Fase 0, Gate 0), e este rito segue a partir da Fase 1 com o OK do Gate 0 dado. Lê os parâmetros do projeto em `cockpit.config` na raiz — nenhum nome de branch, repositório ou comando é fixo nesta skill."
 ---
 
 # Rito de Desenvolvimento (cockpit)
@@ -262,14 +262,13 @@ gh pr list --base <BRANCH_PRODUCAO> --head <BRANCH_INTEGRACAO>   # existe PR de 
 `docs/specs/<frente>/decisoes-do-owner.md`, isto é, na trilha completa). Rode dentro da worktree:
 
 ```bash
-node ~/.claude/skills/rito-descoberta/historico.mjs pendentes ~/.claude/cockpit/historico-<frente>.log
-node ~/.claude/skills/rito-descoberta/historico.mjs foto --raiz <raiz do evento base>
+node ~/.claude/skills/rito-descoberta/historico.mjs gate <frente>
 ```
 
-- `pendentes` precisa terminar com 0 (cada `install` temporário do log tem `uninstall` depois dele).
-- As linhas `plugin`, `enabled` e `meta` de `~/.claude/plugins/cache` da foto precisam ser iguais
-  às de `~/.claude/cockpit/historico-<frente>.base`.
-- `.log` ou `.base` ausente ou ilegível **falha fechado**: não encerre.
+- Saída 0: pode encerrar. Saída 1: há `install`/`enable` temporário sem desfazer, ou o estado real
+  difere da linha de base no que a frente toca (imprime as linhas). Saída 2: `.log` ou `.base`
+  ausente, ilegível, vazio ou mal formado (**falha fechado**). Diferente de 0, não encerre.
+- Detalhes do escopo comparado na seção "Gate da Fase 11" da skill `rito-descoberta`.
 
 Qualquer diferença impede o "Encerrar" e volta ao dev/owner.
 

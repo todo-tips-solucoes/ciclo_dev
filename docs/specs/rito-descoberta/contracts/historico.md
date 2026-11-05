@@ -10,14 +10,17 @@
 | Arquivo | Conteúdo | Escrita |
 |---|---|---|
 | `~/.claude/cockpit/historico-<frente>.log` | eventos, um por linha | só acréscimo (`>>`) |
-| `~/.claude/cockpit/historico-<frente>.base` | a linha de base (1ª foto) | uma vez, antes da 1ª rodada |
+| `~/.claude/cockpit/historico-<frente>.base` | a linha de base (1ª foto) | uma vez, antes da 1ª rodada, por `.tmp` não vazio e `mv` |
+| `~/.claude/cockpit/historico-<frente>.ultima` | a foto mais recente | sobrescrita a cada rodada |
 
 - `~/.claude/cockpit/` fica fora das raízes da foto, para que o próprio log não apareça como
   mudança.
 - O diretório é criado com permissão `0700` e os arquivos com `0600` (`umask 077`), porque a
   foto lista nomes de arquivo de `~/.ssh` e `~/.config/gh`.
-- `<frente>` precisa casar com `^[a-z0-9][a-z0-9-]*$`; outro valor para antes de qualquer
-  escrita (evita caminho fora do diretório).
+- `<frente>` precisa casar com `^[a-z0-9][a-z0-9-]*$`, com até 64 caracteres; outro valor para
+  antes de qualquer escrita (evita caminho fora do diretório).
+- `.log` existente cujo evento `base` traz outra raiz ou outra branch é de outra frente ou projeto
+  com o mesmo nome: a skill para e pede outro nome.
 
 ## Linha do log
 
@@ -30,15 +33,21 @@ São seis campos separados por TAB. TAB e quebra de linha dentro de um campo vir
 | `evento` | `detalhe` |
 |---|---|
 | `base` | caminho do arquivo `.base` e número de linhas da foto |
-| `rodada` | rótulo da rodada e a diferença: `criados=N apagados=N alterados=N`, mais um item por linha seguinte `\t\t\t\t+ <linha>` |
-| `install` | `<id>\t<escopo>\t<projeto>\t<versão ou SHA>\t<classe>\t<comando exato>` |
-| `uninstall` | os mesmos campos do `install` |
+| `rodada` | rótulo da rodada e a diferença: `criados=N apagados=N alterados=N`, mais um item por linha seguinte, com quatro TABs e `+ <linha>` ou `- <linha>` |
+| `install` / `enable` | `<id>\t<escopo>\t<projeto>\t<versão ou SHA>\t<classe>\t<comando exato>` |
+| `uninstall` / `disable` | os mesmos campos do `install` / `enable` que desfaz |
 | `desvio` | o que mudou sem comando declarado; a frente para |
 | `gate0` | `OK` e o texto literal do owner |
 
-A máquina sai de `hostname` e o branch de `git branch --show-current`. Na cópia versionada,
-`$HOME` vira `~` e as raízes sensíveis (`~/.ssh`, `~/.config/gh`, `~/.gitconfig`) aparecem só
-como `alterada`.
+A máquina sai de `hostname` e o branch de `git branch --show-current`. No `install`, `id` é
+`<plugin>@<marketplace>` ou `marketplace:<nome>`; `escopo` é o valor literal do `-s`, ou `global`
+para marketplace; `projeto` é o caminho absoluto da raiz onde o comando rodou, ou `-`. A linha
+`install`/`enable` vai ao log antes do comando; falha do comando é fechada pelo desfazer
+correspondente.
+
+Na cópia versionada, `$HOME` vira `~`, a máquina vira `<máquina>`, caminho fora do `$HOME` vira
+`<fora-do-home>`, linhas `!!` do `git status` entram só como contagem e as raízes sensíveis
+(`~/.ssh`, `~/.config/gh`, `~/.gitconfig`) aparecem só como `alterada`.
 
 ## `node historico.mjs foto [--raiz <dir>]`
 
@@ -48,37 +57,41 @@ Imprime a foto em stdout, ordenada byte a byte, uma linha por item no formato `t
 - `installed_plugins.json` ausente gera a linha `plugin\t-\tausente`.
 - `installed_plugins.json` existente, mas ilegível ou com JSON inválido, faz a saída terminar com
   código diferente de zero (falha fechado).
-- `--raiz` precisa ser um diretório existente.
-- O `git` é chamado só com argumentos em array, nunca por string de shell.
+- `--raiz` precisa estar num repositório git (a foto usa a raiz dele); fora disso, ou com o `git`
+  em erro, `HOME` vazio ou relativo, ou `installed_plugins.json` que não é objeto, a saída é 1.
+- O `git` é chamado só com argumentos em array, nunca por string de shell, e com
+  `--no-optional-locks` (a foto não toca o índice).
+- Symlink é seguido (diretório uma vez por caminho real); symlink quebrado gera `link-quebrado` e
+  diretório ilegível gera `ilegivel`, nunca somem.
 
 | `tipo` | Fonte | `valor` |
 |---|---|---|
 | `meta` | arquivos sob as raízes de metadados de D9 (exclusões abaixo) | `tamanho mtimeMs ctimeMs inode` |
-| `hash` | arquivos de conteúdo de D9, `crontab -l`, chave `mcpServers` de `~/.claude.json` | sha256 ou `ausente` |
+| `hash` | arquivos de conteúdo de D9, `crontab -l`, chave `mcpServers` de `~/.claude.json` e as `mcpServers` de cada projeto em `projects` | sha256 ou `ausente` |
 | `plugin` | `installed_plugins.json`: `id\|scope\|projectPath` | `version gitCommitSha` |
-| `enabled` | `enabledPlugins` de `installed_plugins.json` e das settings de usuário e do projeto | JSON canônico |
-| `marketplace` | `known_marketplaces.json`: nome | `repo` da source |
+| `enabled` | `enabledPlugins` de `installed_plugins.json`, das settings de usuário e das `settings.json` e `settings.local.json` do projeto | JSON canônico |
+| `marketplace` | `known_marketplaces.json`: nome | `repo` da source; URL ou caminho só como `sha256:<hash>` |
 | `catalogo` | `git rev-parse HEAD` no `installLocation` de cada marketplace | SHA |
-| `git` | `git -C <raiz> status --porcelain --ignored` e `git worktree list` | a linha |
+| `git` | `git -C <raiz> status --porcelain --ignored` e `git worktree list --porcelain` sem o `HEAD` | a linha |
 
 - **Raízes de metadados**: `~/.claude/skills` (sem `synced/`), `~/.claude/agents`,
-  `~/.claude/plugins/cache`, `<raiz>/.claude` (sem `feature-00c-state/` e
+  `~/.claude/commands`, `~/.claude/hooks`, `~/.claude/CLAUDE.md`, `~/.claude/plugins/cache`, `<raiz>/.claude` (sem `feature-00c-state/` e
   `enforcement-log.jsonl`), `git rev-parse --git-path hooks`, `~/.ssh`, `~/.config/gh`,
   `~/.local/bin`, `~/.gitconfig`, `~/.bashrc` e `~/.profile`.
 - **Hash de conteúdo**: `~/.claude/settings.json`, `<raiz>/.claude/settings.json`,
   `<raiz>/.claude/settings.local.json` e `git rev-parse --git-path config`.
 - **Ausências**: raiz ausente gera a linha `meta\t<raiz>\tausente`. A chave `lastUpdated` nunca
   entra na foto.
-- **Cache fora do lugar**: com `CLAUDE_CODE_PLUGIN_CACHE_DIR` definido, a foto falha e cita a
-  variável.
+- **Configuração fora do lugar**: com `CLAUDE_CODE_PLUGIN_CACHE_DIR` ou `CLAUDE_CONFIG_DIR`
+  definido, a foto falha e cita a variável.
 
 ## Ruído conhecido
 
 Lista fechada de mudanças que não são desvio, quando aparecem na diferença entre duas fotos:
 
 - sincronização de `skills/synced` do Claude Code (já fora da foto, por exclusão);
-- atualização automática de `known_marketplaces.json` do marketplace oficial;
-- arquivos `-shm` e `-wal` do SQLite.
+- mudança da linha `catalogo` do marketplace `claude-plugins-official` (atualização automática);
+- arquivos `-shm`, `-wal` e `-journal` do SQLite sob `<raiz>/.claude` (já fora da foto).
 
 Qualquer outra mudança sem comando declarado é desvio: o evento `desvio` é gravado e a frente para.
 
@@ -87,9 +100,11 @@ velha é apagada, e a mesma chave com valor diferente é alterada.
 
 ## `node historico.mjs pendentes <log>`
 
-Lista cada `install` de classe `temporária` sem `uninstall` posterior com o mesmo `id`, `escopo`
-e `projeto`. Termina com código 0 quando não há pendentes, 1 quando há (e imprime cada um) e 2
-quando o log está ausente ou ilegível.
+Lista cada `install` ou `enable` de classe `temporária` sem `uninstall` ou `disable` posterior com
+o mesmo `id`, `escopo` e `projeto`. Termina com código 0 quando não há pendentes, 1 quando há (e
+imprime cada um) e 2 quando o log está ausente, ilegível, vazio ou sem evento `base`, ou tem linha
+mal formada: menos de 6 colunas, evento fora da lista, ou abertura/desfazer sem 11 colunas ou com
+classe diferente de `permanente`/`temporária` (falha fechado).
 
 ## Correspondência de `install` e `uninstall`
 
@@ -100,8 +115,8 @@ A chave de correspondência é a tripla `id`, `escopo` e `projeto` do log.
 
 ## Retomada de sessão interrompida
 
-Ao retomar a Fase 0, a skill lê o `.log` e o `.base` da frente e tira uma foto nova. A diferença
-contra a última foto registrada vira um evento `rodada` (explicada por comando declarado ou
+Ao retomar a Fase 0, a skill lê o `.log`, o `.base` e o `.ultima` da frente e tira uma foto nova.
+A diferença contra o `.ultima` vira um evento `rodada` (explicada por comando declarado ou
 ruído conhecido) ou `desvio` (qualquer outra). A linha de base existente nunca é recriada.
 
 ## Gate da Fase 11 (`rito-dev`)
@@ -109,10 +124,16 @@ ruído conhecido) ou `desvio` (qualquer outra). A linha de base existente nunca 
 Aplica-se quando a branch tem `docs/specs/<frente>/decisoes-do-owner.md`, isto é, na trilha
 completa. Roda dentro da worktree, antes do "Encerrar".
 
-1. `pendentes` termina com 0.
-2. As linhas `plugin`, `enabled` e `meta` de `~/.claude/plugins/cache` de
-   `foto --raiz <raiz do evento base>` são iguais às da linha de base. A raiz é a mesma da linha
-   de base, para que as settings do projeto comparadas sejam as mesmas.
-3. Arquivo `.log` ou `.base` ausente ou ilegível impede o encerramento (falha fechado).
+`node historico.mjs gate <frente>` (decisão do owner na revisão de código, 2026-11-05: comparar só
+o que a frente toca):
 
-Qualquer diferença impede o "Encerrar" e volta ao owner.
+1. Saída 2 (falha fechado): `.log` ou `.base` ausente, ilegível ou vazio; log sem `base` ou
+   `gate0`; linha mal formada. Foto que falha dá saída 1.
+2. Saída 1 com `pendente\t<linha>`: `install`/`enable` temporário sem desfazer.
+3. Saída 1 com linhas `-`/`+`: a foto da raiz do evento `base`, mais as settings das worktrees da
+   frente, difere do `.base` no escopo da frente: linhas dos ids temporários do log (`plugin`
+   completa, entradas em `enabled`, `meta` do cache, `marketplace`) e presença das linhas `plugin`
+   com `projectPath` numa raiz da frente. Id permanente é diferença esperada; atualização
+   automática de plugin que já existia e outras frentes ficam fora.
+
+Saída diferente de 0 impede o "Encerrar" e volta ao owner.
