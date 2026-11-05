@@ -29,7 +29,7 @@
 ## Criterios de aceite
 
 - [x] CHK014 - Cada SC tem valor mensuravel (100%, 0 itens, 0 arquivos)? [Mensurabilidade, Spec §SC-001..SC-007] {auto}
-- [x] CHK015 - O SC-004 cobre a pasta de cache, alem do estado de plugins? [Mensurabilidade, Spec §SC-004] {auto}
+- [x] CHK015 - O SC-004 cobre a pasta de cache, alem do estado de plugins? [Mensurabilidade, Spec §SC-004] {auto} (revisao de codigo: pasta sumida ou marcada orfa)
 - [x] CHK016 - Todos os FR tem cenario associado segundo o gate de cobertura? [Cobertura, gate requirement-coverage: requirements=22 covered=22 errors=0] {auto}
 - [x] CHK017 - O SC-005 define como o gate encontra o par install/uninstall no log (chave de correspondencia)? [Gap, Spec §SC-005] {auto} (contracts/historico.md, "Correspondência")
 

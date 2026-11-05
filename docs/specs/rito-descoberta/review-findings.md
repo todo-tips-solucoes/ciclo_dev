@@ -171,3 +171,27 @@ corrigidos.
   principal (medido: 19 de 23 worktrees do `bos_v1`), e a presença os tratava como install fora do
   log (Edge): id herdado (instalado ou habilitado na raiz principal na linha de base) fica isento.
   `false` em `enabledPlugins` conta como ausente, para o `disable` que grava `false` (não medido).
+
+## Rodada 4 (2026-11-05, ponta `1273d41`, só o delta da rodada 3)
+
+Blind Hunter: 2 altos. Edge Case Hunter: 1 alto (o mesmo do Blind, com evidência). Acceptance
+Auditor: 2 altos. Todos corrigidos.
+
+- [x] [alto] A isenção de ids herdados era por id e cobria install temporário não desfeito ou
+  install não declarado de id que a principal já tinha (Blind, Edge; no cockpit, justamente os
+  `voltagent-*`): só o registro automático medido fica isento, e só para id fora do log — entrada
+  `local` de id habilitado no usuário ou na settings local da raiz; entrada `project` de id
+  habilitado no `.claude/settings.json` commitado da própria worktree. As settings da raiz e da
+  worktree deixaram de cair na mesma chave.
+- [x] [alto] `false` como ausente nos dois lados apagava um `false` explícito da base (Blind): só vale
+  quando a base não tem a chave, e nunca no `HEAD`. O `.claude/settings.json` commitado das raízes
+  da frente é comparado inteiro com o da raiz na base (salvo permanentes), o que pega `enable` não
+  declarado e commitado.
+- [x] [alto] "isto é, na trilha completa" no template, na skill, no `rito-dev` e no contrato travaria
+  o hotfix com incidente (trilha completa sem Fase 0) (Auditor): critério do arquivo em todos, com
+  a ressalva explícita de que docs, trivial e hotfix com incidente não rodam o gate.
+- [x] [alto] SC-004 da spec ainda exigia diferença vazia incluindo a pasta do cache (Auditor):
+  pasta sumida ou marcada órfã; CHK015, research (Decision 7) e a pendência da skill alinhados ao
+  que foi medido.
+- Correção de registro: na rodada 2, a frase "O gate vale para registro com os 14 títulos da skill"
+  foi substituída na rodada 3 pelo critério do arquivo `decisoes-do-owner.md`.

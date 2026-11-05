@@ -125,7 +125,8 @@ produção verde e só então diagnostique.
 
 ## Fase 11 — Encerramento
 
-Antes, na trilha completa, confira o gate de instalações temporárias: cada `install` ou `enable`
+Antes, quando a branch tem `docs/specs/<frente>/decisoes-do-owner.md` (docs, trivial e hotfix com incidente dispensam a Fase 0, não têm o registro e não rodam o gate), confira
+o gate de instalações temporárias: cada `install` ou `enable`
 temporário do histórico da frente tem `uninstall` ou `disable` depois dele e o estado real é igual
 à linha de base no que a frente toca (`historico.mjs gate <frente>`, na seção "Gate da Fase 11" da skill `rito-descoberta`);
 saída diferente de 0, inclusive sem histórico ou linha de base, impede o encerramento.

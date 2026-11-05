@@ -240,7 +240,8 @@ projetos-alvo ganha a política e a linha literal "Instalação pelo agente: des
 - **SC-003**: 100% das citações do mapa existem no catálogo no SHA registrado e passam nas regras de
   proibidos (S2).
 - **SC-004**: Após o ciclo de smoke S3, a diferença entre o estado de plugins antes e depois é
-  vazia (0 itens), incluindo a pasta de cache.
+  vazia (0 itens), e a pasta de versão do plugin no cache sumiu ou está marcada órfã
+  (`.orphaned_at`; decisão do owner na revisão de código de 2026-11-05).
 - **SC-005**: 100% dos installs temporários do log têm uninstall posterior no gate da Fase 11; 1
   faltando impede o encerramento. A chave de correspondência é a tripla `id`, `escopo` e `projeto`
   do log (`contracts/historico.md`, seção "Correspondência de `install` e `uninstall`").

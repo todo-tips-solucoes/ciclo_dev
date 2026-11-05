@@ -206,8 +206,8 @@ ignorado; abertura repetida é fechada pelo desfazer mais recente.
 
 ## Gate da Fase 11 (trilha completa)
 
-Vale na trilha completa, isto é, quando a branch tem `docs/specs/<frente>/decisoes-do-owner.md`
-(falha fechado: sem log ou linha de base, não encerra). Roda dentro da worktree da frente, antes do
+Vale quando a branch tem `docs/specs/<frente>/decisoes-do-owner.md` (falha fechado: sem log ou
+linha de base, não encerra); docs, trivial e hotfix com incidente dispensam a Fase 0, não têm o registro e não rodam o gate. Roda dentro da worktree da frente, antes do
 "Encerrar". Exceção única, decidida pelo owner na revisão de código de 2026-11-05: a frente `rito-descoberta`
 (do próprio cockpit), cuja Fase 0 precede esta skill e não tem log, encerra pela verificação do
 smoke S3 em vez do `gate` (registro em `docs/specs/rito-descoberta/review-findings.md`).
@@ -228,12 +228,15 @@ compara só o que a frente toca):
 2. **Pendentes (saída 1)**: imprime cada `install`/`enable` temporário sem desfazer (`pendente\t…`).
 3. **Diferença no escopo da frente (saída 1, imprime `-`/`+`)**:
    - nenhum plugin com `projectPath` numa raiz da frente (a worktree atual e os projetos do log,
-     fora a raiz do evento `base`), salvo a tripla listada como **permanente** e o id **herdado**
-     (instalado ou habilitado na raiz principal na linha de base: o Claude Code o registra sozinho
-     na 1ª sessão aberta na worktree);
-   - as entradas dos ids **temporários** em `enabledPlugins` (settings do usuário, da raiz e das
-     raízes da frente, na working tree **e no `HEAD` commitado**) iguais às da linha de base
-     (`false` conta como ausente);
+     fora a raiz do evento `base`), salvo a tripla listada como **permanente** e o **registro
+     automático** do Claude Code na 1ª sessão da worktree: id fora do log, em entrada `local` de id
+     habilitado no usuário ou na settings local da raiz, ou em entrada `project` de id habilitado no
+     `.claude/settings.json` commitado da própria worktree;
+   - `enabledPlugins`: na settings do usuário, no `installed_plugins.json` e nas da raiz principal,
+     as entradas dos ids **temporários** iguais às da linha de base; no `.claude/settings.json`
+     **commitado** das raízes da frente (no `HEAD` e na working tree), o mapa inteiro igual ao da
+     raiz na linha de base, salvo ids permanentes; nas settings não versionadas delas, os ids
+     temporários. `false` só conta como ausente quando a base não tem a chave, e nunca no `HEAD`;
    - as linhas `marketplace` dos marketplaces temporários iguais às da linha de base;
    - nenhuma pasta de versão de id temporário no cache sem plugin instalado e sem a marca de órfã
      (`.orphaned_at`): pasta marcada conta como desinstalada (decisão do owner); sem a marca, é
@@ -335,8 +338,9 @@ nem diretório (`commands/`, `skills/`, `hooks/`, `output-styles/`, `.mcp.json`,
 `color`. Qualquer outra coisa reprova o plugin.
 
 Dados que a documentação oficial não confirma ficam como **pendência**, sem afirmar: o campo
-`gitCommitSha` (só medido), o `projectPath` gravado por um install dentro de worktree, a sobra de
-cache depois do uninstall e o valor `skip-build` do yarn. Havendo `CLAUDE_CODE_PLUGIN_CACHE_DIR`
+`gitCommitSha` (só medido), o `projectPath` gravado por um install dentro de worktree e o valor
+`skip-build` do yarn. A pasta de cache depois do uninstall foi medida: a CLI a marca com
+`.orphaned_at` e coleta depois (critério do gate e do S3, decisão do owner). Havendo `CLAUDE_CODE_PLUGIN_CACHE_DIR`
 definido, cite a variável e pare: o cache fica fora da foto.
 
 ## Política de instalação (D15 a D19)

@@ -187,8 +187,9 @@ efeito em cascata citado de U1.
   estiver definida, a skill a cita e para (raiz fora da foto).
 - U1: o uninstall do último escopo "also deletes the plugin's stored options and secrets and its
   data directory".
-- **Não verificado**: se o uninstall apaga a pasta do cache. O S3 mede e, havendo sobra, falha e
-  volta ao owner, como D18 e o S3 já preveem.
+- **Medido na revisão de código (2026-11-05)**: o uninstall não apaga a pasta do cache; a CLI a
+  marca com `.orphaned_at` e coleta depois (code-review, frontend-design e code-simplifier nesta
+  máquina). O owner decidiu que pasta marcada conta como desinstalada.
 
 **Alternatives considered**: incluir `data/` na foto. Fica fora porque D9 fecha a lista de raízes
 e este plano não a amplia.

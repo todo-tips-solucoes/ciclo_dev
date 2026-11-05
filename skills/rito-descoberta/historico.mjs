@@ -301,62 +301,81 @@ function gate(frente, HOME) {
   for (const id of permId) temp.delete(id);
   raizes.delete(raiz);
 
-  // Herdados: ids que a linha de base já mostra instalados (escopo user ou projeto da raiz) ou
-  // habilitados (true) em alguma settings. O Claude Code os registra sozinho na 1ª sessão aberta na
-  // worktree, sem comando de install; não são instalação da frente.
-  const herdados = new Set();
-  for (const l of baseTxt.split('\n')) {
-    const [tipo, chave = '', valor = ''] = l.split('\t');
-    if (tipo === 'plugin' && chave !== '-') herdados.add(chave.slice(0, chave.indexOf('|')));
-    else if (tipo === 'enabled') {
-      let obj;
-      try { obj = JSON.parse(valor); } catch { continue; }
-      if (objeto(obj)) for (const [id, v] of Object.entries(obj)) if (v === true) herdados.add(id);
-    }
-  }
-
-  const dif = [];
-  // 1. presença: nada instalado nas raízes da frente, salvo permanente listado e herdado da raiz.
-  const inst = instalados(HOME);
-  const todos = inst === null ? [] : inst.out;
-  for (const e of todos) {
-    const p = norma(e.projectPath);
-    if (raizes.has(p) && !permTripla.has(`${e.id}|${p}`) && !herdados.has(e.id)) dif.push(`+ plugin\t${e.id}|${e.scope}|${p}`);
-  }
-
-  // 2. enabled e marketplace dos ids temporários: iguais à base.
+  // enabledPlugins por arquivo: rótulo -> mapa. Base e foto atual cobrem usuário, installed_plugins
+  // e as settings da raiz principal.
   const usuario = join(HOME, '.claude', 'settings.json');
-  const tipoArq = (k) => (k === 'installed_plugins.json' ? k : k === usuario ? 'usuario' : `projeto:${basename(k)}`);
-  const escopo = (txt) => {
-    const out = new Set();
+  const rotulo = (k) => (k === 'installed_plugins.json' ? k : k === usuario ? 'usuario' : `raiz:${basename(k)}`);
+  const enabledDe = (txt) => {
+    const m = new Map();
     for (const l of txt.split('\n')) {
       const [tipo, chave = '', valor = ''] = l.split('\t');
-      if (tipo === 'enabled') {
-        let obj;
-        try { obj = JSON.parse(valor); } catch { continue; }
-        if (!objeto(obj)) continue;
-        // false conta como ausente: o disable pode gravar false em vez de apagar a chave.
-        for (const id of temp) if (id in obj && obj[id] !== false) out.add(`enabled\t${tipoArq(chave)}\t${id}=${JSON.stringify(obj[id])}`);
-      } else if (tipo === 'marketplace' && temp.has(`marketplace:${chave}`)) out.add(l);
+      if (tipo !== 'enabled') continue;
+      let obj;
+      try { obj = JSON.parse(valor); } catch { continue; }
+      if (objeto(obj)) m.set(rotulo(chave), obj);
     }
-    return out;
+    return m;
   };
-  let atual = foto(raiz, HOME);
-  for (const r of raizes) { // settings das raízes da frente: working tree e o que foi commitado
-    for (const f of ['settings.json', 'settings.local.json']) {
-      const caminho = join(r, '.claude', f);
-      const s = lerJson(caminho, false);
-      if (objeto(s) && s.enabledPlugins !== undefined) atual += `enabled\t${caminho}\t${canon(s.enabledPlugins)}\n`;
-    }
+  const baseEn = enabledDe(baseTxt);
+  const habilitados = (obj) => new Set(Object.entries(obj ?? {}).filter(([, v]) => v === true).map(([k]) => k));
+  const settingsDe = (r) => {
+    const mapa = (v) => (objeto(v) && objeto(v.enabledPlugins) ? v.enabledPlugins : {});
     const commitado = git(r, ['show', 'HEAD:.claude/settings.json']);
-    let s = null;
-    try { s = commitado === null ? null : JSON.parse(commitado); } catch { falha(`HEAD:.claude/settings.json inválido em ${r} (falha fechado)`, 2); }
-    if (objeto(s) && s.enabledPlugins !== undefined) atual += `enabled\t${join(r, '.claude', 'settings.json')}\t${canon(s.enabledPlugins)}\n`;
+    let head = null;
+    try { head = commitado === null ? null : mapa(JSON.parse(commitado)); } catch { falha(`HEAD:.claude/settings.json inválido em ${r} (falha fechado)`, 2); }
+    return { head, working: mapa(lerJson(join(r, '.claude', 'settings.json'), false)), local: mapa(lerJson(join(r, '.claude', 'settings.local.json'), false)) };
+  };
+  const doLogIds = new Set([...temp, ...permId]);
+  const autoLocal = new Set([...habilitados(baseEn.get('usuario')), ...habilitados(baseEn.get('raiz:settings.local.json'))]);
+
+  const dif = [];
+  // 1. presença: nada instalado nas raízes da frente, salvo a tripla permanente e o registro
+  // automático do Claude Code na 1ª sessão da worktree (id fora do log; entrada local de id
+  // habilitado no usuário ou na settings local da raiz; entrada project de id habilitado no
+  // .claude/settings.json commitado da própria worktree).
+  const inst = instalados(HOME);
+  const todos = inst === null ? [] : inst.out;
+  const settings = new Map([...raizes].map((r) => [r, settingsDe(r)]));
+  for (const e of todos) {
+    const p = norma(e.projectPath);
+    if (!raizes.has(p) || permTripla.has(`${e.id}|${p}`)) continue;
+    const auto = !doLogIds.has(e.id) && ((e.scope === 'local' && autoLocal.has(e.id))
+      || (e.scope === 'project' && habilitados(settings.get(p).head).has(e.id)));
+    if (!auto) dif.push(`+ plugin\t${e.id}|${e.scope}|${p}`);
   }
-  const esperado = escopo(baseTxt);
-  const real = escopo(atual);
-  for (const l of esperado) if (!real.has(l)) dif.push(`- ${l}`);
-  for (const l of real) if (!esperado.has(l)) dif.push(`+ ${l}`);
+
+  // 2. enabledPlugins. Usuário, installed_plugins e raiz principal: só ids temporários (outras
+  // sessões mexem nelas). Raízes da frente: settings commitada inteira (salvo permanentes) contra a
+  // da raiz na base; working tree e local, ids temporários. `false` só conta como ausente quando a
+  // base não tem a chave, e nunca no que foi commitado.
+  const mostra = (v) => (v === undefined ? 'ausente' : JSON.stringify(v));
+  const compara = (rot, b, c, ids, leniente) => {
+    for (const id of ids) {
+      const bv = (b ?? {})[id];
+      const cv = (c ?? {})[id];
+      if (JSON.stringify(bv) === JSON.stringify(cv) || (leniente && bv === undefined && cv === false)) continue;
+      dif.push(`± enabled\t${rot}\t${id}: ${mostra(bv)} -> ${mostra(cv)}`);
+    }
+  };
+  const atual = foto(raiz, HOME);
+  const atualEn = enabledDe(atual);
+  for (const rot of new Set([...baseEn.keys(), ...atualEn.keys()])) compara(rot, baseEn.get(rot), atualEn.get(rot), temp, true);
+  const baseProj = baseEn.get('raiz:settings.json') ?? {};
+  for (const [r, st] of settings) {
+    if (st.head !== null) {
+      const ids = new Set([...Object.keys(baseProj), ...Object.keys(st.head), ...Object.keys(st.working)].filter((id) => !permId.has(id)));
+      compara(`${r}:HEAD:.claude/settings.json`, baseProj, st.head, ids, false);
+      compara(`${r}:.claude/settings.json`, baseProj, st.working, ids, true);
+    } else compara(`${r}:.claude/settings.json`, {}, st.working, temp, true);
+    compara(`${r}:.claude/settings.local.json`, {}, st.local, temp, true);
+  }
+
+  // marketplaces temporários: iguais à base.
+  const mkts = (txt) => new Set(txt.split('\n').filter((l) => { const [t, c] = l.split('\t'); return t === 'marketplace' && temp.has(`marketplace:${c}`); }));
+  const mb = mkts(baseTxt);
+  const ma = mkts(atual);
+  for (const l of mb) if (!ma.has(l)) dif.push(`- ${l}`);
+  for (const l of ma) if (!mb.has(l)) dif.push(`+ ${l}`);
 
   // 3. cache: pasta de versão de id temporário sem marca de órfã e sem plugin instalado é sobra
   // (salvo se já era assim na base).

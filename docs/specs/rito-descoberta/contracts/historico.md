@@ -123,8 +123,7 @@ ruído conhecido) ou `desvio` (qualquer outra). A linha de base existente nunca 
 
 ## Gate da Fase 11 (`rito-dev`)
 
-Aplica-se quando a branch tem `docs/specs/<frente>/decisoes-do-owner.md`, isto é, na trilha
-completa (falha fechado). Roda dentro da worktree, antes do "Encerrar". Exceção única, decidida pelo
+Aplica-se quando a branch tem `docs/specs/<frente>/decisoes-do-owner.md` (falha fechado); docs, trivial e hotfix com incidente dispensam a Fase 0, não têm o registro e não rodam o gate. Roda dentro da worktree, antes do "Encerrar". Exceção única, decidida pelo
 owner na revisão: a própria `rito-descoberta`, sem log porque a Fase 0 dela precede a skill, encerra
 pela verificação do S3.
 
@@ -138,9 +137,12 @@ desinstalada):
    Foto que falha dá saída 1.
 2. Saída 1 com `pendente\t<linha>`: `install`/`enable` temporário sem desfazer.
 3. Saída 1 com linhas `-`/`+`: plugin com `projectPath` numa raiz da frente (fora a raiz do evento
-   `base`) que não seja tripla permanente nem id herdado (instalado ou habilitado na raiz principal
-   na linha de base); entradas dos ids temporários em `enabledPlugins` (working
-   tree e `HEAD`) diferentes da base; linhas `marketplace` temporárias diferentes da base; pasta de
+   `base`) que não seja tripla permanente nem registro automático do Claude Code (id fora do log:
+   entrada `local` de id habilitado no usuário ou na settings local da raiz; entrada `project` de id
+   habilitado no `.claude/settings.json` commitado da worktree); `enabledPlugins` diferente da base
+   (ids temporários no usuário, no `installed_plugins.json` e na raiz; mapa inteiro, salvo
+   permanentes, no `.claude/settings.json` commitado das raízes da frente; `false` só vale como
+   ausente quando a base não tem a chave, nunca no `HEAD`); linhas `marketplace` temporárias diferentes da base; pasta de
    versão de id temporário sem plugin instalado e sem `.orphaned_at`.
 
 Saída diferente de 0 impede o "Encerrar" e volta ao owner.
