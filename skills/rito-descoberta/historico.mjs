@@ -333,24 +333,22 @@ function gate(frente, HOME) {
       try { return txt === null ? null : mapa(JSON.parse(txt)); } catch { return falha(`${rev}:.claude/settings.json inválido em ${r} (falha fechado)`, 2); }
     };
     const [integ = '', origem = ''] = nascimento.get(r) ?? [];
-    if (!/^[A-Za-z0-9._/-]+$/.test(integ) || !/^[0-9a-f]{40}$/.test(origem)) {
+    if (!/^[A-Za-z0-9._/-]+$/.test(integ) || !/^([0-9a-f]{40}|[0-9a-f]{64})$/.test(origem)) {
       falha(`evento worktree sem "<branch de integração> <SHA de nascimento>" para ${r} (falha fechado)`, 2);
     }
     const ref = git(r, ['rev-parse', '--verify', '-q', `origin/${integ}`]) ?? git(r, ['rev-parse', '--verify', '-q', integ]);
     const head = git(r, ['rev-parse', 'HEAD']);
     const mb = ref === null || head === null ? null : git(r, ['merge-base', 'HEAD', ref.trim()]);
     if (mb === null) falha(`merge-base de ${r} com ${limpa(integ)} não encontrado (falha fechado)`, 2);
-    // O merge-base precisa estar na linha do 1º pai da integração (squash e merge da integração na
-    // branch ficam nela); fora dela, a PR entrou por merge commit.
-    const linha = git(r, ['rev-list', '--first-parent', ref.trim()]);
-    if (linha === null || !new Set(linha.split('\n')).has(mb.trim())) {
-      falha(`a branch de ${r} entrou em ${limpa(integ)} por merge commit (o rito manda --squash): volta ao owner (falha fechado)`, 2);
-    }
-    // HEAD contido na integração: só é legítimo antes do 1º commit da frente (HEAD = nascimento).
-    // Depois disso, a branch foi absorvida (merge commit, fast-forward, pull --rebase ou reset após o
-    // squash) e a comparação ficaria vazia.
-    if (mb.trim() === head.trim() && head.trim() !== origem) {
-      falha(`a branch de ${r} foi absorvida por ${limpa(integ)} (merge commit, fast-forward, pull --rebase ou reset depois do squash): volta ao owner (falha fechado)`, 2);
+    // Os commits próprios da frente são a cadeia do 1º pai do HEAD fora da integração; o mais antigo
+    // precisa ter o SHA de nascimento como pai (sem commits próprios, o HEAD é o nascimento). Merge
+    // commit, fast-forward, pull --rebase ou reset depois do squash, com ou sem commit novo, e rebase
+    // quebram essa ligação: a comparação HEAD x merge-base deixaria de ver o que a frente levou.
+    const proprios = git(r, ['rev-list', '--first-parent', 'HEAD', '--not', ref.trim()]);
+    const lista = proprios === null ? [] : proprios.split('\n').filter(Boolean);
+    const inicio = proprios === null ? null : lista.length ? git(r, ['rev-parse', '-q', '--verify', `${lista[lista.length - 1]}^`]) : head;
+    if (inicio === null || inicio.trim() !== origem) {
+      falha(`os commits de ${r} não partem do SHA de nascimento (branch absorvida por ${limpa(integ)} via merge commit, fast-forward, pull --rebase ou reset, ou rebaseada; o rito manda squash na PR e merge da integração, nunca rebase): volta ao owner (falha fechado)`, 2);
     }
     return { head: commitado('HEAD'), mb: commitado(mb.trim()), working: mapa(lerJson(join(r, '.claude', 'settings.json'), false)), local: mapa(lerJson(join(r, '.claude', 'settings.local.json'), false)) };
   };

@@ -257,3 +257,28 @@ Testes da rodada: squash limpo 0; `enable` não declarado 1; merge commit seguid
 rodadas anteriores (registro automático, temporário não desfeito, cache sem marca e com marca,
 temporário na working tree, merge da integração com plugin de outra frente, `false` removido) sem
 mudança.
+
+## Rodada 8 (2026-11-05, ponta `fc936af`, só o delta da rodada 7)
+
+Blind Hunter: 1 alto, corrigido. (O Edge Case Hunter desta rodada revisou a versão anterior.)
+
+- [x] [alto] Depois da absorção pela integração (squash seguido de `pull --rebase` ou `reset`, ou
+  fast-forward), um commit novo tirava o `HEAD` do `merge-base` e a guarda não disparava (Blind):
+  a regra virou uma só — o mais antigo dos commits próprios (cadeia do 1º pai do `HEAD` fora da
+  integração) precisa ter o SHA de nascimento como pai; sem commits próprios, o `HEAD` precisa ser
+  o nascimento. Cobre merge commit, fast-forward, `pull --rebase` e `reset`, com ou sem commit
+  depois, e rebase (que o rito não usa: merge da integração, nunca rebase). O SHA aceita 40 ou 64
+  caracteres (repositório SHA-256). Testados 12 cenários com repositórios reais (origin bare,
+  integração `staging`, raiz em `main`).
+- Edge Case Hunter da rodada 8 confirmou o mesmo alto em `fc936af` e testou a correção: os quatro
+  casos de falha aberta (fast-forward com commit novo, com outra frente no meio, merge commit com
+  `pull` em fast-forward e commit novo, `reset` com commit novo) saem 2. Nenhum alto na correção.
+- [x] [Defer] `git pull` em fast-forward antes do 1º commit tira a branch do SHA de nascimento e uma
+  frente limpa sai 2: a skill manda commitar o registro antes de qualquer `pull` na worktree.
+- [x] [Defer] Rebase antes da PR sai 2 mesmo com a frente limpa: o rito não usa rebase (merge da
+  integração); `decisoes-do-owner.md` antigos que planejavam rebase são anteriores a esta regra.
+
+## Resultado
+
+Oito rodadas. Nenhum achado alto ou crítico pendente; as decisões do owner e os adiados estão
+acima. Trilha completa.

@@ -270,7 +270,8 @@ node ~/.claude/skills/rito-descoberta/historico.mjs gate <frente>
   difere da linha de base no que a frente toca (imprime as linhas) ou a foto falhou. Saída 2: fora
   da worktree da frente, ou `.log`/`.base` ausente, ilegível, vazio ou mal formado (**falha
   fechado**; inclui frente sem worktree própria, `merge-base` não encontrado e branch absorvida pela
-  integração: merge commit, fast-forward, `pull --rebase` ou `reset` depois do squash). Diferente de 0, não encerre.
+  integração ou rebaseada: merge commit, fast-forward, `pull --rebase`, `reset` ou rebase; o rito
+  manda squash na PR e merge da integração). Diferente de 0, não encerre.
 - Detalhes do escopo comparado na seção "Gate da Fase 11" da skill `rito-descoberta`.
 
 Qualquer diferença impede o "Encerrar" e volta ao dev/owner.

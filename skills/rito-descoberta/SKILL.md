@@ -224,10 +224,8 @@ compara só o que a frente toca):
 1. **Falha fechado (saída 2)**: fora de repositório git, branch atual que não é `<frente>` nem
    termina em `/<frente>`, frente rodando na raiz do evento `base` (sem worktree própria),
    worktree atual ausente do log (evento `worktree` ou projeto de algum install), evento
-   `worktree` sem a branch de integração e o SHA de nascimento, `merge-base` com ela não encontrado
-   ou fora da linha do 1º pai dela (PR por merge commit),
-   branch absorvida pela integração depois de ter commits (merge commit, fast-forward, `pull
-   --rebase` ou `reset` depois do squash: volta ao owner), `.log` ou `.base` ausente, ilegível ou vazio, log sem `base`
+   `worktree` sem a branch de integração e o SHA de nascimento, `merge-base` com ela não
+   encontrado, commits próprios da frente que não partem do SHA de nascimento (o mais antigo da cadeia do 1º pai fora da integração precisa ter o nascimento como pai): branch absorvida pela integração por merge commit, fast-forward, `pull --rebase` ou `reset`, com ou sem commit novo depois, ou rebaseada (o rito manda squash na PR e merge da integração, nunca rebase): volta ao owner, `.log` ou `.base` ausente, ilegível ou vazio, log sem `base`
    ou sem `gate0` com `OK`, linha mal formada. Foto que falha dá saída 1.
 2. **Pendentes (saída 1)**: imprime cada `install`/`enable` temporário sem desfazer (`pendente\t…`).
 3. **Diferença no escopo da frente (saída 1, imprime `-`/`+`)**:
@@ -429,7 +427,9 @@ owner. Até aqui, **nenhuma escrita além do log**.
    caminhos, irreversibilidade, instalações). Falhou: **pare**; não commite.
 4. Commite **só esse arquivo** (`git add` por caminho; Conventional Commits em português; identidade
    de commit definida pelo projeto, em `docs/CICLO-GIT.md` quando existir). É o 1º commit da
-   branch. Rode logo em seguida a checagem 6. Telas, se houver, vão no 2º commit.
+   branch, feito antes de qualquer `pull` na worktree (um fast-forward antes dele tira a branch do
+   SHA de nascimento e o gate da Fase 11 sai 2). Rode logo em seguida a checagem 6. Telas, se
+   houver, vão no 2º commit.
 5. Na worktree, rode `cstk hooks install --project-path <worktree>` (Princípio IV) e
    `cstk mcp install --project-path <worktree>`.
 6. **Verifique os plugins de novo, agora na worktree** (seção "Verificação de plugins"). Estado que

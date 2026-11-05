@@ -134,9 +134,7 @@ desinstalada):
 1. Saída 2 (falha fechado): fora de repositório git; branch que não é `<frente>` nem termina em
    `/<frente>`; frente na raiz do evento `base`, sem worktree própria; worktree atual fora do log
    (evento `worktree` ou projeto de install); evento `worktree` sem a branch de integração e o SHA
-   de nascimento; `merge-base` fora da linha do 1º pai da integração (PR por merge commit); branch
-   absorvida pela integração depois de ter commits (merge commit,
-   fast-forward, `pull --rebase` ou `reset` depois do squash); `.log` ou
+   de nascimento; commits próprios da frente que não partem do SHA de nascimento (o mais antigo da cadeia do 1º pai fora da integração precisa ter o nascimento como pai): branch absorvida pela integração por merge commit, fast-forward, `pull --rebase` ou `reset`, com ou sem commit novo depois, ou rebaseada (o rito manda squash na PR e merge da integração, nunca rebase): volta ao owner; `.log` ou
    `.base` ausente, ilegível ou vazio; log sem `base` ou sem `gate0` com `OK`; linha mal formada.
    Foto que falha dá saída 1.
 2. Saída 1 com `pendente\t<linha>`: `install`/`enable` temporário sem desfazer.
