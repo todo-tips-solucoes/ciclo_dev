@@ -280,7 +280,7 @@ Não há camadas de dados; as bordas são entre artefatos.
 |---|---|---|
 | R1 | O install com `@marketplace` atualiza o catálogo antes da busca (U2) e pode mover o clone do SHA registrado no S3 | Resolvido na revisão: o mapa e o conteúdo são reverificados no SHA instalado; reprovado, desinstala e para (emenda 2.0.0 ajustada; `review-findings.md`) |
 | R2 | `projectPath` do install dentro da worktree não verificado na doc | O S3 mede; o estado diferente do esperado volta ao owner |
-| R3 | Sobra no cache depois do uninstall não verificada | O S3 falha e o achado volta ao owner (D18) |
+| R3 | Sobra no cache depois do uninstall | Medido: a CLI marca a pasta com `.orphaned_at` e coleta depois; marcada conta como desinstalada (decisão do owner na revisão). Sem a marca, o S3 e o gate falham e o achado volta ao owner (D18) |
 | R4 | `gitCommitSha` não documentado (só medido em 2.1.318) | Campo ausente dá "desconhecido": nada é executado |
 | R5 | A lista `AGNOSTICO_TERMOS` do CI é mais ampla que a local | `verificar-agnostico.sh` local na construção; o CI é o juiz final |
 | R6 | Templates quebrarem o cenário 15 do configurador | Decision 10, mais `testar-configurar.sh` em primeiro plano, com timeout e sem laço em background |

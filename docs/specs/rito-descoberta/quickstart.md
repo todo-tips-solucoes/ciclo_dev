@@ -74,12 +74,13 @@ O log de teste fica no scratchpad da sessão, nunca em `~/.claude/cockpit`.
    ```
    Confira cada um contra os 7 caminhos previstos.
 3. **Expected**: zero ocorrências no agnóstico e nenhum arquivo fora dos caminhos previstos.
-   `docs/constitution.md` aparece no diff só pelo commit `bf2eb06` (emenda 2.0.0). Para
-   confirmar que a construção não o editou de novo:
+   `docs/constitution.md` aparece no diff pelo commit `bf2eb06` (emenda 2.0.0) e pelo `ad1ce2b`
+   (ajuste da 2.0.0 aprovado pelo owner na revisão de código). Para confirmar que nada mais o
+   editou:
    ```text
    git log --format=%h origin/main..HEAD -- docs/constitution.md
    ```
-   A saída precisa ser só `bf2eb06`.
+   A saída precisa ser só `ad1ce2b` e `bf2eb06`.
 
 > **Regra**: os Scenarios 8 a 11 (S1 a S5) só rodam depois do merge, com a instalação feita pelo
 > owner. O agente não os executa durante a construção.
@@ -110,8 +111,9 @@ O log de teste fica no scratchpad da sessão, nunca em `~/.claude/cockpit`.
 4. Desinstale com `-s project`, dentro da worktree.
 5. Caso negativo: peça um plugin fora da lista; ele é recusado antes do `install`.
 6. **Expected**:
-   - a foto final é igual à linha de base nas linhas `plugin`, `enabled` e de cache, e a pasta do
-     `core-dev` sumiu do cache;
+   - pelo critério do gate: nenhum plugin com `projectPath` na worktree descartável, entradas do
+     `core-dev` em `enabledPlugins` iguais às da linha de base, e a pasta de versão do `core-dev` no
+     cache sumiu ou está marcada órfã (linha `orfa` na foto, decisão do owner na revisão);
    - o histórico tem o par install e uninstall;
    - `pendentes` termina com 0.
 

@@ -206,8 +206,13 @@ ignorado; abertura repetida é fechada pelo desfazer mais recente.
 
 ## Gate da Fase 11 (trilha completa)
 
-Vale quando o registro da frente veio desta skill (os 14 títulos exatos da seção "Itens do
-registro"). Roda dentro da worktree da frente, antes do "Encerrar":
+Vale na trilha completa, isto é, quando a branch tem `docs/specs/<frente>/decisoes-do-owner.md`
+(falha fechado: sem log ou linha de base, não encerra). Roda dentro da worktree da frente, antes do
+"Encerrar". Exceção única, decidida pelo owner na revisão de código de 2026-11-05: a frente `rito-descoberta`
+(do próprio cockpit), cuja Fase 0 precede esta skill e não tem log, encerra pela verificação do
+smoke S3 em vez do `gate` (registro em `docs/specs/rito-descoberta/review-findings.md`).
+
+
 
 ```bash
 node ~/.claude/skills/rito-descoberta/historico.mjs gate <frente>
@@ -223,9 +228,12 @@ compara só o que a frente toca):
 2. **Pendentes (saída 1)**: imprime cada `install`/`enable` temporário sem desfazer (`pendente\t…`).
 3. **Diferença no escopo da frente (saída 1, imprime `-`/`+`)**:
    - nenhum plugin com `projectPath` numa raiz da frente (a worktree atual e os projetos do log,
-     fora a raiz do evento `base`), salvo a tripla listada como **permanente**;
+     fora a raiz do evento `base`), salvo a tripla listada como **permanente** e o id **herdado**
+     (instalado ou habilitado na raiz principal na linha de base: o Claude Code o registra sozinho
+     na 1ª sessão aberta na worktree);
    - as entradas dos ids **temporários** em `enabledPlugins` (settings do usuário, da raiz e das
-     raízes da frente, na working tree **e no `HEAD` commitado**) iguais às da linha de base;
+     raízes da frente, na working tree **e no `HEAD` commitado**) iguais às da linha de base
+     (`false` conta como ausente);
    - as linhas `marketplace` dos marketplaces temporários iguais às da linha de base;
    - nenhuma pasta de versão de id temporário no cache sem plugin instalado e sem a marca de órfã
      (`.orphaned_at`): pasta marcada conta como desinstalada (decisão do owner); sem a marca, é

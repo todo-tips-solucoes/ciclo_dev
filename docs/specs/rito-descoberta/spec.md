@@ -140,7 +140,9 @@ projetos-alvo ganha a política e a linha literal "Instalação pelo agente: des
 ### Edge Cases
 
 - Linha de base de instalação ausente ou ilegível na Fase 11: o encerramento falha fechado.
-- Plugin cuja pasta de cache sobra após o uninstall: o smoke S3 falha e o achado volta ao owner.
+- Plugin cuja pasta de cache sobra após o uninstall sem a marca `.orphaned_at`: o smoke S3 falha e
+  o achado volta ao owner (pasta marcada órfã conta como desinstalada, decisão do owner na revisão
+  de código de 2026-11-05).
 - Manifesto ou lockfile alterado fora da lista do Gate 0: desvio, para e pede OK.
 - Diferença no fingerprint do histórico não explicada por comando declarado ou ruído conhecido:
   para e volta ao owner.
@@ -202,7 +204,9 @@ projetos-alvo ganha a política e a linha literal "Instalação pelo agente: des
 - **FR-017**: O `README.md` MUST começar o fluxo por `/rito-descoberta` (E5).
 - **FR-018**: O IV de `templates/docs/constitution.md.semente.tmpl` MUST trazer a política e a linha
   literal "Instalação pelo agente: desligada" como padrão (E8, D19).
-- **FR-019**: A frente MUST tocar apenas os caminhos previstos e MUST NOT instalar nada durante a
+- **FR-019** (o ajuste da emenda 2.0.0 aprovado pelo owner na revisão de código, commit `ad1ce2b`,
+  é a única outra mudança de `docs/constitution.md`): A frente MUST tocar apenas os caminhos
+  previstos e MUST NOT instalar nada durante a
   construção (Vigência); a emenda 2.0.0 de `docs/constitution.md` MUST ser apenas referenciada
   (E7).
 - **FR-020**: Todo dado factual da CLI `claude plugin` (campos de `list --json`, `-s project`,

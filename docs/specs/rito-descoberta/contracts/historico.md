@@ -124,7 +124,9 @@ ruído conhecido) ou `desvio` (qualquer outra). A linha de base existente nunca 
 ## Gate da Fase 11 (`rito-dev`)
 
 Aplica-se quando a branch tem `docs/specs/<frente>/decisoes-do-owner.md`, isto é, na trilha
-completa. Roda dentro da worktree, antes do "Encerrar".
+completa (falha fechado). Roda dentro da worktree, antes do "Encerrar". Exceção única, decidida pelo
+owner na revisão: a própria `rito-descoberta`, sem log porque a Fase 0 dela precede a skill, encerra
+pela verificação do S3.
 
 `node historico.mjs gate <frente>`, dentro da worktree da frente (decisões do owner na revisão de
 código, 2026-11-05: comparar só o que a frente toca; pasta de cache marcada órfã conta como
@@ -136,7 +138,8 @@ desinstalada):
    Foto que falha dá saída 1.
 2. Saída 1 com `pendente\t<linha>`: `install`/`enable` temporário sem desfazer.
 3. Saída 1 com linhas `-`/`+`: plugin com `projectPath` numa raiz da frente (fora a raiz do evento
-   `base`) que não seja tripla permanente; entradas dos ids temporários em `enabledPlugins` (working
+   `base`) que não seja tripla permanente nem id herdado (instalado ou habilitado na raiz principal
+   na linha de base); entradas dos ids temporários em `enabledPlugins` (working
    tree e `HEAD`) diferentes da base; linhas `marketplace` temporárias diferentes da base; pasta de
    versão de id temporário sem plugin instalado e sem `.orphaned_at`.
 

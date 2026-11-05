@@ -154,3 +154,20 @@ corrigido.
   checagem 3: o owner os vê no Gate 0; a trava técnica é da `modo-autonomo`.
 - [x] [Defer] `perm` isenta a tripla inteira; a classe certa depende do log e da tabela do 1º
   commit.
+
+## Rodada 3 (2026-11-05, ponta `43055e9`)
+
+Blind Hunter: nenhum alto ou crítico. Acceptance Auditor: 2 altos. Edge Case Hunter: 1 alto. Todos
+corrigidos.
+
+- [x] [alto] A exceção desta frente só estava no `review-findings.md`, e o critério de quando o
+  gate vale divergia entre contrato, skill, `rito-dev` e template (Auditor): critério único (branch
+  com `decisoes-do-owner.md`, trilha completa, falha fechado) e a exceção `rito-descoberta` nomeada
+  na seção "Gate da Fase 11" da skill, citada pelo `rito-dev` e pelo contrato.
+- [x] [alto] Quickstart, spec e plan ainda com o critério antigo do cache e da constituição
+  (Auditor): Scenario 10 pelo critério do gate (pasta sumida ou `orfa`), Scenario 7 com `ad1ce2b`,
+  FR-019, caso-limite da spec e R3 alinhados.
+- [x] [alto] O Claude Code registra sozinho, na 1ª sessão da worktree, os plugins habilitados na
+  principal (medido: 19 de 23 worktrees do `bos_v1`), e a presença os tratava como install fora do
+  log (Edge): id herdado (instalado ou habilitado na raiz principal na linha de base) fica isento.
+  `false` em `enabledPlugins` conta como ausente, para o `disable` que grava `false` (não medido).

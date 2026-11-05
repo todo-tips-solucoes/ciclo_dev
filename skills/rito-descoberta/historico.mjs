@@ -301,13 +301,27 @@ function gate(frente, HOME) {
   for (const id of permId) temp.delete(id);
   raizes.delete(raiz);
 
+  // Herdados: ids que a linha de base já mostra instalados (escopo user ou projeto da raiz) ou
+  // habilitados (true) em alguma settings. O Claude Code os registra sozinho na 1ª sessão aberta na
+  // worktree, sem comando de install; não são instalação da frente.
+  const herdados = new Set();
+  for (const l of baseTxt.split('\n')) {
+    const [tipo, chave = '', valor = ''] = l.split('\t');
+    if (tipo === 'plugin' && chave !== '-') herdados.add(chave.slice(0, chave.indexOf('|')));
+    else if (tipo === 'enabled') {
+      let obj;
+      try { obj = JSON.parse(valor); } catch { continue; }
+      if (objeto(obj)) for (const [id, v] of Object.entries(obj)) if (v === true) herdados.add(id);
+    }
+  }
+
   const dif = [];
-  // 1. presença: nada instalado nas raízes da frente, salvo permanente listado.
+  // 1. presença: nada instalado nas raízes da frente, salvo permanente listado e herdado da raiz.
   const inst = instalados(HOME);
   const todos = inst === null ? [] : inst.out;
   for (const e of todos) {
     const p = norma(e.projectPath);
-    if (raizes.has(p) && !permTripla.has(`${e.id}|${p}`)) dif.push(`+ plugin\t${e.id}|${e.scope}|${p}`);
+    if (raizes.has(p) && !permTripla.has(`${e.id}|${p}`) && !herdados.has(e.id)) dif.push(`+ plugin\t${e.id}|${e.scope}|${p}`);
   }
 
   // 2. enabled e marketplace dos ids temporários: iguais à base.
@@ -321,7 +335,8 @@ function gate(frente, HOME) {
         let obj;
         try { obj = JSON.parse(valor); } catch { continue; }
         if (!objeto(obj)) continue;
-        for (const id of temp) if (id in obj) out.add(`enabled\t${tipoArq(chave)}\t${id}=${JSON.stringify(obj[id])}`);
+        // false conta como ausente: o disable pode gravar false em vez de apagar a chave.
+        for (const id of temp) if (id in obj && obj[id] !== false) out.add(`enabled\t${tipoArq(chave)}\t${id}=${JSON.stringify(obj[id])}`);
       } else if (tipo === 'marketplace' && temp.has(`marketplace:${chave}`)) out.add(l);
     }
     return out;

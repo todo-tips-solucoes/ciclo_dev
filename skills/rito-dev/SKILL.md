@@ -258,9 +258,9 @@ gh pr list --base <BRANCH_PRODUCAO> --head <BRANCH_INTEGRACAO>   # existe PR de 
 
 ## Fase 11 — Encerramento
 
-**Gate de instalações temporárias** (antes do "Encerrar"; vale quando o registro
-`docs/specs/<frente>/decisoes-do-owner.md` veio da skill `rito-descoberta`, com os 14 títulos dela,
-isto é, na trilha completa). Rode dentro da worktree da frente:
+**Gate de instalações temporárias** (antes do "Encerrar"; vale quando a branch tem
+`docs/specs/<frente>/decisoes-do-owner.md`, isto é, na trilha completa, com a única exceção
+registrada na seção "Gate da Fase 11" da skill `rito-descoberta`). Rode dentro da worktree da frente:
 
 ```bash
 node ~/.claude/skills/rito-descoberta/historico.mjs gate <frente>
