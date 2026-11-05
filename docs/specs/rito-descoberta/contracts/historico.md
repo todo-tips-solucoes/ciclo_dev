@@ -140,9 +140,11 @@ desinstalada):
    `base`) que não seja tripla permanente nem registro automático do Claude Code (id fora do log:
    entrada `local` de id habilitado no usuário ou na settings local da raiz; entrada `project` de id
    habilitado no `.claude/settings.json` commitado da worktree); `enabledPlugins` diferente da base
-   (ids temporários no usuário, no `installed_plugins.json` e na raiz; mapa inteiro, salvo
-   permanentes, no `.claude/settings.json` commitado das raízes da frente; `false` só vale como
-   ausente quando a base não tem a chave, nunca no `HEAD`); linhas `marketplace` temporárias diferentes da base; pasta de
+   (ids temporários no usuário, no `installed_plugins.json` e na raiz; no `.claude/settings.json`
+   commitado no `HEAD` das raízes da frente, mapa inteiro igual ao do `merge-base` com a branch de
+   integração do evento `base`, salvo permanentes; ids temporários na working tree e na
+   `settings.local.json` delas; `false` só vale como ausente quando a referência não tem a chave,
+   nunca no `HEAD`); `merge-base` não encontrado sai 2; linhas `marketplace` temporárias diferentes da base; pasta de
    versão de id temporário sem plugin instalado e sem `.orphaned_at`.
 
 Saída diferente de 0 impede o "Encerrar" e volta ao owner.

@@ -195,3 +195,23 @@ Auditor: 2 altos. Todos corrigidos.
   que foi medido.
 - Correção de registro: na rodada 2, a frase "O gate vale para registro com os 14 títulos da skill"
   foi substituída na rodada 3 pelo critério do arquivo `decisoes-do-owner.md`.
+
+## Rodada 5 (2026-11-05, ponta `d84d056`, só o delta da rodada 4)
+
+Os três revisores acharam o mesmo alto; o Edge Case Hunter também testou a correção.
+
+- [x] [alto] O `.claude/settings.json` commitado das raízes da frente era comparado com a working
+  tree da raiz principal na Fase 0, então merge da integração (plugin permanente de outra frente),
+  raiz atrasada, raiz com mudança local ou settings da raiz não versionada travavam o gate, e uma
+  raiz em outra branch podia esconder um `enable` não declarado (Auditor, Blind, Edge). Agora a
+  referência é o mesmo arquivo no `merge-base` do `HEAD` com a branch de integração do evento
+  `base`: o gate compara o que a PR leva. Testado: os quatro casos de bloqueio saem 0, `enable` não
+  declarado e commitado sai 1, `false` da referência removido sai 1.
+- [x] [Defer] Frente com mais de uma PR que faz merge da integração depois do squash da 1ª: um
+  `enable` não declarado da 1ª PR entra no `merge-base` e deixa de aparecer. A Fase 11 roda logo
+  depois do merge, sem novo merge da integração; conferir só os commits próprios
+  (`rev-list --no-merges`) fica para melhoria futura.
+- [x] [Defer] Registro automático `local` de plugin que o usuário habilitar em outra sessão depois
+  da linha de base seria barrado como instalação (não medido).
+- [x] [Defer] Raiz com `HEAD` destacado no evento `base` deixa a branch de integração vazia e o
+  gate sai 2 (falha fechado; raro).

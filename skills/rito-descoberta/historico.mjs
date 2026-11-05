@@ -318,12 +318,18 @@ function gate(frente, HOME) {
   };
   const baseEn = enabledDe(baseTxt);
   const habilitados = (obj) => new Set(Object.entries(obj ?? {}).filter(([, v]) => v === true).map(([k]) => k));
+  // settings de cada raiz da frente: commitada no HEAD e no merge-base com a branch de integração
+  // (a do evento base), working tree e local. O diff HEAD x merge-base é o que a PR leva.
+  const integracao = base[3];
   const settingsDe = (r) => {
     const mapa = (v) => (objeto(v) && objeto(v.enabledPlugins) ? v.enabledPlugins : {});
-    const commitado = git(r, ['show', 'HEAD:.claude/settings.json']);
-    let head = null;
-    try { head = commitado === null ? null : mapa(JSON.parse(commitado)); } catch { falha(`HEAD:.claude/settings.json inválido em ${r} (falha fechado)`, 2); }
-    return { head, working: mapa(lerJson(join(r, '.claude', 'settings.json'), false)), local: mapa(lerJson(join(r, '.claude', 'settings.local.json'), false)) };
+    const commitado = (rev) => {
+      const txt = git(r, ['show', `${rev}:.claude/settings.json`]);
+      try { return txt === null ? null : mapa(JSON.parse(txt)); } catch { return falha(`${rev}:.claude/settings.json inválido em ${r} (falha fechado)`, 2); }
+    };
+    const mb = git(r, ['merge-base', 'HEAD', `origin/${integracao}`]) ?? git(r, ['merge-base', 'HEAD', integracao]);
+    if (mb === null) falha(`merge-base de ${r} com ${limpa(integracao)} não encontrado (falha fechado)`, 2);
+    return { head: commitado('HEAD'), mb: commitado(mb.trim()), working: mapa(lerJson(join(r, '.claude', 'settings.json'), false)), local: mapa(lerJson(join(r, '.claude', 'settings.local.json'), false)) };
   };
   const doLogIds = new Set([...temp, ...permId]);
   const autoLocal = new Set([...habilitados(baseEn.get('usuario')), ...habilitados(baseEn.get('raiz:settings.local.json'))]);
@@ -345,9 +351,10 @@ function gate(frente, HOME) {
   }
 
   // 2. enabledPlugins. Usuário, installed_plugins e raiz principal: só ids temporários (outras
-  // sessões mexem nelas). Raízes da frente: settings commitada inteira (salvo permanentes) contra a
-  // da raiz na base; working tree e local, ids temporários. `false` só conta como ausente quando a
-  // base não tem a chave, e nunca no que foi commitado.
+  // sessões mexem nelas). Raízes da frente: o .claude/settings.json commitado no HEAD, inteiro
+  // (salvo permanentes), igual ao do merge-base, isto é, a PR não muda enabledPlugins; working tree
+  // e local, ids temporários. `false` só conta como ausente quando a referência não tem a chave, e
+  // nunca no que foi commitado.
   const mostra = (v) => (v === undefined ? 'ausente' : JSON.stringify(v));
   const compara = (rot, b, c, ids, leniente) => {
     for (const id of ids) {
@@ -360,13 +367,11 @@ function gate(frente, HOME) {
   const atual = foto(raiz, HOME);
   const atualEn = enabledDe(atual);
   for (const rot of new Set([...baseEn.keys(), ...atualEn.keys()])) compara(rot, baseEn.get(rot), atualEn.get(rot), temp, true);
-  const baseProj = baseEn.get('raiz:settings.json') ?? {};
   for (const [r, st] of settings) {
-    if (st.head !== null) {
-      const ids = new Set([...Object.keys(baseProj), ...Object.keys(st.head), ...Object.keys(st.working)].filter((id) => !permId.has(id)));
-      compara(`${r}:HEAD:.claude/settings.json`, baseProj, st.head, ids, false);
-      compara(`${r}:.claude/settings.json`, baseProj, st.working, ids, true);
-    } else compara(`${r}:.claude/settings.json`, {}, st.working, temp, true);
+    const ref = st.mb ?? {};
+    const ids = new Set([...Object.keys(ref), ...Object.keys(st.head ?? {})].filter((id) => !permId.has(id)));
+    compara(`${r}:HEAD:.claude/settings.json`, ref, st.head ?? {}, ids, false);
+    compara(`${r}:.claude/settings.json`, st.head ?? ref, st.working, temp, true);
     compara(`${r}:.claude/settings.local.json`, {}, st.local, temp, true);
   }
 

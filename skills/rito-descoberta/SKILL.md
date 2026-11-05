@@ -234,9 +234,11 @@ compara só o que a frente toca):
      `.claude/settings.json` commitado da própria worktree;
    - `enabledPlugins`: na settings do usuário, no `installed_plugins.json` e nas da raiz principal,
      as entradas dos ids **temporários** iguais às da linha de base; no `.claude/settings.json`
-     **commitado** das raízes da frente (no `HEAD` e na working tree), o mapa inteiro igual ao da
-     raiz na linha de base, salvo ids permanentes; nas settings não versionadas delas, os ids
-     temporários. `false` só conta como ausente quando a base não tem a chave, e nunca no `HEAD`;
+     **commitado** no `HEAD` de cada raiz da frente, o mapa inteiro igual ao do `merge-base` com a
+     branch de integração (a do evento `base`), salvo ids permanentes, ou seja, a PR não muda
+     `enabledPlugins` sem item listado; na working tree e na `settings.local.json` delas, os ids
+     temporários. `false` só conta como ausente quando a referência não tem a chave, e nunca no
+     `HEAD`;
    - as linhas `marketplace` dos marketplaces temporários iguais às da linha de base;
    - nenhuma pasta de versão de id temporário no cache sem plugin instalado e sem a marca de órfã
      (`.orphaned_at`): pasta marcada conta como desinstalada (decisão do owner); sem a marca, é
