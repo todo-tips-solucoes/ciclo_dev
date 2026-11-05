@@ -242,3 +242,80 @@ Tier de entrega usado na geracao deste backlog: nao informado nos args (backlog 
 | EX-3 | Execucao de S1-S5 e qualquer install/enable | Vigencia: agente nao instala na construcao |
 | EX-4 | Alterar `instalar.sh` e `configurar.sh` | Fora dos caminhos tocaveis; ja copiam `skills/*/` |
 | EX-5 | Barreira tecnica de proibidos | Fica com a frente `modo-autonomo` (D14) |
+
+
+---
+
+## FASE 8 - Convergência
+
+> Fase gerada automaticamente pela skill `converge` (reconciliação
+> spec-vs-código). Cada tarefa abaixo corresponde a um achado (`Gap`)
+> entre o que `spec.md`/`plan.md`/`tasks.md` descreveram e o estado
+> presente do código. Tarefas sem o prefixo `[Revisar]` são acionáveis
+> (`missing`/`partial`/`contradicts`); tarefas com `[Revisar]` são item de
+> revisão (`unrequested`, FR-013) — nunca "implementar", o código já
+> existe. Append-only: esta fase nunca reescreve fases/tarefas anteriores
+> do arquivo (FR-009).
+
+### 8.1 Skill autocontida: as 6 checagens do registro `[C]`
+
+Ref: 3.5 (3.5.2; FR-006, FR-007, US1) · tipo: `partial` · severidade: `HIGH`
+
+`skills/rito-descoberta/SKILL.md` (seção "Itens do registro" e passo 3 de "Depois do OK") manda
+validar o registro pelo contrato `docs/specs/rito-descoberta/contracts/decisoes-do-owner.md` e cita
+`docs/specs/rito-descoberta/data-model.md`. Esses arquivos só existem no repositório do cockpit.
+Instalada em `~/.claude/skills/` e usada num projeto-alvo, a skill fica sem as regras (regex dos
+caminhos, cabeçalho exato de "Instalações previstas", formas de comando permitidas, conferência do
+1º commit), e a validação que falha fechado (FR-007, cenário 4 da US1) não tem como rodar.
+
+- [ ] 8.1.1 Trazer para `skills/rito-descoberta/` as 6 checagens de `contracts/decisoes-do-owner.md` (no `SKILL.md` ou em arquivo ao lado, citado por caminho relativo à skill), sem depender de `docs/specs/rito-descoberta/`
+- [ ] 8.1.2 Conferir por `grep` que nenhum caminho `docs/specs/rito-descoberta/` resta no `SKILL.md` como fonte normativa
+
+<!-- converge-key: e37d18f29eb7 -->
+
+### 8.2 Skill autocontida: formato do log do histórico `[C]`
+
+Ref: 3.1 (3.1.3; FR-005, FR-014, US1) · tipo: `partial` · severidade: `HIGH`
+
+`skills/rito-descoberta/SKILL.md` (seção "Linha de base e guarda de escrita") remete o formato do
+log e da foto a `docs/specs/rito-descoberta/contracts/historico.md`, que não existe no
+projeto-alvo. O `pendentes` de `skills/rito-descoberta/historico.mjs` lê `install` e `uninstall`
+pelas colunas TAB 5 a 9 (id, escopo, projeto, versão ou SHA, classe). Se o detalhe for gravado com
+outro separador, o install temporário não entra na conta e o gate da Fase 11 passa sem a
+desinstalação.
+
+- [ ] 8.2.1 Trazer para a skill o formato do log: 6 campos TAB; detalhe de `install`/`uninstall` em campos TAB na ordem que `pendentes` lê; linhas de continuação da `rodada` começando por TAB; eventos `base`, `rodada`, `desvio`, `gate0`
+- [ ] 8.2.2 Conferir, com um log de exemplo no diretório temporário da sessão, que `historico.mjs pendentes` termina com 1 para install temporário aberto e com 0 depois do uninstall
+
+<!-- converge-key: 79f07982eda4 -->
+
+### 8.3 Comandos do gate da Fase 11 na skill indicada pelo template `[A]`
+
+Ref: 4.2 (4.2.1; FR-016, US4) · tipo: `partial` · severidade: `MEDIUM`
+
+`templates/docs/rito-dev.md.tmpl` (`## Fase 11 — Encerramento`) remete à skill `rito-descoberta`
+para os comandos do gate de instalações temporárias. Só que `skills/rito-descoberta/SKILL.md` não
+traz `historico.mjs pendentes` nem a comparação da foto com a `.base`: hoje esses comandos estão
+apenas na Fase 11 de `skills/rito-dev/SKILL.md`.
+
+- [ ] 8.3.1 Acrescentar a `skills/rito-descoberta/SKILL.md` os dois comandos do gate da Fase 11 e a regra de falha fechado sem `.log` ou `.base`, mantendo a remissão do template (plan.md) sem placeholder nem título novo
+- [ ] 8.3.2 Rodar `scripts/testar-configurar.sh` em primeiro plano, com timeout, e conferir o cenário 15
+
+<!-- converge-key: ef4fd96af3e4 -->
+
+### 8.4 Semente: o IV contradiz a política do agente quando ligada `[A]`
+
+Ref: 5.1 (5.1.1; FR-018, US5) · tipo: `contradicts` · severidade: `MEDIUM`
+
+Em `templates/docs/constitution.md.semente.tmpl`, o MUST que já existia ("Ferramentas externas MUST
+ser instaladas e atualizadas pela pessoa") ficou sem ressalva e contradiz os MUST do agente quando a
+linha diz `ligada`. O espelho do IV 2.0.0 também deixou de fora o MUST de canais (plugin no escopo
+do projeto, marketplace conferido por nome e repositório, SHA conferido e desinstalação quando
+diverge; pacote com versão exata e sem scripts de ciclo de vida, salvo exceção listada) e o "dentro
+da worktree e antes da remoção dela" da temporária.
+
+- [ ] 8.4.1 Ressalvar o MUST que já existia para a instalação pelo agente sob a política ligada, sem nomear ferramenta de projeto real (Princípio I)
+- [ ] 8.4.2 Acrescentar o MUST de canais e o "dentro da worktree e antes da remoção dela", espelhando o IV 2.0.0 de `docs/constitution.md`
+- [ ] 8.4.3 Rodar `scripts/testar-configurar.sh` (cenários 15 e 17) e conferir que `grep -cFx 'Instalação pelo agente: desligada'` na semente dá 1
+
+<!-- converge-key: ce9451eaac36 -->
