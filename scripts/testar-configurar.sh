@@ -432,25 +432,25 @@ if command -v script >/dev/null 2>&1 && script -qec true /dev/null >/dev/null 2>
   T="$(novo_repo)"
   # 12 chaves, depois nome/e-mail de duas identidades, nome vazio encerra,
   # board, Enter no Princípio III (sugere ligado) e - nos destinos do projeto.
-  interativo 'proj\norg/repo\ndev\nmain\nnpm\nnpm run tc\nnpm run lint\nnpm run build\nnpm run d:i\nnpm run d:p\n-\n-\nAna Silva\n1+ana@users.noreply.github.com\nBeto\n2+beto@users.noreply.github.com\n\n@ana-exemplo\norg-exemplo/9\n\n-\n-\n' --projeto "$T" \
+  interativo 'proj\norg/repo\ndev\nmain\nnpm\nnpm run tc\nnpm run lint\nnpm run build\nnpm run d:i\nnpm run d:p\n-\n-\nAna Silva\n1+ana@users.noreply.github.com\nBeto\n2+beto@users.noreply.github.com\n\n@ana-exemplo\norg-exemplo/9\n\n-\n-\n\n' --projeto "$T" \
     || falha "configuração interativa falhou: $(tail -3 "$TMP/tty")"
   grep -q "^IDENTIDADES='Ana Silva:1+ana@users.noreply.github.com;Beto:2+beto@users.noreply.github.com'\$" "$T/cockpit.config" \
     || falha "nome e e-mail separados não gravados como nome:email"
   grep -q "^PRINCIPIO_III='ligado'\$" "$T/cockpit.config" || falha "Enter no Princípio III não aceitou o sugerido"
   # SC-001 (ajustado por FR-007 da feature destinos-do-projeto): configuração mínima
-  # (uma identidade) com exatamente 20 respostas (18 + DESTINOS_DO_PROJETO + PREFIXOS_BRANCH).
+  # (uma identidade) com exatamente 21 respostas (18 + DESTINOS_DO_PROJETO + PREFIXOS_BRANCH + MODO_AUTONOMO).
   MINIMO18='proj\norg/repo\ndev\nmain\nnpm\nnpm run tc\nnpm run lint\nnpm run build\nnpm run d:i\nnpm run d:p\n-\n-\nAna\n1+ana@users.noreply.github.com\n\n@ana-exemplo\n-\n\n'
   MINIMO19="$MINIMO18-\n"
-  MINIMO="$MINIMO19-\n"
-  [ "$(printf '%b' "$MINIMO" | wc -l | tr -d ' ')" = 20 ] || falha "entrada mínima não tem 20 respostas"
+  MINIMO="$MINIMO19-\n\n"  # + prefixos (-) e MODO_AUTONOMO (Enter = desligado)
+  [ "$(printf '%b' "$MINIMO" | wc -l | tr -d ' ')" = 21 ] || falha "entrada mínima não tem 21 respostas"
   T3="$(novo_repo)"
-  interativo "$MINIMO" --projeto "$T3" || falha "configuração mínima com 20 respostas falhou: $(tail -3 "$TMP/tty")"
+  interativo "$MINIMO" --projeto "$T3" || falha "configuração mínima com 21 respostas falhou: $(tail -3 "$TMP/tty")"
   [ -f "$T3/cockpit.config" ] && [ -f "$T3/.cockpit/LEIAME.md" ] || falha "configuração mínima não gravou config e templates"
   ! grep -q '^DESTINOS_DO_PROJETO=' "$T3/cockpit.config" || falha "- nos destinos gravou a chave"
   ! grep -q '^PREFIXOS_BRANCH=' "$T3/cockpit.config" || falha "- nos prefixos gravou a chave"
   T3="$(novo_repo)"
   ! interativo "$MINIMO19" --projeto "$T3" \
-    || falha "configuração concluiu com 19 respostas; a mínima passou a 20"
+    || falha "configuração concluiu com 19 respostas; a mínima passou a 21"
   # Config incompleto: só a chave ausente é perguntada.
   grep -v '^BOARD=' "$T/cockpit.config" >"$TMP/c14"; cp "$TMP/c14" "$T/cockpit.config"
   interativo 'org-exemplo/3\n-\n-\n-\n-\n' --projeto "$T" || falha "interativo com config incompleto falhou: $(tail -3 "$TMP/tty")"
@@ -458,18 +458,18 @@ if command -v script >/dev/null 2>&1 && script -qec true /dev/null >/dev/null 2>
   ! grep -q 'Nome do projeto' "$TMP/tty" || falha "config incompleto perguntou chave já definida"
   grep -q "^BOARD='org-exemplo/3'\$" "$T/cockpit.config" || falha "chave ausente não foi gravada"
   # Nome com ':' é recusado e perguntado de novo; vazio depois mantém as atuais.
-  interativo '\n\n\n\n\n\n\n\n\n\n\n\nA:B\n\n\n\n\n\n\n' --projeto "$T" || falha "reentrada de identidade falhou: $(tail -3 "$TMP/tty")"
+  interativo '\n\n\n\n\n\n\n\n\n\n\n\nA:B\n\n\n\n\n\n\n\n' --projeto "$T" || falha "reentrada de identidade falhou: $(tail -3 "$TMP/tty")"
   grep -q "não pode conter ':'" "$TMP/tty" || falha "nome com ':' não recusado"
   grep -q "^IDENTIDADES='Ana Silva:" "$T/cockpit.config" || falha "identidades atuais não mantidas"
   # Pergunta nova (FR-007): texto, dica e gravação.
   T4="$(novo_repo)"
-  interativo "${MINIMO18}CLAUDE.md\n-\n" --projeto "$T4" || falha "rodada com destinos falhou: $(tail -3 "$TMP/tty")"
+  interativo "${MINIMO18}CLAUDE.md\n-\n\n" --projeto "$T4" || falha "rodada com destinos falhou: $(tail -3 "$TMP/tty")"
   grep -q 'Destinos mantidos pelo projeto' "$TMP/tty" || falha "pergunta dos destinos ausente"
   grep -q 'Destinos mantidos pelo projeto (caminhos separados por espaço) (- para vazio)' "$TMP/tty" || falha "dica (- para vazio) ausente"
   grep -q "^DESTINOS_DO_PROJETO='CLAUDE.md'\$" "$T4/cockpit.config" || falha "DESTINOS_DO_PROJETO não gravado"
   # Prefixos de branch (cenário 20, caso 5): dica, valor inválido repete a pergunta, segundo valor gravado.
   T5="$(novo_repo)"
-  interativo "${MINIMO19}a/b c d e f\nfeat fix chore docs hotfix\n" --projeto "$T5" || falha "rodada com prefixos falhou: $(tail -3 "$TMP/tty")"
+  interativo "${MINIMO19}a/b c d e f\nfeat fix chore docs hotfix\n\n" --projeto "$T5" || falha "rodada com prefixos falhou: $(tail -3 "$TMP/tty")"
   grep -q 'padrão: feature fix chore docs hotfix) (- para vazio)' "$TMP/tty" || falha "dica do padrão ausente"
   grep -q "PREFIXOS_BRANCH: o prefixo 'a/b' contém '/'" "$TMP/tty" || falha "valor inválido não citou a chave"
   grep -q "^PREFIXOS_BRANCH='feat fix chore docs hotfix'\$" "$T5/cockpit.config" || falha "segundo valor não gravado"
@@ -526,7 +526,7 @@ grep -q 'esta fase é \*\*no-op\*\*' "$T/docs/rito-dev.md" || falha "rito sem o 
 
 # --------------------------------------------------------------- 16 ---
 cenario "16: templates de automação (fluxos, CODEOWNERS, releaserc, task.sh)"
-AUTOMACAO=".github/workflows/ci.yml .github/workflows/commitlint.yml .github/workflows/require-codeowner-approval.yml .github/workflows/promotion-pr.yml .github/workflows/audit-merge-vermelho.yml .github/workflows/release.yml .github/CODEOWNERS .releaserc.json .claude/scripts/task.sh"
+AUTOMACAO=".github/workflows/ci.yml .github/workflows/commitlint.yml .github/workflows/require-codeowner-approval.yml .github/workflows/promotion-pr.yml .github/workflows/audit-merge-vermelho.yml .github/workflows/release.yml .github/workflows/caminhos-previstos.yml .github/CODEOWNERS .releaserc.json .claude/scripts/task.sh"
 # CMD_LINT com caracteres especiais (quickstart Cenário 4) e BOARD preenchido (Cenário 6).
 LINT_ESPECIAL='npm run lint -- --fix | tee "$X" && echo `ok`'
 grep -v -e '^CMD_LINT=' -e '^BOARD=' "$EXEMPLO" >"$TMP/auto.config"
@@ -543,7 +543,7 @@ for f in $AUTOMACAO; do
   [ "$(grep -o '\${{[^}]*}}' "$RAIZ_COCKPIT/templates/$f.tmpl" | sort)" = "$(grep -o '\${{[^}]*}}' "$T/$f" | sort)" ] \
     || falha "expressão \${{ }} alterada em $f"
 done
-[ "$n" = 9 ] || falha "esperados 9 arquivos de automação, contei $n"
+[ "$n" = 10 ] || falha "esperados 10 arquivos de automação, contei $n"
 [ -x "$T/.claude/scripts/task.sh" ] || falha "task.sh sem bit de execução"
 grep -qF "          $LINT_ESPECIAL" "$T/.github/workflows/ci.yml" || falha "CMD_LINT não chegou byte a byte ao ci.yml"
 grep -q '^\* @maria-exemplo @jose-exemplo$' "$T/.github/CODEOWNERS" || falha "CODEOWNERS sem os donos do exemplo"
@@ -1015,12 +1015,17 @@ rc="$(codigo rodar "$CONF" --projeto "$T" --respostas "$TMP/r21-7")"
 
 # --------------------------------------------------------------- 23 ---
 cenario "23: promotion-pr decide pelas árvores"
-# Reusa $TMP/promocao.sh do cenário 16; gh falso responde por "$*" e registra cada chamada.
+# Reusa $TMP/promocao.sh do cenário 16; gh falso responde por "$*", registra cada chamada e guarda
+# o --body-file em $GH23_LOG.corpo. A constituição só existe na ponta da integração (ref=integ).
 mkdir -p "$TMP/gh23"
 cat >"$TMP/gh23/gh" <<'GH'
 #!/bin/sh
 echo "$*" >>"$GH23_LOG"
+prev=""; for a; do [ "$prev" = --body-file ] && cp "$a" "$GH23_LOG.corpo"; prev="$a"; done
 case "$*" in
+  *'contents/docs/constitution.md?ref=integ' | *'contents/docs/constitution.md?ref=integ '*) [ -n "${CONST23:-}" ] && printf '%s\n' "$CONST23" ;;
+  *"contents/docs/constitution.md"*) exit 1 ;;
+  *"allow_auto_merge"*) echo "${PERMITE23:-true}" ;;
   *"/compare/"*"--jq .ahead_by"*) echo 3 ;;
   *"/compare/"*) echo "- abc1234 mensagem" ;;
   *"commits/heads/prod"*) [ "$ARV_PROD" = FALHA ] && exit 1; echo "$ARV_PROD" ;;
@@ -1031,7 +1036,7 @@ exit 0
 GH
 chmod +x "$TMP/gh23/gh"
 roda23() { # $1=árvore prod, $2=árvore integ, $3=PR aberto ("" = nenhum)
-  : >"$TMP/gh23.log"
+  : >"$TMP/gh23.log"; rm -f "$TMP/gh23.log.corpo"
   codigo env PATH="$TMP/gh23:$PATH" GH23_LOG="$TMP/gh23.log" ARV_PROD="$1" ARV_INTEG="$2" PR_ABERTO="$3" \
     TOKEN_PADRAO=x INTEGRACAO=integ PRODUCAO=prod REPO=org/repo bash "$TMP/promocao.sh"
 }
@@ -1053,11 +1058,41 @@ for ruim in FALHA null; do
   [ "$rc" != 0 ] && grep -q 'Não consegui ler as árvores' "$TMP/err" || falha "caso 5: '$ruim' deveria falhar (saiu $rc)"
   ! grep -qE 'pr (create|edit)' "$TMP/gh23.log" || falha "caso 5: '$ruim' tocou o PR"
 done
+# 7: modo autônomo ligado (FR-019): token obrigatório, merge commit (e o auto-merge das PRs de frente) permitidos, SHA de
+# rollback no corpo; o fluxo nunca mergeia nem arma o auto-merge (quem promove é o agente, por merge direto em X com
+# --match-head-commit, depois do smoke combinado e dos checks verdes; decisão da rodada 2).
+SHA23=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+LIG23='Merge autônomo: ligado'
+ROLL23="Rollback (SHA da produção antes da promoção): $SHA23"
+rc="$(CONST23="$LIG23" roda23 "$SHA23" def456 "")"
+[ "$rc" != 0 ] && grep -q 'exige o segredo TOKEN_AUTOMACAO' "$TMP/err" && ! grep -qE 'pr (create|edit)' "$TMP/gh23.log" || falha "caso 7a: ligado sem token deveria falhar sem criar o PR (saiu $rc)"
+rc="$(CONST23="$LIG23" PERMITE23=false TOKEN_AUTOMACAO=t roda23 "$SHA23" def456 "")"
+[ "$rc" != 0 ] && grep -q 'auto-merge e merge commit' "$TMP/err" && ! grep -qE 'pr (create|edit)' "$TMP/gh23.log" || falha "caso 7b: ligado sem auto-merge/merge commit permitido deveria falhar (saiu $rc)"
+rc="$(CONST23="$LIG23" TOKEN_AUTOMACAO=t roda23 "abc123" def456 "")"
+[ "$rc" != 0 ] && ! grep -qE 'pr (create|edit)' "$TMP/gh23.log" || falha "caso 7c: SHA ilegível deveria falhar sem criar o PR (saiu $rc)"
+rc="$(CONST23="$LIG23" TOKEN_AUTOMACAO=t PR_ABERTO=9 roda23 "$SHA23" def456 9)"
+[ "$rc" = 0 ] && grep -q 'pr edit 9' "$TMP/gh23.log" && ! grep -q 'pr merge' "$TMP/gh23.log" && grep -Fqx "$ROLL23" "$TMP/gh23.log.corpo" \
+  || falha "caso 7d: ligado com PR aberto deveria atualizar o corpo com o rollback sem armar o auto-merge (saiu $rc)"
+# 7f: ligado sem PR aberto: cria o PR com a linha de rollback e não arma o auto-merge (E16)
+rc="$(CONST23="$LIG23" TOKEN_AUTOMACAO=t roda23 "$SHA23" def456 "")"
+[ "$rc" = 0 ] && [ "$(grep -c 'pr create' "$TMP/gh23.log")" = 1 ] && ! grep -q 'pr merge' "$TMP/gh23.log" && grep -Fqx "$ROLL23" "$TMP/gh23.log.corpo" \
+  || falha "caso 7f: ligado sem PR deveria criar o PR com o rollback sem armar o auto-merge (saiu $rc)"
+# 7g: constituição commitada com CRLF vale ligado (B3-1/E3-2): sem token, falha sem criar o PR
+rc="$(CONST23="$(printf 'x\r\n%s\r' "$LIG23")" roda23 "$SHA23" def456 "")"
+[ "$rc" != 0 ] && grep -q 'exige o segredo TOKEN_AUTOMACAO' "$TMP/err" || falha "caso 7g: CRLF deveria valer ligado (saiu $rc)"
+# desligado, linha duplicada e ausente: comportamento de hoje, sem auto-merge nem linha de rollback
+for c23 in 'Merge autônomo: desligado' "$(printf '%s\n%s' "$LIG23" "$LIG23")" ''; do
+  rc="$(CONST23="$c23" roda23 "$SHA23" def456 "")"
+  [ "$rc" = 0 ] && grep -q 'pr create' "$TMP/gh23.log" && ! grep -q 'pr merge' "$TMP/gh23.log" && ! grep -q '^Rollback' "$TMP/gh23.log.corpo" \
+    || falha "caso 7e: modo '$c23' deveria manter o comportamento de hoje (saiu $rc)"
+done
 # 6: o cabeçalho (só as linhas de comentário antes de `name:`) documenta as duas afirmações de D2:
 # merge commit como na Fase 9 do rito-dev; com squash o fluxo não abre nem reabre o PR se o conteúdo é igual.
 cab23="$(awk '/^name:/ {exit} /^#/ {sub(/^# ?/, ""); printf "%s ", $0}' "$RAIZ_COCKPIT/templates/.github/workflows/promotion-pr.yml.tmpl")"
 case "$cab23" in *'merge commit (como na Fase 9 do rito-dev)'*) ;; *) falha "caso 6: cabeçalho sem merge commit como na Fase 9 do rito-dev" ;; esac
 case "$cab23" in *'Com squash'*'não abre nem reabre o PR quando já é igual'*) ;; *) falha "caso 6: cabeçalho sem o efeito do squash" ;; esac
+case "$cab23" in *'NUNCA mergeia nem arma o auto-merge'*'por merge direto em X'*'gh pr merge <n> --merge --match-head-commit X'*) ;; *) falha "caso 6: cabeçalho sem a promoção por merge direto em X" ;; esac
+case "$cab23" in *--auto*) falha "caso 6: cabeçalho ainda manda --auto (a promoção é por merge direto, rodada 2)" ;; esac
 
 # --------------------------------------------------------------- 24 ---
 cenario "24: auditoria de merge vermelho (rota codificada e duplicada sem índice)"
@@ -1074,9 +1109,19 @@ G24="$TMP/gh24"; mkdir -p "$G24/bin"
 cat >"$G24/bin/gh" <<'GHFALSO'
 #!/usr/bin/env bash
 # gh falso: registra a chamada; `api` serve a fixture pela rota e aplica o --jq recebido.
+# A constituição é servida no commit base do PR (ref=basesha24, $CONST24), na ponta da integração
+# (ref=integ24, $CONST24_INT, que sem valor repete o $CONST24) e, com ref vazio, na branch padrão
+# ($CONST24), que é o padrão do `ref` na API de conteúdo; qualquer outro ref sai com erro.
 todos="$*"
 echo "$todos" >>"$G24/log"
 if [ "$1" = api ]; then
+  case "$todos" in
+    *'contents/docs/constitution.md?ref='*)
+      ref="${todos##*contents/docs/constitution.md\?ref=}"; ref="${ref%% *}"
+      case "$ref" in basesha24 | '') c="${CONST24:-}" ;; integ24) c="${CONST24_INT-${CONST24:-}}" ;; *) c="" ;; esac
+      [ -n "$c" ] && { printf '%s\n' "$c"; exit 0; }; exit 64 ;;
+    *contents/docs/constitution.md*) exit 64 ;;
+  esac
   rota="$2"; jqx=""
   while [ $# -gt 0 ]; do [ "$1" = --jq ] && jqx="$2"; shift; done
   case "$rota" in
@@ -1106,8 +1151,8 @@ printf '{"statuses":[]}' >"$G24/status.json"
 printf '[{"type":"required_status_checks","parameters":{"required_status_checks":[{"context":"ci"}]}}]' >"$G24/rules.json"
 roda24() { # $1 = BASE
   rm -f "$G24/log" "$G24/corpo"
-  codigo env G24="$G24" PATH="$G24/bin:$PATH" REPO=org/repo PR=7 SHA=abc BASE="$1" \
-    URL_PR=https://exemplo.invalid/pr/7 AUTOR_MERGE=maria-exemplo bash "$TMP/auditoria.sh"
+  codigo env G24="$G24" PATH="$G24/bin:$PATH" REPO=org/repo PR=7 SHA=abc BASE="$1" BASE_SHA="${BASE_SHA24-basesha24}" \
+    INTEGRACAO=integ24 URL_PR=https://exemplo.invalid/pr/7 AUTOR_MERGE=maria-exemplo bash "$TMP/auditoria.sh"
 }
 TIT='Auditoria: PR #7 mergeado com check vermelho'
 # 1: título parecido e PR de mesmo título não impedem a criação; filtro pelos obrigatórios
@@ -1131,15 +1176,44 @@ rc="$(roda24 'feat/ação+1#x')"
 grep -qF 'rules/branches/feat%2Fa%C3%A7%C3%A3o%2B1%23x ' "$G24/log" || falha "caso 3: codificação da rota"
 # 4: falha da listagem derruba o passo sem criar issue
 rm -f "$G24/log"
-rc="$(codigo env G24_FALHA=1 G24="$G24" PATH="$G24/bin:$PATH" REPO=org/repo PR=7 SHA=abc BASE=main URL_PR=u AUTOR_MERGE=m bash "$TMP/auditoria.sh")"
+rc="$(codigo env G24_FALHA=1 G24="$G24" PATH="$G24/bin:$PATH" REPO=org/repo PR=7 SHA=abc BASE=main INTEGRACAO=integ24 URL_PR=u AUTOR_MERGE=m bash "$TMP/auditoria.sh")"
 [ "$rc" != 0 ] && ! grep -q 'issue create' "$G24/log" || falha "caso 4: falha da listagem deveria abortar sem criar (saiu $rc)"
 # 5: regras ilegíveis (corpo de erro no stdout, saída 1) nunca filtram: todos os vermelhos, com a nota
 printf '[]' >"$G24/issues-1.json"
 rm -f "$G24/log" "$G24/corpo"
-rc="$(codigo env G24_REGRAS_ERRO=1 G24="$G24" PATH="$G24/bin:$PATH" REPO=org/repo PR=7 SHA=abc BASE=main URL_PR=u AUTOR_MERGE=m bash "$TMP/auditoria.sh")"
+rc="$(codigo env G24_REGRAS_ERRO=1 G24="$G24" PATH="$G24/bin:$PATH" REPO=org/repo PR=7 SHA=abc BASE=main INTEGRACAO=integ24 URL_PR=u AUTOR_MERGE=m bash "$TMP/auditoria.sh")"
 [ "$rc" = 0 ] && grep -q 'issue create' "$G24/log" || falha "caso 5: regras ilegíveis deveriam gerar issue (saiu $rc)"
 grep -q '^- ci$' "$G24/corpo" && grep -q '^- lint$' "$G24/corpo" && grep -q 'Sem regra de checks obrigatórios legível' "$G24/corpo" || falha "caso 5: issue deveria listar ci e lint com a nota de regra ilegível"
 ! grep -q 'Not Found' "$G24/corpo" || falha "caso 5: corpo do erro vazou para a issue"
+# 6: modo ligado (FR-013): aprovacao-de-dono sozinho não gera issue; outro vermelho continua gerando (e a lista não o cita)
+printf '{"check_runs":[{"name":"aprovacao-de-dono","conclusion":"failure"}]}' >"$G24/checks.json"
+rc="$(CONST24='Merge autônomo: ligado' G24_REGRAS_ERRO=1 roda24 main)"
+[ "$rc" = 0 ] && ! grep -q 'issue create' "$G24/log" || falha "caso 6a: ligado com só aprovacao-de-dono vermelho não deveria abrir issue (saiu $rc)"
+grep -qF 'contents/docs/constitution.md?ref=basesha24' "$G24/log" && grep -qF 'contents/docs/constitution.md?ref=integ24' "$G24/log" || falha "caso 6a: a constituição deveria ser lida no base.sha do PR e na ponta da integração"
+# 6i: constituição commitada com CRLF vale ligado nos dois lugares (B3-1/E3-2)
+rc="$(CONST24="$(printf 'x\r\nMerge autônomo: ligado\r')" G24_REGRAS_ERRO=1 roda24 main)"
+[ "$rc" = 0 ] && ! grep -q 'issue create' "$G24/log" || falha "caso 6i: CRLF deveria valer ligado e não abrir issue (saiu $rc)"
+# 6f: ligado no base.sha e desligado (ou ilegível) na ponta da integração: o modo foi trocado, audita (A2-5/E2-3)
+rc="$(CONST24='Merge autônomo: ligado' CONST24_INT='Merge autônomo: desligado' G24_REGRAS_ERRO=1 roda24 main)"
+[ "$rc" = 0 ] && grep -q 'issue create' "$G24/log" || falha "caso 6f: desligado na ponta da integração deveria abrir issue (saiu $rc)"
+rc="$(CONST24='Merge autônomo: ligado' CONST24_INT='' G24_REGRAS_ERRO=1 roda24 main)"
+[ "$rc" = 0 ] && grep -q 'issue create' "$G24/log" || falha "caso 6f: ponta da integração ilegível deveria abrir issue (saiu $rc)"
+# 6g: desligado no base.sha e ligado na ponta: audita
+rc="$(CONST24='Merge autônomo: desligado' CONST24_INT='Merge autônomo: ligado' G24_REGRAS_ERRO=1 roda24 main)"
+[ "$rc" = 0 ] && grep -q 'issue create' "$G24/log" || falha "caso 6g: desligado no base.sha deveria abrir issue (saiu $rc)"
+# 6h: base.sha vazio não lê a constituição com ref vazio (que pode dar a branch padrão, aqui ligada): audita (E2-9)
+rc="$(CONST24='Merge autônomo: ligado' BASE_SHA24='' G24_REGRAS_ERRO=1 roda24 main)"
+[ "$rc" = 0 ] && grep -q 'issue create' "$G24/log" || falha "caso 6h: base.sha vazio deveria abrir issue (saiu $rc)"
+# 6e: a linha ligado só existe noutro commit (não no base.sha): vale desligado e a issue sai (B8/E12)
+rc="$(CONST24='Merge autônomo: ligado' BASE_SHA24=outrosha G24_REGRAS_ERRO=1 roda24 main)"
+[ "$rc" = 0 ] && grep -q 'issue create' "$G24/log" || falha "caso 6e: modo fora do base.sha não deveria valer (saiu $rc)"
+rc="$(CONST24='Merge autônomo: desligado' G24_REGRAS_ERRO=1 roda24 main)"
+[ "$rc" = 0 ] && grep -q 'issue create' "$G24/log" || falha "caso 6b: desligado deveria abrir issue (saiu $rc)"
+rc="$(G24_REGRAS_ERRO=1 roda24 main)"
+[ "$rc" = 0 ] && grep -q 'issue create' "$G24/log" || falha "caso 6c: sem a linha de modo deveria abrir issue (saiu $rc)"
+printf '{"check_runs":[{"name":"aprovacao-de-dono","conclusion":"failure"},{"name":"ci","conclusion":"failure"}]}' >"$G24/checks.json"
+rc="$(CONST24='Merge autônomo: ligado' G24_REGRAS_ERRO=1 roda24 main)"
+[ "$rc" = 0 ] && grep -q 'issue create' "$G24/log" && grep -q '^- ci$' "$G24/corpo" && ! grep -q 'aprovacao-de-dono' "$G24/corpo" || falha "caso 6d: ligado com ci vermelho deveria abrir issue só com o ci (saiu $rc)"
 fi
 
 # --------------------------------------------------------------- 25 ---
@@ -1169,10 +1243,12 @@ else
   FLUXO="$T/.github/workflows/require-codeowner-approval.yml"
   awk '/^          BASE_SHA/ {d=1} d && /run: \|/ {r=1; next} r {sub(/^          /, ""); print}' "$FLUXO" >"$TMP/aprov.sh"
   [ -s "$TMP/aprov.sh" ] || falha "não extraí o passo do require-codeowner-approval"
-  # gh falso: serve CODEOWNERS, head.sha (HEAD_ATUAL) e as reviews de REVIEWS_JSON via jq.
+  # gh falso: serve CODEOWNERS, head.sha (HEAD_ATUAL) e as reviews de REVIEWS_JSON via jq. A
+  # constituição só existe na ponta da integração (ref=integ), que é onde este fluxo lê o modo.
   mkdir -p "$TMP/gh22"
   cat >"$TMP/gh22/gh" <<'EOF2'
 #!/bin/sh
+for a; do case "$a" in repos/*/contents/docs/constitution.md'?ref=integ') printf '%s\n' "$CONSTITUICAO"; exit 0 ;; repos/*/contents/docs/constitution.md*) exit 1 ;; esac; done
 for a; do case "$a" in repos/*/contents/*) printf '* @maria-exemplo @jose-exemplo\n'; exit 0 ;; esac; done
 prog=""; prev=""
 for a; do [ "$prev" = --jq ] && prog="$a"; prev="$a"; done
@@ -1186,7 +1262,7 @@ exit 1
 EOF2
   chmod +x "$TMP/gh22/gh"
   aprova22() { # aprova22 HEAD REVIEWS_JSON
-    codigo env PATH="$TMP/gh22:$PATH" REPO=org-exemplo/repo PR=1 BASE_SHA=B HEAD_ATUAL="$1" HEAD_FALHA="${HEAD_FALHA:-}" REVIEWS_JSON="$2" bash "$TMP/aprov.sh"
+    codigo env PATH="$TMP/gh22:$PATH" REPO=org-exemplo/repo PR=1 BASE_SHA=B INTEGRACAO=integ CONSTITUICAO="${CONSTITUICAO:-}" HEAD_ATUAL="$1" HEAD_FALHA="${HEAD_FALHA:-}" REVIEWS_JSON="$2" bash "$TMP/aprov.sh"
   }
   H=1111111111111111111111111111111111111111; A=2222222222222222222222222222222222222222
   rv() { printf '{"user":{"login":"%s"},"state":"%s","commit_id":%s}' "${3:-Maria-Exemplo}" "$1" "$([ -n "$2" ] && printf '"%s"' "$2" || printf null)"; }
@@ -1221,12 +1297,513 @@ EOF2
   # head vazio com review de dono de commit_id nulo: sem a guarda, vazio == vazio aprovaria
   rc="$(aprova22 "" "[$(rv APPROVED "")]")"
   [ "$rc" = 1 ] && grep -q 'Não consegui ler o commit atual do PR' "$TMP/out" || falha "caso 13: head vazio deveria falhar com a mensagem da guarda (saiu $rc)"
+  # modo autônomo ligado (FR-013): sem aprovação passa com aviso; desligado, duplicado ou ausente mantém o bloqueio
+  rc="$(CONSTITUICAO='Merge autônomo: ligado' aprova22 "$H" "[]")"
+  [ "$rc" = 0 ] && grep -q '^::warning::Modo autônomo ligado' "$TMP/out" || falha "caso 14: ligado sem aprovação deveria passar com aviso (saiu $rc)"
+  rc="$(CONSTITUICAO='Merge autônomo: ligado' aprova22 "$H" "[$(rv APPROVED "$H")]")"
+  [ "$rc" = 0 ] && grep -q 'Aprovado por um dono\.' "$TMP/out" || falha "caso 15: ligado com aprovação deveria dizer aprovado (saiu $rc)"
+  # constituição commitada com CRLF vale ligado (B3-1/E3-2)
+  rc="$(CONSTITUICAO="$(printf 'x\r\nMerge autônomo: ligado\r')" aprova22 "$H" "[]")"
+  [ "$rc" = 0 ] && grep -q '^::warning::Modo autônomo ligado' "$TMP/out" || falha "caso 17: CRLF deveria valer ligado (saiu $rc)"
+  for c22 in 'Merge autônomo: desligado' "$(printf 'Merge autônomo: ligado\nMerge autônomo: ligado')" ''; do
+    rc="$(CONSTITUICAO="$c22" aprova22 "$H" "[]")"
+    [ "$rc" = 1 ] && grep -q 'Aprovação pendente' "$TMP/out" || falha "caso 16: modo '$c22' sem aprovação deveria bloquear (saiu $rc)"
+  done
   for f in "$FLUXO" "$T/.github/CODEOWNERS"; do
     grep -q 'Require review from Code Owners' "$f" && grep -q 'Dismiss stale pull request approvals when new commits are pushed' "$f" \
       || falha "caso 5: comentário sem as opções nativas em $f"
   done
 fi
 
+# --------------------------------------------------------------- 22 ---
+cenario "26: modo autônomo (MODO_AUTONOMO)"
+resp22() { { grep -v '^MODO_AUTONOMO=' "$EXEMPLO"; [ -z "${1+x}" ] || printf "MODO_AUTONOMO='%s'\n" "$1"; } >"$2"; }
+# ligado: grava, renderiza a linha literal e imprime a configuração do GitHub sem criar nada
+T="$(novo_repo)"; resp22 ligado "$TMP/r22"
+rc="$(codigo rodar "$CONF" --projeto "$T" --respostas "$TMP/r22")"
+[ "$rc" = 0 ] || falha "ligado saiu com $rc: $(cat "$TMP/err")"
+grep -q "^MODO_AUTONOMO='ligado'\$" "$T/cockpit.config" || falha "ligado não gravado"
+[ "$(grep -c '^Merge autônomo: ' "$T/docs/constitution.md")" = 1 ] && grep -q '^Merge autônomo: ligado$' "$T/docs/constitution.md" || falha "constituição sem a linha ligado"
+grep -q 'Merge autônomo ligado: configure no GitHub' "$TMP/out" "$TMP/err" || falha "configuração do GitHub não impressa"
+! grep -rq 'MODO_AUTONOMO\|Merge autônomo' "$T/docs/rito-dev.md" || falha "rito renderizou o modo"
+grep -q 'Fonte esperada de caminhos-previstos: o app que publica o status da trava' "$TMP/out" "$TMP/err" || falha "fonte esperada da trava não impressa (integração ≠ produção)"
+grep -q 'Fonte esperada de caminhos-previstos-producao: a mesma' "$TMP/out" "$TMP/err" || falha "fonte esperada da produção não impressa"
+# identidade com P1/P2, trava na branch padrão e reexecução depois da aprovação (A9, A16, A18)
+grep -q 'fora do CODEOWNERS (P1); sem papel admin nem maintain no repositório (P2)' "$TMP/out" || falha "identidade sem P1/P2"
+grep -q 'só roda se estiver na branch padrão do repositório' "$TMP/out" || falha "sem o aviso da branch padrão"
+grep -q 'o dono aprova no commit atual da PR e reexecuta o workflow da trava' "$TMP/out" || falha "sem a reexecução depois da aprovação"
+grep -q 'Segredo TOKEN_AUTOMACAO' "$TMP/out" || falha "sem a orientação do TOKEN_AUTOMACAO (integração ≠ produção)"
+# limite de autoria e troca de modo (A2-6, B2-4, B2-5)
+grep -q 'Limite conhecido: a trava não confere o autor da PR' "$TMP/out" || falha "sem o limite conhecido da autoria"
+grep -q 'reexecute a trava e o require-codeowner-approval nas PRs abertas' "$TMP/out" && grep -qF 'gh pr merge <n> --disable-auto' "$TMP/out" || falha "sem a orientação da troca de modo"
+# integração = produção: só a fonte do ruleset único; o TOKEN_AUTOMACAO continua (release.yml roda com ele, E15)
+T="$(novo_repo)"; { grep -v '^MODO_AUTONOMO=\|^BRANCH_INTEGRACAO=' "$EXEMPLO"; printf "MODO_AUTONOMO='ligado'\nBRANCH_INTEGRACAO='main'\n"; } >"$TMP/r22"
+rc="$(codigo rodar "$CONF" --projeto "$T" --respostas "$TMP/r22")"
+[ "$rc" = 0 ] || falha "integração = produção saiu com $rc: $(cat "$TMP/err")"
+grep -q 'Fonte esperada de caminhos-previstos: o app' "$TMP/out" "$TMP/err" || falha "fonte esperada não impressa (integração = produção)"
+! grep -q 'Fonte esperada de caminhos-previstos-producao' "$TMP/out" "$TMP/err" || falha "imprimiu fonte da produção com ruleset único"
+grep -q 'Segredo TOKEN_AUTOMACAO.*o release.yml roda com ele' "$TMP/out" || falha "sem a orientação do TOKEN_AUTOMACAO (integração = produção)"
+# desligado: sem impressão do GitHub
+T="$(novo_repo)"; resp22 desligado "$TMP/r22"
+rc="$(codigo rodar "$CONF" --projeto "$T" --respostas "$TMP/r22")"
+[ "$rc" = 0 ] && grep -q '^Merge autônomo: desligado$' "$T/docs/constitution.md" || falha "desligado (exit $rc)"
+! grep -q 'configure no GitHub' "$TMP/out" "$TMP/err" || falha "desligado imprimiu configuração do GitHub"
+# vazio de fato (MODO_AUTONOMO=''): vale desligado, sem aviso de inválido
+T="$(novo_repo)"; resp22 "" "$TMP/r22"
+grep -qx "MODO_AUTONOMO=''" "$TMP/r22" || falha "vazio: respostas sem a linha vazia"
+rc="$(codigo rodar "$CONF" --projeto "$T" --respostas "$TMP/r22")"
+[ "$rc" = 0 ] && grep -q '^Merge autônomo: desligado$' "$T/docs/constitution.md" || falha "vazio (exit $rc)"
+! grep -q 'MODO_AUTONOMO inválido' "$TMP/err" && ! grep -q 'configure no GitHub' "$TMP/out" || falha "vazio avisou inválido ou imprimiu a configuração do GitHub"
+# ausente: vale desligado; --atualizar sem a chave não falha nem pergunta
+T="$(novo_repo)"; grep -v '^MODO_AUTONOMO=' "$EXEMPLO" >"$TMP/r22"
+rc="$(codigo rodar "$CONF" --projeto "$T" --respostas "$TMP/r22")"
+[ "$rc" = 0 ] && grep -q '^Merge autônomo: desligado$' "$T/docs/constitution.md" || falha "ausente (exit $rc)"
+grep -v '^MODO_AUTONOMO=' "$T/cockpit.config" >"$TMP/c22"; cp "$TMP/c22" "$T/cockpit.config"
+rc="$(codigo rodar "$CONF" --projeto "$T" --atualizar </dev/null)"
+[ "$rc" = 0 ] || falha "--atualizar sem a chave saiu com $rc: $(cat "$TMP/err")"
+! grep -q 'MODO_AUTONOMO' "$TMP/err" || falha "--atualizar citou MODO_AUTONOMO"
+# inválido (inclusive `Ligado`, com maiúscula): não derruba; vale desligado com aviso
+for v22 in sim Ligado; do
+  T="$(novo_repo)"; resp22 "$v22" "$TMP/r22"
+  rc="$(codigo rodar "$CONF" --projeto "$T" --respostas "$TMP/r22")"
+  [ "$rc" = 0 ] && grep -q '^Merge autônomo: desligado$' "$T/docs/constitution.md" || falha "inválido '$v22' (exit $rc)"
+  grep -q "MODO_AUTONOMO inválido ('$v22')" "$TMP/err" || falha "inválido '$v22' sem aviso"
+  ! grep -q 'configure no GitHub' "$TMP/out" || falha "inválido '$v22' imprimiu a configuração do GitHub"
+done
+# constituição mantida diverge do cockpit.config no --atualizar: avisa e vale a constituição (E6)
+T="$(novo_repo)"; resp22 ligado "$TMP/r22"
+rodar "$CONF" --projeto "$T" --respostas "$TMP/r22" >/dev/null 2>&1 || falha "divergência: setup ligado"
+sed -i 's/^Merge autônomo: ligado$/Merge autônomo: desligado/' "$T/docs/constitution.md"
+rc="$(codigo rodar "$CONF" --projeto "$T" --atualizar </dev/null)"
+[ "$rc" = 0 ] && grep -q '^Merge autônomo: desligado$' "$T/docs/constitution.md" || falha "divergência ligado→desligado (exit $rc)"
+grep -q "MODO_AUTONOMO='ligado' no cockpit.config diverge da constituição mantida" "$TMP/err" || falha "divergência ligado→desligado sem aviso"
+! grep -q 'configure no GitHub' "$TMP/out" || falha "divergência: imprimiu a configuração do GitHub pelo cockpit.config"
+T="$(novo_repo)"; resp22 desligado "$TMP/r22"
+rodar "$CONF" --projeto "$T" --respostas "$TMP/r22" >/dev/null 2>&1 || falha "divergência: setup desligado"
+sed -i 's/^Merge autônomo: desligado$/Merge autônomo: ligado/' "$T/docs/constitution.md"
+rc="$(codigo rodar "$CONF" --projeto "$T" --atualizar </dev/null)"
+[ "$rc" = 0 ] || falha "divergência desligado→ligado (exit $rc)"
+grep -q "MODO_AUTONOMO='desligado' no cockpit.config diverge da constituição mantida" "$TMP/err" || falha "divergência desligado→ligado sem aviso"
+grep -q 'Merge autônomo ligado: configure no GitHub' "$TMP/out" || falha "divergência: não imprimiu a configuração do GitHub pela constituição"
+# sem divergência no --atualizar: nenhum aviso
+T="$(novo_repo)"; resp22 ligado "$TMP/r22"
+rodar "$CONF" --projeto "$T" --respostas "$TMP/r22" >/dev/null 2>&1 || falha "sem divergência: setup"
+rc="$(codigo rodar "$CONF" --projeto "$T" --atualizar </dev/null)"
+[ "$rc" = 0 ] && ! grep -q 'diverge da constituição' "$TMP/err" || falha "sem divergência avisou (exit $rc)"
+# constituição com CRLF (checkout com autocrlf): a linha vale ligado, sem divergência falsa (E2-8)
+sed -i 's/$/\r/' "$T/docs/constitution.md"
+rc="$(codigo rodar "$CONF" --projeto "$T" --atualizar </dev/null)"
+[ "$rc" = 0 ] && ! grep -q 'diverge da constituição' "$TMP/err" && grep -q 'Merge autônomo ligado: configure no GitHub' "$TMP/out" || falha "CRLF virou desligado (exit $rc)"
+# constituição ausente (destino do projeto) com ligado: aviso explícito do erro de leitura da trava (E2-8)
+for v22 in ligado desligado; do
+  T="$(novo_repo)"; { grep -v '^MODO_AUTONOMO=\|^DESTINOS_DO_PROJETO=' "$EXEMPLO"; printf "MODO_AUTONOMO='%s'\nDESTINOS_DO_PROJETO='docs/constitution.md'\n" "$v22"; } >"$TMP/r22"
+  rc="$(codigo rodar "$CONF" --projeto "$T" --respostas "$TMP/r22")"
+  [ "$rc" = 0 ] && [ ! -e "$T/docs/constitution.md" ] || falha "constituição ausente, $v22: setup (exit $rc)"
+  if [ "$v22" = ligado ]; then
+    grep -q 'não há docs/constitution.md legível' "$TMP/err" && grep -q 'erro de leitura: constituição' "$TMP/err" || falha "constituição ausente com ligado sem aviso"
+    # depois do aviso vale desligado: a configuração do GitHub não sai (E3-8)
+    ! grep -q 'configure no GitHub' "$TMP/out" "$TMP/err" || falha "constituição ausente com ligado imprimiu a configuração do GitHub"
+  else
+    ! grep -q 'docs/constitution.md legível' "$TMP/err" || falha "constituição ausente com desligado avisou"
+  fi
+done
+
+# --------------------------------------------------------------- 27 ---
+cenario "27: caminhos-previstos (trava do merge autônomo, contrato caminhos-previstos.md)"
+T="$(novo_repo)"
+rodar "$CONF" --projeto "$T" --respostas "$EXEMPLO" >/dev/null 2>&1 || falha "render para a trava falhou"
+WF="$T/.github/workflows/caminhos-previstos.yml"
+awk '/run: \|/ {r=1; next} r {sub(/^          /, ""); print}' "$WF" >"$TMP/trava.sh"
+[ -s "$TMP/trava.sh" ] || falha "não extraí o passo da trava"
+bash -n "$TMP/trava.sh" || falha "trava com erro de sintaxe"
+grep -q '^  pull_request_target:' "$WF" && ! grep -qE '^ *(- )?uses:|actions/checkout' "$WF" || falha "trava deve ser pull_request_target sem checkout nem action"
+INT="$(sed -n "s/^BRANCH_INTEGRACAO='\(.*\)'\$/\1/p" "$EXEMPLO")"
+PRD="$(sed -n "s/^BRANCH_PRODUCAO='\(.*\)'\$/\1/p" "$EXEMPLO")"
+FX="$TMP/fx"; mkdir -p "$TMP/ghfx"
+cat >"$TMP/ghfx/gh" <<'EOF'
+#!/usr/bin/env bash
+# gh falso da trava: responde com fixtures de $FX e registra os status publicados. Arquivo ausente
+# sai com "(HTTP 404)" no stderr, formato que a trava assume para o 404 do gh real e que não está
+# confirmado na fonte (research R18); rota que contém $ERRO27 sai com erro 500;
+# $FX/depois_N.json vira o pull_N.json quando a lista de arquivos de N é lida (push no meio da trava).
+# Conteúdo sem o Accept raw devolve o objeto da API: $FX/m/<ref>/<caminho> quando existe (link, por exemplo),
+# senão {type:"file", path:<caminho>} para o arquivo que existe.
+[ "$1" = api ] || exit 2
+shift
+jqf="" post=0 campos=() ep="" raw=0
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --jq) jqf="$2"; shift 2 ;;
+    --paginate) shift ;;
+    -H) [ "$2" != "Accept: application/vnd.github.raw+json" ] || raw=1; shift 2 ;;
+    -X) post=1; shift 2 ;;
+    -f) campos+=("$2"); shift 2 ;;
+    *) ep="$1"; shift ;;
+  esac
+done
+if [ "$post" = 1 ]; then printf '%s\n' "${campos[*]}" >>"$FX/status.log"; exit 0; fi
+ep="${ep#repos/o/r/}"
+case "$ep" in
+  contents/*)
+    p="${ep#contents/}"; ref="${p##*?ref=}"; p="${p%%\?*}"; f="$FX/c/$ref/$p"
+    if [ "$raw" = 0 ] && [ -f "$f" ]; then
+      f="$FX/m/$ref/$p"
+      [ -f "$f" ] || { f="$FX/meta"; jq -n --arg p "$p" '{type:"file",path:$p}' >"$f"; }
+    fi ;;
+  pulls/*/files*) n="${ep#pulls/}"; n="${n%%/*}"; f="$FX/files_$n.json"; [ ! -f "$FX/depois_$n.json" ] || mv "$FX/depois_$n.json" "$FX/pull_$n.json" ;;
+  pulls/*/reviews*) f="$FX/reviews.json" ;;
+  pulls/*) f="$FX/pull_${ep#pulls/}.json" ;;
+  *) exit 2 ;;
+esac
+case "$ep" in *"${ERRO27:-//nunca//}"*) echo "gh: Server Error (HTTP 500)" >&2; exit 1 ;; esac
+[ -f "$f" ] || { echo "gh: Not Found (HTTP 404)" >&2; exit 1; }
+if [ -n "$jqf" ]; then jq -r "$jqf" "$f"; else cat "$f"; fi
+EOF
+chmod +x "$TMP/ghfx/gh"
+REGIAO_PADRAO='# Decisões
+
+## Caminhos previstos
+
+```
+src/**
+README.md
+package.json
+```
+
+## Dependências novas
+
+Nenhuma.
+'
+reset27() { # reset27 — fixtures-base: modo ligado, registro de f, dono @maria-exemplo, PR 5 de f
+  rm -rf "$FX"; mkdir -p "$FX/c/$INT/docs" "$FX/c/basesha/docs/specs/f" "$FX/c/basesha/.github"
+  printf 'x\nMerge autônomo: ligado\ny\n' >"$FX/c/$INT/docs/constitution.md"
+  printf '%s' "$REGIAO_PADRAO" >"$FX/c/basesha/docs/specs/f/decisoes-do-owner.md"
+  printf '* @maria-exemplo @jose-exemplo\n' >"$FX/c/basesha/.github/CODEOWNERS"
+  pr27 5 h1 "$INT" feat o/r 1 ""
+  files27 5 "src/a.js||modified"
+  echo '[]' >"$FX/reviews.json"
+}
+pr27() { # pr27 N HEAD BASE HEADREF HEADREPO CHANGED CORPO [MERGED]
+  jq -n --arg h "$2" --arg b "$3" --arg r "$4" --arg hr "$5" --argjson c "$6" --arg body "$7" --argjson m "${8:-false}" \
+    '{head:{sha:$h,ref:$r,repo:{full_name:$hr}},base:{sha:"basesha",ref:$b},changed_files:$c,body:$body,merged:$m}' >"$FX/pull_$1.json"
+}
+files27() { # files27 N "arquivo|anterior|status"...
+  local n="$1" l; shift
+  for l in "$@"; do IFS='|' read -r a b c <<<"$l"; jq -n --arg a "$a" --arg b "$b" --arg c "$c" '{filename:$a,status:$c} + (if $b == "" then {} else {previous_filename:$b} end)'; done | jq -s . >"$FX/files_$n.json"
+  # a PR 5 é de f (acrescenta o spec.md) salvo NOSPEC27=1
+  if [ "$n" = 5 ] && [ -z "${NOSPEC27:-}" ]; then jq '. + [{filename:"docs/specs/f/spec.md",status:"added"}] | unique_by(.filename)' "$FX/files_5.json" >"$FX/f5" && mv "$FX/f5" "$FX/files_5.json"; fi
+}
+put27() { mkdir -p "$(dirname "$FX/c/$1/$2")"; printf '%s' "$3" >"$FX/c/$1/$2"; }
+aprova27() { jq -n --arg u "$1" --arg c "$2" '[{user:{login:$u},state:"APPROVED",commit_id:$c}]' >"$FX/reviews.json"; }
+roda27() { # roda27 [VAR=valor...] — roda a trava; sai 0 sempre; o status vai em $FX/status.log
+  : >"$FX/status.log"
+  local rc n
+  n="${CHG27:-$(jq length "$FX/files_5.json")}"
+  jq --argjson n "$n" '.changed_files = $n' "$FX/pull_5.json" >"$FX/p5" && mv "$FX/p5" "$FX/pull_5.json"
+  rc="$(codigo env PATH="$TMP/ghfx:$PATH" FX="$FX" GH_TOKEN=x REPO=o/r PR=5 EVENT_SHA=h1 BASE_REF="$INT" INTEGRACAO="$INT" PRODUCAO="$PRD" "$@" bash "$TMP/trava.sh")"
+  [ "$rc" = 0 ] || falha "trava saiu com $rc: $(cat "$TMP/err")"
+}
+espera27() { # espera27 "caso" estado trecho [contexto]
+  local ult; ult="$(tail -1 "$FX/status.log")"
+  case "$ult" in *"state=$2 "*"context=${4:-caminhos-previstos} "*"$3"*) ;; *) falha "$1: esperava $2 '$3', publicou: $ult" ;; esac
+}
+reg27() { put27 basesha docs/specs/f/decisoes-do-owner.md "$1"; }
+# status é "state=X context=Y description=Z"
+reset27; files27 5 "src/a.js||modified" "docs/specs/f/spec.md||added"; pr27 5 h1 "$INT" feat o/r 2 ""
+roda27; espera27 "frente conforme" success "conforme registro de f"
+reset27; printf 'x\nMerge autônomo: desligado\n' >"$FX/c/$INT/docs/constitution.md"; files27 5 "lib/x.js||added"
+roda27; espera27 "modo desligado" success "modo desligado"
+reset27; printf 'Merge autônomo: ligado\nMerge autônomo: ligado\n' >"$FX/c/$INT/docs/constitution.md"
+roda27; espera27 "duas linhas de modo" success "modo desligado"
+reset27; rm "$FX/c/$INT/docs/constitution.md"
+roda27; espera27 "constituição ilegível" failure "erro de leitura"
+# constituição commitada com CRLF vale ligado (B3-1/E3-2): a trava confere e reprova o arquivo fora do bloco
+reset27; printf 'x\r\nMerge autônomo: ligado\r\ny\r\n' >"$FX/c/$INT/docs/constitution.md"; files27 5 "lib/x.js||added"
+roda27; espera27 "constituição com CRLF" failure "fora do bloco: lib/x.js"
+reset27; files27 5 "lib/x.js||added"
+roda27; espera27 "fora do bloco" failure "fora do bloco: lib/x.js"
+reset27; files27 5 "src/a.js|lib/old.js|renamed"
+roda27; espera27 "renomeação com nome anterior fora" failure "fora do bloco: lib/old.js"
+reset27; files27 5 "lib/new.js|src/a.js|renamed"
+roda27; espera27 "renomeação com nome novo fora" failure "fora do bloco: lib/new.js"
+reset27
+CHG27=3 roda27; espera27 "total diferente de changed_files" failure "lista incompleta"
+reset27
+roda27 EVENT_SHA=h0; espera27 "HEAD mudou" failure "HEAD mudou"
+# push no meio da trava (E8): depois de listar, a cabeça já é outra
+reset27; jq '.head.sha = "h2"' "$FX/pull_5.json" >"$FX/depois_5.json"
+roda27; espera27 "HEAD mudou durante a lista" failure "HEAD mudou"
+# lista vazia com changed_files=1 (E11), nome com 0x1f e status desconhecido (B11)
+reset27; NOSPEC27=1 files27 5
+CHG27=1 roda27; espera27 "lista vazia com changed_files=1" failure "lista incompleta"
+reset27; files27 5 "$(printf 'src/a\037b.js||modified')"
+roda27; espera27 "nome com 0x1f" failure "lista inválida"
+reset27; files27 5 "$(printf 'src/a\037b.js|added|renamed')"
+roda27; espera27 "nome com 0x1f que desloca um status válido para o 3º campo" failure "lista inválida"
+reset27; files27 5 "src/a.js||mexido"
+roda27; espera27 "status desconhecido" failure "lista inválida"
+# caractere de controle (0x00-0x1f) em qualquer campo vale "lista inválida" antes da contagem (B2-9): quebra de
+# linha que forja duas linhas válidas com a contagem fechando, TAB no nome e controle no nome anterior
+reset27; jq -n '[{filename:"src/a.js\u001f\u001fmodified\nsrc/b.js",status:"modified"},{filename:"docs/specs/f/spec.md",status:"added"}]' >"$FX/files_5.json"
+CHG27=3 roda27; espera27 "nome com quebra de linha que forja duas linhas" failure "lista inválida"
+reset27; files27 5 "$(printf 'src/a\tb.js||modified')"
+roda27; espera27 "nome com TAB" failure "lista inválida"
+reset27; files27 5 "$(printf 'src/a.js|src/o\001.js|renamed')"
+roda27; espera27 "nome anterior com controle" failure "lista inválida"
+# descrição cortada no meio de um caractere multibyte (B3/E2): o status sai e o job não cai
+reset27; files27 5 "lib/$(printf '%0100d' 0 | tr 0 a)ção.js||added"
+roda27; espera27 "corte de multibyte na descrição" failure "fora do bloco: lib/aaaa"
+# descrição de 100 KB (E2-4): o corte é no próprio bash, sem pipe que leve SIGPIPE sob pipefail
+reset27; files27 5 "lib/$(printf '%0100000d' 0 | tr 0 a).js||added"
+roda27; espera27 "descrição de 100 KB" failure "fora do bloco: lib/aaaa"
+# registro ilegível por outro erro que não 404 (A17/E10); 404 continua sendo "sem registro"
+reset27
+roda27 ERRO27=docs/specs/f/decisoes-do-owner.md; espera27 "registro ilegível (HTTP 500)" failure "erro de leitura: registro"
+reset27; NOSPEC27=1 files27 5 "docs/specs/nova/spec.md||added"
+roda27; espera27 "frente sem registro na base (HTTP 404)" failure "aguarda aprovação de dono (sem registro)"
+# PR de outro repositório (fork) para a integração: exige dono (decisão do owner, B6)
+reset27; pr27 5 h1 "$INT" feat outro/fork 1 ""
+roda27; espera27 "PR de fork" failure "aguarda aprovação de dono (PR de outro repositório)"
+aprova27 maria-exemplo h1
+roda27; espera27 "PR de fork aprovada no HEAD" success "aprovado por dono (PR de outro repositório)"
+reset27; jq '.head.repo = null' "$FX/pull_5.json" >"$FX/p5" && mv "$FX/p5" "$FX/pull_5.json"
+roda27; espera27 "cabeça sem repositório" failure "aguarda aprovação de dono (PR de outro repositório)"
+# falha direta vence a aprovação de dono (E2-2): o motivo de dono fica guardado e a aprovação só é lida no fim
+reset27; reg27 "${REGIAO_PADRAO/README.md/CLAUDE.md}"; files27 5 "CLAUDE.md||modified" "lib/x.js||added"; aprova27 maria-exemplo h1
+roda27; espera27 "governança + fora do bloco, aprovada no HEAD" failure "fora do bloco: lib/x.js"
+reset27; files27 5 "CLAUDE.md||modified"; aprova27 maria-exemplo h1
+roda27; espera27 "governança fora do bloco, aprovada no HEAD" failure "fora do bloco: CLAUDE.md"
+reset27; files27 5 "package.json||modified" ".github/workflows/x.yml||modified"; reg27 "${REGIAO_PADRAO/README.md/.github/workflows/x.yml}"; aprova27 maria-exemplo h1
+put27 basesha package.json '{"a":1}'; put27 h1 package.json '{"a":2}'
+roda27; espera27 "governança + manifesto sem dependência, aprovada no HEAD" failure "manifesto sem dependência aprovada: package.json"
+reset27; pr27 5 h1 "$INT" feat outro/fork 1 ""; files27 5 "lib/x.js||added"; aprova27 maria-exemplo h1
+roda27; espera27 "fork + fora do bloco, aprovada no HEAD" failure "fora do bloco: lib/x.js"
+reset27; reg27 "${REGIAO_PADRAO/README.md/CLAUDE.md}"; files27 5 "CLAUDE.md||modified"; aprova27 maria-exemplo h1
+roda27; espera27 "governança dentro do bloco, aprovada no HEAD" success "aprovado por dono (governança: CLAUDE.md)"
+# bloco inválido ou ausente
+for ruim in '../x' 'src/*.js' '/abs' ' src/a.js' 'a/./b' 'src/**/x' '**'; do
+  reset27; reg27 "## Caminhos previstos
+
+\`\`\`
+$ruim
+\`\`\`
+"
+  roda27; espera27 "bloco com '$ruim'" failure "linha inválida no bloco"
+done
+reset27; reg27 "## Caminhos previstos
+
+\`\`\`
+\`\`\`
+"
+roda27; espera27 "bloco vazio" failure "vazio"
+reset27; reg27 "## Outra
+"
+roda27; espera27 "bloco ausente" failure "bloco Caminhos previstos"
+reset27; reg27 "## Caminhos previstos
+
+\`\`\`
+src/a.js
+"
+roda27; espera27 "bloco sem fecho" failure "inválido"
+# frente ambígua, registro de outra frente via docs/**, sem registro
+reset27; put27 basesha docs/specs/g/decisoes-do-owner.md "$REGIAO_PADRAO"; files27 5 "docs/specs/f/spec.md||added" "docs/specs/g/spec.md||added"; pr27 5 h1 "$INT" feat o/r 2 ""
+roda27; espera27 "frente ambígua" failure "frente ambígua"
+reset27; reg27 "## Caminhos previstos
+
+\`\`\`
+docs/**
+\`\`\`
+"; files27 5 "docs/specs/g/decisoes-do-owner.md||added"
+roda27; espera27 "registro de outra frente" failure "aguarda aprovação de dono (governança: docs/specs/g/decisoes-do-owner.md)"
+reset27; files27 5 "docs/specs/f/decisoes-do-owner.md||modified"
+roda27; espera27 "registro da própria frente" failure "aguarda aprovação de dono"
+# PR que só toca o registro (de registro ou de emenda, rodada 3): vai ao dono sem validar o bloco, e um bloco inválido
+# na base não trava a própria emenda (A3-10/B3-5)
+reset27; reg27 "## Outra
+"; NOSPEC27=1 files27 5 "docs/specs/f/decisoes-do-owner.md||modified"
+roda27; espera27 "emenda com bloco inválido na base, sem aprovação" failure "aguarda aprovação de dono (governança: docs/specs/f/decisoes-do-owner.md)"
+aprova27 maria-exemplo h1
+roda27; espera27 "emenda com bloco inválido na base, aprovada no HEAD" success "aprovado por dono (governança: docs/specs/f/decisoes-do-owner.md)"
+# PR sem arquivo (E4-11): a guarda `-s "$NOMES"` impede que a lista vazia caia no caminho "só registros" com motivo vazio
+reset27; NOSPEC27=1 files27 5
+CHG27=0 roda27; espera27 "PR sem arquivo" failure "aguarda aprovação de dono (sem registro)"
+reset27; NOSPEC27=1 files27 5 "docs/leia.md||added"
+roda27; espera27 "sem registro, sem aprovação" failure "aguarda aprovação de dono (sem registro)"
+aprova27 Maria-Exemplo h1
+roda27; espera27 "sem registro, aprovado no HEAD" success "aprovado por dono"
+aprova27 maria-exemplo h0
+roda27; espera27 "aprovação em commit antigo" failure "aguarda aprovação"
+aprova27 carlos-exemplo h1
+roda27; espera27 "aprovação de quem não é dono" failure "aguarda aprovação"
+# governança
+for g in docs/constitution.md cockpit.config .github/workflows/x.yml .github/CODEOWNERS CODEOWNERS .claude/hooks/a.sh .mcp.json .npmrc CLAUDE.md .husky/pre-commit commitlint.config.cjs pkg/.commitlintrc.json .releaserc.json apps/x/release.config.js \
+  CLAUDE.local.md src/CLAUDE.md src/CLAUDE.local.md docs/specs/f/CLAUDE.md src/.claude/skills/x/SKILL.md docs/specs/f/.claude/settings.json \
+  docs/specs/f/claude.md src/Claude.Local.MD src/.CLAUDE/x .Claude/settings.json .claude src/.claude .github .husky; do
+  reset27; reg27 "## Caminhos previstos
+
+\`\`\`
+**
+\`\`\`
+"
+  reg27 "## Caminhos previstos
+
+\`\`\`
+$g
+\`\`\`
+"
+  files27 5 "$g||modified"
+  roda27; espera27 "governança $g" failure "aguarda aprovação de dono (governança: $g)"
+done
+reset27; reg27 "${REGIAO_PADRAO/README.md/.github/workflows/x.yml}"; files27 5 "src/a.js|.github/workflows/x.yml|renamed"
+roda27; espera27 "renomeação a partir de .github" failure "governança: .github/workflows/x.yml"
+# só o nome de base exato é governança: o template da semente do CLAUDE.md segue a regra comum
+reset27; reg27 "## Caminhos previstos
+
+\`\`\`
+templates/**
+\`\`\`
+"; files27 5 "templates/CLAUDE.md.semente.tmpl||modified"
+roda27; espera27 "templates/CLAUDE.md.semente.tmpl" success "conforme registro de f"
+# manifesto e lockfile
+reset27; files27 5 "package.json||modified"; put27 basesha package.json '{"a":1}'; put27 h1 package.json '{"a":1}'
+roda27; espera27 "manifesto sem dependência nova" failure "manifesto sem dependência aprovada: package.json"
+# "Dependências novas" em formato fechado (rodadas 3 e 4, B3-4/E3-3/A3-9/E4-8): só aprova o item que começa com o pacote
+# entre crases, com observação opcional depois de um espaço; qualquer outro item ou texto vale "nenhuma"
+DEP27='- `lodash`'
+for d27 in "$DEP27" '- `lodash` (permanente)'; do
+  reset27; reg27 "${REGIAO_PADRAO/Nenhuma./$d27}"; files27 5 "package.json||modified"; put27 basesha package.json '{"a":1}'; put27 h1 package.json '{"a":2}'
+  roda27; espera27 "dependências '$d27' com manifesto" success "conforme registro de f"
+done
+for d27 in 'Nenhuma dependência nova.' 'Nenhuma. ' "$(printf 'Nenhuma.\n\nObservação: nada a instalar nesta frente.')" \
+  '- Nenhuma.' '- (nenhuma)' '- NENHUMA!' '- Nenhuma dependência nova.' '- —' \
+  '- Não há.' '- N/A' '- Sem dependências novas' '- nada' '- 0' '- Ver seção X' '- lodash' '- ``' '- ` `' '`lodash`' \
+  '- Nenhuma (o `package.json` só muda `scripts`).' '- Não há; ver `docs/x.md`' '- `lodash`, uso permanente' '- `lo dash`'; do
+  reset27; reg27 "${REGIAO_PADRAO/Nenhuma./$d27}"; files27 5 "package.json||modified"; put27 basesha package.json '{"a":1}'; put27 h1 package.json '{"a":2}'
+  roda27; espera27 "dependências '$d27' com manifesto" failure "manifesto sem dependência aprovada: package.json"
+done
+reset27; reg27 "${REGIAO_PADRAO/Nenhuma./$DEP27}"; files27 5 "pnpm-lock.yaml||modified"
+roda27; espera27 "lockfile fora do bloco" failure "manifesto sem dependência aprovada: pnpm-lock.yaml"
+for m27 in bun.lock bun.lockb deno.lock uv.lock pnpm-workspace.yaml apps/web/bun.lock; do
+  reset27; reg27 "${REGIAO_PADRAO/Nenhuma./$DEP27}"; files27 5 "$m27||modified"
+  roda27; espera27 "manifesto ou lockfile $m27 fora do bloco" failure "manifesto sem dependência aprovada: $m27"
+done
+reset27; reg27 "${REGIAO_PADRAO/Nenhuma./$DEP27}"; files27 5 "src/package.json||modified"; put27 basesha src/package.json '{}'; put27 h1 src/package.json '{}'
+roda27; espera27 "manifesto coberto só por dir/**" failure "manifesto sem dependência aprovada: src/package.json"
+reset27; reg27 "${REGIAO_PADRAO/Nenhuma./$DEP27}"; files27 5 "package.json||modified"; put27 basesha package.json '{"release":{"a":1}}'; put27 h1 package.json '{"release":{"a":2}}'
+roda27; espera27 "chave release alterada" failure "aguarda aprovação de dono (governança: release em package.json)"
+# CHK014: acréscimo puro em permissions.deny
+SET='{"permissions":{"deny":["Bash(a)"]},"x":1}'
+reg27 "## Caminhos previstos
+
+\`\`\`
+.claude/settings.json
+\`\`\`
+"
+rec14() { reset27; reg27 "## Caminhos previstos
+
+\`\`\`
+.claude/settings.json
+\`\`\`
+"; files27 5 ".claude/settings.json||${3:-modified}"; [ -z "$1" ] || put27 basesha .claude/settings.json "$1"; put27 h1 .claude/settings.json "$2"; }
+rec14 "$SET" '{"permissions":{"deny":["Bash(a)","Bash(b)"]},"x":1}'
+roda27; espera27 "CHK014 acréscimo puro" success "conforme registro de f"
+rec14 "$SET" '{"x":1,"permissions":{"deny":["Bash(a)"]}}'
+roda27; espera27 "CHK014 sem mudança de conteúdo" success "conforme registro de f"
+rec14 "$SET" '{"permissions":{"deny":["Bash(b)"]},"x":1}'
+roda27; espera27 "CHK014 regra removida" failure "aguarda aprovação de dono (governança: .claude/settings.json)"
+rec14 "$SET" '{"permissions":{"deny":["Bash(a)","Bash(b)"]},"x":2}'
+roda27; espera27 "CHK014 outra chave alterada" failure "aguarda aprovação de dono"
+rec14 "$SET" '{"permissions":{"deny":["Bash(a)"],"allow":["Bash(z)"]},"x":1}'
+roda27; espera27 "CHK014 allow acrescentado" failure "aguarda aprovação de dono"
+rec14 "$SET" '{"permissions":{"deny":["Bash(a)"]},"x":1,"hooks":{}}'
+roda27; espera27 "CHK014 hook acrescentado" failure "aguarda aprovação de dono"
+rec14 "$SET" '{"permissions":{"deny":["Bash(a)",{"t":1}]},"x":1}'
+roda27; espera27 "CHK014 item que não é texto" failure "aguarda aprovação de dono"
+rec14 "$SET" '{"permissions":{}}'
+roda27; espera27 "CHK014 deny apagado" failure "aguarda aprovação de dono"
+rec14 "" '{"permissions":{"deny":["Bash(a)"]}}' added
+roda27; espera27 "CHK014 arquivo novo só com deny" success "conforme registro de f"
+rec14 "" '{"permissions":{"deny":["Bash(a)"]},"hooks":{}}' added
+roda27; espera27 "CHK014 arquivo novo com hook" failure "aguarda aprovação de dono"
+rec14 "" '{"permissions":{"deny":["Bash(a)"],"allow":[]}}' added
+roda27; espera27 "CHK014 arquivo novo com allow" failure "aguarda aprovação de dono"
+rec14 "$SET" 'não é json'
+roda27; espera27 "CHK014 JSON inválido" failure "aguarda aprovação de dono"
+rec14 "$SET" "$SET"; reg27 "${REGIAO_PADRAO/README.md/.claude/settings.local.json}"; files27 5 ".claude/settings.local.json||modified"
+roda27; espera27 "CHK014 settings.local.json" failure "aguarda aprovação de dono (governança: .claude/settings.local.json)"
+# .claude/settings.json que é link, no HEAD ou na base (E3-11): a API de conteúdo descreve `type` symlink ou, com o alvo
+# arquivo do repositório, responde com o arquivo do alvo (outro `path`); a exceção não vale, nem com acréscimo puro
+for m14 in '{"type":"symlink","path":".claude/settings.json","target":"../src/s.json"}' '{"type":"file","path":"src/s.json"}'; do
+  for r14 in h1 basesha; do
+    rec14 "$SET" '{"permissions":{"deny":["Bash(a)","Bash(b)"]},"x":1}'
+    mkdir -p "$FX/m/$r14/.claude"; printf '%s' "$m14" >"$FX/m/$r14/.claude/settings.json"
+    roda27; espera27 "CHK014 link em $r14 ($m14)" failure "aguarda aprovação de dono (governança: .claude/settings.json)"
+  done
+done
+# renomeação para .claude/settings.json nunca tem a exceção, nem com acréscimo puro sobre o da base (E3-12)
+rec14 "$SET" '{"permissions":{"deny":["Bash(a)","Bash(b)"]},"x":1}'; reg27 "## Caminhos previstos
+
+\`\`\`
+.claude/settings.json
+src/**
+\`\`\`
+"; files27 5 ".claude/settings.json|src/s.json|renamed"
+roda27; espera27 "CHK014 renomeação para .claude/settings.json" failure "aguarda aprovação de dono (governança: .claude/settings.json)"
+# correção ou revert
+NOSPEC27=1
+reset27; put27 basesha docs/specs/f/x.md ""; files27 3 "src/a.js||modified" "docs/specs/f/x.md||added"; pr27 3 hh "$INT" feat o/r 2 "" true
+pr27 5 h1 "$INT" fix o/r 1 "$(printf 'Corrige\n\nOrigem: #3\n')"
+roda27; espera27 "correção dentro da PR de origem" success "correção de #3"
+files27 5 "src/b.js||modified"
+roda27; espera27 "correção fora da PR de origem" failure "fora da PR de origem #3: src/b.js"
+# origem mergeada no modo desligado (sem trava) tocando fora do bloco: a correção também precisa caber no bloco da
+# frente da origem; fora dele falha direto (E3-4)
+files27 3 "lib/x.js||modified" "docs/specs/f/x.md||added"; files27 5 "lib/x.js||modified"
+roda27; espera27 "correção fora do bloco da frente da origem" failure "fora do bloco: lib/x.js"
+files27 3 "src/a.js||modified" "docs/specs/f/x.md||added"
+files27 5 "src/a.js||modified"; pr27 3 hh "$INT" feat o/r 2 "" false
+roda27; espera27 "origem não mergeada" failure "não mergeada nesta base"
+pr27 3 hh "$PRD" feat o/r 2 "" true
+roda27; espera27 "origem em outra base" failure "não mergeada nesta base"
+pr27 3 hh "$INT" feat o/r 2 "" true; files27 3 "src/a.js||modified" "docs/leia.md||added"
+roda27; espera27 "origem sem registro" failure "não é PR de frente"
+pr27 5 h1 "$INT" fix o/r 1 "$(printf 'Origem: #3\nOrigem: #4\n')"; files27 3 "src/a.js||modified" "docs/specs/f/x.md||added"; NOSPEC27= files27 5 "src/a.js||modified"
+roda27; espera27 "duas linhas Origem caem na frente (src/a.js cabe no bloco)" success "conforme registro de f"
+# origem que toca f e g, com erro 500 ao ler o registro de g: erro de leitura, nunca correção só de f (E2-9)
+reset27; put27 basesha docs/specs/f/x.md ""; files27 3 "src/a.js||modified" "docs/specs/f/x.md||added" "docs/specs/g/y.md||added"; pr27 3 hh "$INT" feat o/r 3 "" true
+pr27 5 h1 "$INT" fix o/r 1 "$(printf 'Origem: #3\n')"; files27 5 "src/a.js||modified"
+roda27 ERRO27=docs/specs/g/decisoes-do-owner.md; espera27 "origem com registro ilegível" failure "erro de leitura: registro da origem"
+# correção com governança: falhas diretas antes da aprovação de dono (E2-2); a governança também precisa estar no bloco
+reset27; reg27 "${REGIAO_PADRAO/README.md/CLAUDE.md}"; put27 basesha docs/specs/f/x.md ""; files27 3 "CLAUDE.md||modified" "docs/specs/f/x.md||added"; pr27 3 hh "$INT" feat o/r 2 "" false
+pr27 5 h1 "$INT" fix o/r 1 "$(printf 'Origem: #3\n')"; files27 5 "CLAUDE.md||modified"; aprova27 maria-exemplo h1
+roda27; espera27 "correção não mergeada tocando CLAUDE.md, aprovada no HEAD" failure "origem #3 não mergeada nesta base"
+pr27 3 hh "$INT" feat o/r 2 "" true
+roda27; espera27 "correção mergeada tocando CLAUDE.md, aprovada no HEAD" success "aprovado por dono (governança: CLAUDE.md)"
+echo '[]' >"$FX/reviews.json"
+roda27; espera27 "correção mergeada tocando CLAUDE.md, sem aprovação" failure "aguarda aprovação de dono (governança: CLAUDE.md)"
+reg27 "$REGIAO_PADRAO"; aprova27 maria-exemplo h1
+roda27; espera27 "correção mergeada tocando CLAUDE.md fora do bloco, aprovada no HEAD" failure "fora do bloco: CLAUDE.md"
+# correção com manifesto ou lockfile exige dono, mesmo dentro da PR de origem (B5/E5)
+for m27 in package.json pnpm-lock.yaml; do
+  reset27; reg27 "${REGIAO_PADRAO/README.md/$m27}"; put27 basesha docs/specs/f/x.md ""; files27 3 "$m27||modified" "docs/specs/f/x.md||added"; pr27 3 hh "$INT" feat o/r 2 "" true
+  pr27 5 h1 "$INT" fix o/r 1 "$(printf 'Origem: #3\n')"; files27 5 "$m27||modified"; put27 basesha "$m27" '{"a":1}'; put27 h1 "$m27" '{"a":2}'
+  roda27; espera27 "correção com $m27" failure "aguarda aprovação de dono (manifesto em correção: $m27)"
+done
+unset NOSPEC27
+# PR para a produção (A1)
+if [ "$INT" != "$PRD" ]; then
+  reset27; pr27 5 h1 "$PRD" "$INT" o/r 1 ""
+  roda27 BASE_REF="$PRD"; espera27 "promoção" success "PR de promoção" caminhos-previstos-producao
+  reset27; pr27 5 h1 "$PRD" "$INT" outro/fork 1 ""
+  roda27 BASE_REF="$PRD"; espera27 "promoção vinda de fork" failure "aguarda aprovação de dono (PR de outro repositório)" caminhos-previstos-producao
+  reset27; pr27 5 h1 "$PRD" outra o/r 1 ""
+  roda27 BASE_REF="$PRD"; espera27 "outra branch para a produção" failure "aguarda aprovação de dono (PR para a produção)" caminhos-previstos-producao
+  aprova27 jose-exemplo h1
+  roda27 BASE_REF="$PRD"; espera27 "outra branch para a produção, aprovada" success "aprovado por dono" caminhos-previstos-producao
+  reset27; printf 'Merge autônomo: desligado\n' >"$FX/c/$INT/docs/constitution.md"; pr27 5 h1 "$PRD" outra o/r 1 ""
+  roda27 BASE_REF="$PRD"; espera27 "produção com modo desligado" success "modo desligado" caminhos-previstos-producao
+fi
+rm -rf "$FX" "$TMP/ghfx"
 # --------------------------------------------------------------- 11 ---
 cenario "11: qualidade estática"
 if command -v shellcheck >/dev/null 2>&1; then

@@ -112,11 +112,26 @@ O registro tem 14 títulos `## ` exatos, validados pelas checagens da seção "V
 `Dependências novas`, `Histórico`, `Pendências para a research do plan` e `OK do owner`.
 
 `Caminhos previstos` é um bloco ```` ```text ````, uma linha por caminho, literal ou `dir/**`,
-relativo à raiz. `Irreversibilidade` nunca fica vazia: `Nenhuma.` explícito quando for o caso.
+relativo à raiz. No modo `ligado`, ele lista `.claude/settings.json`: a "Barreira técnica (D9)"
+commita o arquivo na branch da frente. Todo caminho de governança que a frente vai tocar entra no
+bloco, grafado literalmente: `CLAUDE.md` de qualquer pasta, workflow (`.github/workflows/<arquivo>`),
+`.claude/settings.json`, outro arquivo de `.github/` ou `.husky/`, manifesto, e os demais da lista de
+governança da trava. A trava falha direto com arquivo fora do bloco, e a aprovação de dono não
+libera esse arquivo: ela vale só para o que está no bloco. `Irreversibilidade` nunca fica vazia:
+`Nenhuma.` explícito quando for o caso. `Dependências novas` é exatamente `Nenhuma.` ou só itens
+que começam com `` - `<pacote>` ``, um por linha, com o pacote entre crases e observação opcional
+depois de um espaço (`` - `lodash` (permanente) ``): é o formato que a trava conta.
+
+No modo `ligado` (lido pela regra da `rito-dev`, "Modo autônomo", item 1), a seção `Smoke` traz itens
+`Sn | comando | esperado literal | tipo`, com `tipo` em `positivo`, `negativo` ou `manual`, ao menos
+um `negativo`, congelados no Gate 0: mudar um item exige novo OK do owner, pela emenda da seção
+"Antes da PR". A regra de execução e de
+elegibilidade para o merge está no item 6 do "Modo autônomo" da `rito-dev`; não é repetida aqui.
+Com o modo `desligado`, a seção segue em prosa como antes.
 
 ## Validação do registro (falha fechado)
 
-As checagens 1 a 5 rodam antes do commit; a 6, logo depois dele. Qualquer falha impede a Fase 0
+As checagens 1 a 6 rodam antes do commit; a 7, logo depois dele. Qualquer falha impede a Fase 0
 de concluir.
 
 1. **Títulos.** Cada um dos 14 títulos aparece em exatamente uma linha inteira
@@ -124,8 +139,10 @@ de concluir.
 2. **Seção não vazia.** Entre um título e o próximo há ao menos uma linha não branca.
 3. **Caminhos previstos.** A seção tem um bloco ```` ```text ```` com uma ou mais linhas; cada linha
    casa com `^[A-Za-z0-9._-]+(/[A-Za-z0-9._-]+)*(/\*\*)?$`; nenhum segmento é `.`, `..` ou `.git`;
-   nada sob `.claude/` com `**` (só arquivo literal, como `.claude/settings.json`); sem `/`
-   inicial, `~`, espaço nem outro curinga. Bloco ausente, vazio ou com linha inválida reprova.
+   nada sob `.claude/`, `.github/` ou `.husky/` com `**` (governança entra só literal, como
+   `.claude/settings.json` e `.github/workflows/ci.yml`); sem `/` inicial, `~`, espaço nem outro
+   curinga. Bloco ausente, vazio ou com linha inválida reprova. No
+   modo `ligado`, bloco sem a linha `.claude/settings.json` também reprova.
 4. **Irreversibilidade.** Não vazia; sem irreversibilidade, começa por `Nenhuma`.
 5. **Instalações previstas.** `Nenhuma.` ou tabela com o cabeçalho exato
    `| Instalar | Desfazer | Escopo | Versão ou SHA | Classe |`. Em cada linha:
@@ -147,13 +164,21 @@ de concluir.
      `--global`, `--location`, `--prefix`, `--user`, `--registry`, `-i`, `--index-url`,
      `--extra-index-url`, `-f`, `--find-links` e `--trusted-host`; a palavra `global` (como em
      `yarn global add`); e pacote indicado por URL ou repositório (`://`, `git+`).
-   - O agente executa o valor da célula do 1º commit byte a byte, nunca reescrito.
-6. **Commit.** Logo depois do commit, o arquivo é o único do 1º commit da branch:
+   - O agente executa o valor da célula do 1º commit byte a byte, nunca reescrito (no modo
+     `ligado`, a da emenda aprovada, a partir do merge dela; seção "Antes da PR").
+6. **Dependências novas.** As linhas não brancas da seção são só `Nenhuma.`, ou todas casam
+   `` ^- `[^`[:space:]]+`( .*)?$ `` (um pacote por item, entre crases logo depois do `- `,
+   observação opcional depois de um espaço). Outra forma reprova: `- Não há.`, `- N/A`, prosa, item
+   sem crases, item que não começa pelo pacote (`` - Nenhuma (o `package.json` só muda `scripts`). ``)
+   ou `Nenhuma` com mais texto.
+7. **Commit.** Logo depois do commit, o arquivo é o único do 1º commit da branch:
    `git log --reverse --format=%H origin/<BRANCH_INTEGRACAO>..HEAD | head -1` devolve um SHA, e
    `git show --name-only --format= "<sha>"` lista só `docs/specs/<frente>/decisoes-do-owner.md`.
    Saída vazia ou outro arquivo reprova: pare e volte ao owner.
 
-A lista de caminhos válida é a do 1º commit; caminho acrescentado depois não amplia o limite (D11).
+A lista de caminhos válida é a do 1º commit; caminho acrescentado depois sem aprovação do owner não
+amplia o limite (D11). No modo `ligado`, a emenda aprovada vale a partir do merge dela (seção
+"Antes da PR").
 
 ## Formato do histórico
 
@@ -214,12 +239,23 @@ smoke S3 em vez do `gate` (registro em `docs/specs/rito-descoberta/review-findin
 
 
 
+Antes do `gate`, desligue o skip-worktree do `.claude/settings.json` commitado
+(`git update-index --no-skip-worktree .claude/settings.json`; passo 5 da "Barreira técnica (D9)") e
+rode de novo a barreira na worktree: `deny` do conjunto atual ausente do `.claude/settings.json`
+reprova e **para** o encerramento até o owner. Merge da integração depois disso (por exemplo, para
+o `enabledPlugins` da ponta): o procedimento "Merge da integração com o arquivo commitado" reconhece
+o arquivo commitado mesmo sem o `S` e religa o skip-worktree no fim. Desligue-o de novo antes do
+`gate`.
+
 ```bash
 node ~/.claude/skills/rito-descoberta/historico.mjs gate <frente>
 ```
 
-Saída 0 libera o "Encerrar"; qualquer outra impede e volta ao owner. O `gate` (decisão do owner:
-compara só o que a frente toca):
+Saída 0 libera o "Encerrar"; qualquer outra impede e volta ao owner. Com saída 0, antes do
+"Encerrar", volte o arquivo rastreado ao commitado: `git checkout -- .claude/settings.json`. A
+working tree diferente dele, mesmo só na formatação, faz o `git worktree remove` falhar. Arquivo
+ignorado pelo git, como no cockpit, dispensa. O `gate` (decisão do owner: compara só o que a
+frente toca):
 
 1. **Falha fechado (saída 2)**: fora de repositório git, branch atual que não é `<frente>` nem
    termina em `/<frente>`, frente rodando na raiz do evento `base` (sem worktree própria),
@@ -252,7 +288,10 @@ compara só o que a frente toca):
 **Worktree tirada da branch pelo merge**: rodado de dentro da worktree, o `gh pr merge
 --delete-branch` da Fase 7 pode trocá-la para a branch de integração e apagar a da frente. Recrie a
 da frente no SHA que ele informou (`Deleted branch … (was <SHA>)`) com `git switch -c <branch>
-<SHA>` e rode o gate de novo.
+<SHA>` e rode o gate de novo. Com o skip-worktree do `.claude/settings.json` ligado, a troca pode
+falhar depois do merge remoto: o comando sai diferente de 0 e a worktree fica na branch da frente.
+Confira o merge pelo estado da PR (`gh pr view <n> --json state`, `MERGED`), nunca pelo código de
+saída.
 
 **Worktree removida antes do uninstall**: recrie-a no mesmo caminho (`git worktree add <caminho>
 <branch>`), rode o Desfazer dali com `-s project`, grave-o no log e só então remova a worktree.
@@ -300,20 +339,216 @@ A construção usa o agente de stack; a revisão continua sendo o `bmad-code-rev
 
 É proibido como papel o agente que:
 
-- **(a)** tem WebFetch, WebSearch, `mcp__`, navegador ou desktop no `tools:` (Princípio V);
+- **(a)** tem WebFetch, WebSearch (também na forma `WebFetch(…)`), `mcp__`, navegador ou desktop no
+  `tools:` (Princípio V);
 - **(b)** orquestra em paralelo ao `feature-00c` (lista nominal curta, porque isso não aparece no
   `tools:`): `meta:it-ops-orchestrator`, `meta:codebase-orchestrator`;
-- **(c)** não tem linha `tools:` ou tem Agent ou Task no `tools:` (falha fechado).
+- **(c)** não tem linha `tools:`, tem `tools:` nulo, vazio, `[]` ou `*` (vale como sem linha), ou tem
+  Agent ou Task no `tools:` (falha fechado). Frontmatter com chave repetida, ou com espaço Unicode
+  como o NBSP em qualquer linha, reprova. Item do `tools:` fora do formato `Nome` ou `Nome(...)`
+  (comentário, tag, âncora, alias, escape, aspas, `{}`, lista em bloco, `*` fora dos parênteses,
+  escalar como `true`, `null` ou `y`) conta como proibido.
+  `tools:` que não é YAML (`tools:Read`, `[Read`) também (contrato do subcomando `plugin`).
 
 O agente cujo corpo manda instalar ou baixar código não é proibido por isso: o que ele instalar
 segue a política de instalação abaixo, e o que ela proíbe continua proibido.
 
-**Limite declarado (D14)**: a regra é critério de escolha, não barreira técnica. 121 dos 164
-agentes do catálogo têm Bash, e um plugin instalado traz junto os agentes proibidos dele. A barreira
-técnica (`permissions.deny`) fica para a frente `modo-autonomo`. Por isso o prompt do validador e a
-foto antes e depois da rodada são os controles desta Fase 0.
+**Limite declarado (D14)**: a regra é critério de escolha. 121 dos 164 agentes do catálogo têm
+Bash, e um plugin instalado traz junto os agentes proibidos dele. A barreira técnica
+(`permissions.deny`) é a seção "Barreira técnica (D9)", abaixo. O prompt do validador e a foto antes
+e depois da rodada continuam como controles desta Fase 0.
 
 Papel sem agente elegível volta ao owner como **"papel sem agente"**.
+
+## Barreira técnica (D9, FR-023)
+
+Para cada plugin do mapa instalado na raiz de uso, depois da "Verificação de plugins":
+
+1. `node ~/.claude/skills/rito-descoberta/historico.mjs plugin <installPath>` (contrato:
+   `docs/specs/modo-autonomo/contracts/historico-plugin.md`). Exit 0 ou 1 com JSON é resultado;
+   qualquer outra saída, ou JSON ilegível, **para** o rito. Veredito `reprovado` vale "papel sem
+   agente" para o plugin, e o `deny` dele é gravado do mesmo jeito.
+2. Mescle, no `.claude/settings.json` da worktree, a **união** (idempotente, sem repetir item, sem
+   apagar regra existente) de: todo `deny` devolvido; e `Edit(/.claude/settings*.json)`; e, no modo
+   `ligado`, as regras `Bash(gh pr merge *--admin*)` e `Bash(gh * pr merge *--admin*)` (camada extra
+   contra `--admin`, D5; mesma regra da `rito-dev`, "Modo autônomo", item 3). Não há regra `Write`:
+   ela nunca casa (research R1, D-P1). `Edit(/.claude/settings*.json)` bloqueia só a ferramenta Edit
+   nesses arquivos; não cobre edição por Bash nem por subprocesso (research R1). As mesclas que este
+   rito manda fazer no arquivo são feitas pelo Bash, com `jq`: a regra é camada de atrito, não
+   barreira.
+3. Releia o arquivo e confira que cada regra está nele (inclusive as regras `--admin`, no modo `ligado`). Faltou alguma: **pare**.
+4. **Regra que não bloqueia para o rito.** O smoke S4 do quickstart prova qual forma do `deny`
+   bloqueia o agente e que a ferramenta Edit é recusada nas configurações; sem essa prova, o rito
+   para e volta ao owner. A forma que não bloqueia sai depois por PR de correção.
+   No modo `ligado`, vale o mesmo para as regras `--admin`: o caso `--admin` do smoke S3 (quickstart,
+   Scenario 9, passo 4) prova que a ferramenta recusa o comando antes de ele chegar ao GitHub; sem
+   essa prova, o rito para e volta ao owner, como no S4. Até lá, o bloqueio do `--admin` pela regra é não medido.
+5. **Commit.** Commite o `.claude/settings.json` na branch da frente, num commit só dele, depois do
+   1º. Ele vai na PR como acréscimo puro em `permissions.deny`. A base é a ponta de
+   `origin/<BRANCH_INTEGRACAO>`, a mesma que a trava usa: o conteúdo commitado é o da ponta mais a
+   união do `deny`, sem os `enabledPlugins` temporários da working tree. Precondição: a branch
+   contém essa ponta (`git merge-base --is-ancestor origin/<BRANCH_INTEGRACAO> HEAD`, saída 0). Saída
+   1 (a ponta andou depois do nascimento ou do último merge): antes, faça o merge da integração pelo
+   procedimento "Merge da integração com o arquivo commitado" (abaixo). No modo `ligado`, o merge do
+   passo 3.bis já deixa a branch na ponta, se não houve `fetch` depois. Sem isso, o commit traria
+   para a frente o que a ponta mudou no arquivo, e a working tree ficaria sem. Ponta que anda depois
+   do passo 5 o procedimento cobre. Antes, rode também
+   `git check-ignore -q .claude/settings.json`: saída 0 é arquivo ignorado pelo git (como no
+   cockpit), que não é commitado, e a escrita vai ao histórico. Fora isso, monte o arquivo numa
+   variável e ponha no índice, deixando a working tree como está. Rode o bloco de uma vez:
+
+   ```bash
+   b="$(git cat-file -e 'origin/<BRANCH_INTEGRACAO>^{commit}' && { git show 'origin/<BRANCH_INTEGRACAO>:.claude/settings.json' 2>/dev/null || echo '{}'; })"   # ausente na ponta: {}
+   novo="$(jq -n --argjson b "$b" --argjson d "$(jq -c '.permissions.deny // []' .claude/settings.json)" \
+     '$b | .permissions.deny = ((.permissions.deny // []) as $x | $x + ($d - $x))')" \
+     && blob="$(printf '%s\n' "$novo" | git hash-object -w --stdin)" \
+     && git update-index --add --cacheinfo "100644,$blob,.claude/settings.json" \
+     || { git restore --staged .claude/settings.json; echo PARE; }
+   git diff --cached --name-only      # só .claude/settings.json; vazio: nada a commitar
+   git show :.claude/settings.json | jq -e --argjson b "$b" \
+     '(.permissions.deny = []) == ($b | .permissions.deny = []) and ((($b.permissions.deny // []) - .permissions.deny) == [])'
+   ```
+
+   `PARE` (ponta ausente, JSON inválido, `jq` ou índice com erro), `--name-only` com outro arquivo ou
+   `jq` sem `true`: desfaça com `git restore --staged .claude/settings.json` e **pare**. A
+   conferência é semântica: o resto igual ao da ponta e o `deny` da ponta contido no novo.
+   Diferença só de formatação (indentação, quebra de linha) não é motivo de parada.
+
+   Commite sem `-a` (com `--name-only` vazio, não há o que commitar). Nos dois casos, logo depois,
+   esconda do git a working tree do arquivo, que tem os temporários (o `update-index` acima desliga
+   o skip-worktree):
+
+   ```bash
+   git update-index --skip-worktree .claude/settings.json
+   ```
+
+   Assim `commit -a` e `add -A` posteriores não levam os temporários, e o `enabledPlugins`
+   commitado fica igual ao da ponta. O gate da Fase 11 compara com o `merge-base`: se a ponta
+   mudou o `enabledPlugins` depois do nascimento, faça o merge da integração (abaixo) antes dele.
+   Desfaça com `git update-index --no-skip-worktree .claude/settings.json` no gate da Fase 11 e
+   antes de qualquer merge (procedimento abaixo). Qualquer outra mudança no arquivo a trava vê como
+   governança.
+
+Rode de novo: (a) no estado "SHA divergente" da verificação de plugins, com o SHA instalado; (b) no
+gate da Fase 11, antes do `gate`. Em ambos o `deny` do conjunto atual (com as regras `--admin` no modo `ligado`) MUST estar contido no
+arquivo; se não estiver, **reprova** e volta ao owner (nunca mescla em silêncio na Fase 11). Na
+Fase 11, a reprovação **para** o gate, e com ele o encerramento, até o owner.
+
+**Merge da integração com o arquivo commitado.** Vale para todo merge de
+`origin/<BRANCH_INTEGRACAO>` na branch da frente (o do passo 3.bis, o da precondição do passo 5 e
+o da emenda do owner). Antes, confira o arquivo:
+
+```bash
+git ls-files -v -- .claude/settings.json   # "S .claude/settings.json": skip-worktree ligado (passo 5 da barreira)
+git diff --quiet HEAD -- .claude/settings.json; echo "wt: $?"   # 1: a working tree difere do HEAD
+git diff --quiet "$(git merge-base HEAD origin/<BRANCH_INTEGRACAO>)" HEAD -- .claude/settings.json; echo "frente: $?"   # 1: a frente commitou o arquivo
+```
+
+Com o `S`, `wt: 1` ou `frente: 1`, use o procedimento abaixo. O gate da Fase 11 desliga o `S`, mas
+o commit da barreira (`frente: 1`) e a working tree diferente (`wt: 1`) continuam visíveis. Sem
+nenhum dos três (saída vazia ou `H …`, `wt: 0` e `frente: 0`), o merge é simples: `git merge
+--no-edit origin/<BRANCH_INTEGRACAO>` (merge, nunca rebase). Recusado ou com conflito: `git merge
+--abort`, **pare** e volte ao owner. Outro número (`merge-base` não encontrado): **pare**.
+
+No procedimento, a working tree com os temporários não barra o merge, e o `deny` de frentes
+paralelas é resolvido pela união. As variáveis do Bash não passam de uma chamada à outra: o 1º
+bloco grava `pre` e `tmp` num arquivo de estado, no diretório git da worktree (fora da working
+tree), e os blocos seguintes os releem de lá. Sem o estado, o bloco para com mensagem, sem mudar
+nada. O 1º bloco guarda a cópia da working tree fora do repositório, desliga o skip-worktree, volta
+o arquivo ao commitado e faz o merge:
+
+```bash
+e="$(git rev-parse --git-path cockpit-merge)" && rm -f "$e" && pre="$(git rev-parse HEAD)" && tmp="$(mktemp)" \
+  && cp .claude/settings.json "$tmp" && printf '%s %s\n' "$pre" "$tmp" >"$e" \
+  && git update-index --no-skip-worktree .claude/settings.json && git checkout -- .claude/settings.json \
+  && { git merge --no-edit origin/<BRANCH_INTEGRACAO>; echo "merge: $?"; }   # merge, nunca rebase
+```
+
+Sem a linha `merge:`, o merge não rodou: restaure (abaixo) e **pare**. Saída 0 (merge limpo ou
+"Already up to date"): o merge já terminou; vá à conferência. Outra saída, com conflito só no
+`.claude/settings.json` (`git diff --name-only --diff-filter=U`): resolva pela união do `deny`, a
+partir da versão da integração, nunca removendo item, e conclua o merge:
+
+```bash
+novo="$(jq -n --argjson o "$(git show :2:.claude/settings.json)" --argjson t "$(git show :3:.claude/settings.json)" \
+  '$t | .permissions.deny = ((.permissions.deny // []) as $x | $x + (($o.permissions.deny // []) - $x))')" \
+  && printf '%s\n' "$novo" > .claude/settings.json && git add .claude/settings.json && git commit --no-edit
+```
+
+Conflito em outro arquivo, conflito modify/delete no `.claude/settings.json` (um dos lados o
+apagou; falta o estágio `:2` ou o `:3`), merge recusado ou `jq` com erro: `git merge --abort`,
+restaure e **pare**.
+
+**Restauração** (toda parada depois do 1º bloco): devolve a cópia à working tree, religa o
+skip-worktree se o arquivo está no `HEAD` e apaga a cópia e o estado. Depois, **pare** e volte ao
+owner:
+
+```bash
+e="$(git rev-parse --git-path cockpit-merge)"; read -r pre tmp <"$e"; : "${pre:?}" "${tmp:?}"
+mkdir -p .claude && cp "$tmp" .claude/settings.json \
+  && { ! git cat-file -e HEAD:.claude/settings.json 2>/dev/null || git update-index --skip-worktree .claude/settings.json; } \
+  && rm -f "$tmp" "$e"
+```
+
+Confira o arquivo do `HEAD` contra a ponta, como no passo 5. Sem `true` (inclusive com o arquivo
+apagado pela integração), o merge já está commitado: restaure e **pare**; o owner decide entre
+manter o merge e desfazê-lo.
+
+```bash
+git show HEAD:.claude/settings.json | jq -e --argjson b "$(git show 'origin/<BRANCH_INTEGRACAO>:.claude/settings.json' 2>/dev/null || echo '{}')" \
+  '(.permissions.deny = []) == ($b | .permissions.deny = []) and ((($b.permissions.deny // []) - .permissions.deny) == [])'
+```
+
+Por fim, reaplique sobre o arquivo do `HEAD` toda diferença da cópia em relação ao commitado em
+`pre`: hooks, `enabledPlugins` temporários, qualquer chave, na ordem de chaves do `HEAD`. O que a
+integração trouxe fica, e valor igual dos dois lados vale como acordo. Em lista, entram os itens
+acrescentados na cópia e saem os que ela tirou. O `deny` é a união. O bloco religa o skip-worktree
+e apaga a cópia e o estado. Dá erro: valor mudado dos dois lados para valores diferentes (fora
+listas); chave apagada de um lado e mudada no outro; em lista, item tirado dos dois lados com item
+novo só na cópia (pode ser o mesmo item, como um hook, mudado dos dois lados). Erro: restaure e
+**pare**.
+
+```bash
+e="$(git rev-parse --git-path cockpit-merge)"; read -r pre tmp <"$e"; : "${pre:?}" "${tmp:?}"
+novo="$(jq -n --slurpfile s "$tmp" --argjson p "$(git show "$pre:.claude/settings.json")" --argjson h "$(git show HEAD:.claude/settings.json)" '
+  def m($p; $l; $h):   # [] ausente, [v] presente: commitado em pre, cópia, HEAD
+    if $l == $p then $h elif $h == $p or $h == $l then $l
+    elif ($l | length) == 1 and ($h | length) == 1 then
+      (if $p == [] then null else $p[0] end) as $b | $l[0] as $x | $h[0] as $y
+      | if ($x | type) == "object" and ($y | type) == "object" and ($b | type | IN("object", "null")) then
+          [reduce ($y + $x + ($b // {}) | keys_unsorted[]) as $k ({};
+            m([$b // {} | select(has($k)) | .[$k]]; [$x | select(has($k)) | .[$k]]; [$y | select(has($k)) | .[$k]]) as $r
+            | if $r == [] then . else .[$k] = $r[0] end)]
+        elif ($x | type) == "array" and ($y | type) == "array" and ($b | type | IN("array", "null")) then
+          ($b // []) as $c | ($c - $x) as $t
+          | if ($t - ($t - ($c - $y))) != [] and ($x - $c - $y) != [] then error("item de lista mudado dos dois lados")
+            else [($y - $t) + ($x - $c - $y)] end
+        else error("mudou dos dois lados") end
+    else error("apagada de um lado, mudada no outro") end;
+  (($h.permissions.deny // []) as $d | $d + (($s[0].permissions.deny // []) - $d)) as $u
+  | m([$p]; $s; [$h])[0] | if $u == [] then . else .permissions.deny = $u end')" \
+  && printf '%s\n' "$novo" > .claude/settings.json \
+  && git update-index --skip-worktree .claude/settings.json && rm -f "$tmp" "$e"
+```
+
+**Hooks depois do merge.** Nos dois ramos (merge simples e procedimento), com o merge concluído e
+depois do passo 5 do "Depois do OK" (antes dele, o próprio passo 5 decide), refaça a decisão dos
+hooks: a integração pode ter posto ou tirado o registro deles do `.claude/settings.json`.
+
+```bash
+cstk hooks status --project-path <worktree> | grep -E ' (pretooluse-bash-guard|posttooluse-tool-call-tick)\.sh '
+```
+
+Os dois com `registro=none` (sessões sem o `bash-guard`): `cstk hooks install --local --project-path
+<worktree>`. Os dois com `registro=both` (o commitado e o `settings.local.json` registram, e cada
+chamada conta em dobro): `cstk hooks install --remove-classic --project-path <worktree>`, sem
+`--local`, que mantém o registro do `.claude/settings.json` e tira o do `settings.local.json`. Ele
+regrava o `.claude/settings.json`: sem o skip-worktree ligado (`H` no `git ls-files -v`), volte o
+arquivo ao commitado com `git checkout -- .claude/settings.json`. Os dois com
+`registro=settings.json` ou `registro=settings.local.json`: segue. Outro valor, ou valores
+diferentes entre os dois: **pare** e volte ao owner. Depois de um `install`, rode o status de novo:
+os dois com `settings.local.json` (depois do `--local`) ou `settings.json` (depois do
+`--remove-classic`), ou **pare**.
 
 ## Verificação de plugins (D7, D13)
 
@@ -332,16 +567,19 @@ Roda na raiz onde o agente vai ser usado (na worktree, quando é lá).
 | desabilitado | entrada existe na raiz, mas não habilitada | `enable -s project`, sob a política |
 | ausente | nenhuma entrada para a raiz | `install` do item listado, sob a política |
 | desconhecido | listagem falhou, saída ilegível, marketplace divergente ou `gitCommitSha` ausente | **nada é executado**; volta ao owner |
-| SHA divergente | `gitCommitSha` difere do SHA conferido do mapa | reaplica a regra de proibidos aos agentes mapeados e confere o conteúdo só de agentes nesse SHA; o reprovado vira "papel sem agente"; **nunca `update`** |
+| SHA divergente | `gitCommitSha` difere do SHA conferido do mapa | reaplica a regra de proibidos aos agentes mapeados e confere o conteúdo só de agentes nesse SHA; o reprovado vira "papel sem agente"; roda de novo a "Barreira técnica (D9)"; **nunca `update`** |
 
 4. **Conferência pré-install**: `git -C <clone> status --porcelain` está vazio.
 5. **Conferência pós-install** (Princípio IV): no `gitCommitSha` instalado, o mapa reverificado e o
    conteúdo só de agentes. Reprovado: desinstala com `-s project` e **para**. Aprovado: o SHA
    instalado vai ao log, na rodada seguinte ao install.
 
-**Conteúdo só de agentes** (lista fechada): o `installPath` tem só `.claude-plugin/plugin.json`,
-`README.md`, `LICENSE*` e os `.md` citados no array `agents` do `plugin.json`; nenhum outro arquivo
-nem diretório (`commands/`, `skills/`, `hooks/`, `output-styles/`, `.mcp.json`, executável). O
+**Conteúdo só de agentes** (lista fechada; o verificador é `historico.mjs plugin`): o `installPath`
+tem só `.claude-plugin/plugin.json`, `README.md`, `LICENSE*`, os `.md` citados no array `agents` do
+`plugin.json`, `.md` na raiz fora do array (só com frontmatter de agente válido e `name` sem
+colisão), `.in_use/` (só arquivos regulares de nome numérico, sem subdiretório nem symlink) e
+`.orphaned_at` (arquivo regular); nenhum outro arquivo nem diretório (`commands/`, `skills/`,
+`hooks/`, `output-styles/`, `.mcp.json`, executável, symlink). O
 `plugin.json` não tem as chaves `hooks`, `mcpServers`, `lspServers`, `commands`, `skills` nem
 `outputStyles`. O frontmatter de cada agente só tem `name`, `description`, `tools`, `model` e
 `color`. Qualquer outra coisa reprova o plugin.
@@ -423,15 +661,46 @@ owner. Até aqui, **nenhuma escrita além do log**.
    depois de criada), separados por espaço: é o que liga a worktree ao gate da Fase 11.
 2. Grave `docs/specs/<frente>/decisoes-do-owner.md` na worktree, com a seção `Histórico` vinda do
    log, nas regras da cópia versionada.
-3. **Valide** pelas checagens 1 a 5 da seção "Validação do registro" (títulos, seções não vazias,
-   caminhos, irreversibilidade, instalações). Falhou: **pare**; não commite.
+3. **Valide** pelas checagens 1 a 6 da seção "Validação do registro" (títulos, seções não vazias,
+   caminhos, irreversibilidade, instalações, dependências). Falhou: **pare**; não commite.
+3.bis **Modo autônomo ligado** (FR-007, D3): leia o modo pela regra da seção "Modo autônomo" do
+   `rito-dev` (citada, não copiada). Ligado, o registro vai em **PR própria**, só com
+   `docs/specs/<frente>/decisoes-do-owner.md`, a partir de `origin/<BRANCH_INTEGRACAO>`; **pare** até
+   o owner aprová-la e mesclá-la (a trava lê o plano da base, nunca o do PR). O registro é caminho
+   de governança: diga ao owner que o dono aprova no commit atual e reexecuta o workflow da trava
+   ("Re-run") para o check ficar verde. PR aberta: avise e retome só por comando explícito, sem
+   polling longo. Fechada sem merge: a frente termina como não aprovada, sem abrir outra PR sozinho.
+   Depois do merge, o 1º commit da worktree segue como hoje (passo 4 e checagem 7). Em seguida, e
+   antes de abrir a PR de frente, faça merge de `origin/<BRANCH_INTEGRACAO>` na branch da frente
+   (merge, nunca rebase), pelo procedimento "Merge da integração com o arquivo commitado" da
+   "Barreira técnica (D9)" (a conferência dele escolhe entre o merge simples e o procedimento; os
+   dois refazem a decisão dos hooks), e confira que o registro ficou idêntico byte a byte ao
+   mergeado:
+   `git diff --quiet origin/<BRANCH_INTEGRACAO> HEAD -- docs/specs/<frente>/decisoes-do-owner.md`.
+   Diferente: **pare** e volte ao owner, porque a trava veria o registro como governança e
+   exigiria dono. Desligado: o fluxo abaixo, sem mudança.
 4. Commite **só esse arquivo** (`git add` por caminho; Conventional Commits em português; identidade
    de commit definida pelo projeto, em `docs/CICLO-GIT.md` quando existir). É o 1º commit da
    branch, feito antes de qualquer `pull` na worktree (um fast-forward antes dele tira a branch do
-   SHA de nascimento e o gate da Fase 11 sai 2). Rode logo em seguida a checagem 6. Telas, se
+   SHA de nascimento e o gate da Fase 11 sai 2). Rode logo em seguida a checagem 7. Telas, se
    houver, vão no 2º commit.
-5. Na worktree, rode `cstk hooks install --project-path <worktree>` (Princípio IV) e
-   `cstk mcp install --project-path <worktree>`.
+5. Na worktree, rode `cstk hooks install --local --project-path <worktree>` (Princípio IV) e
+   `cstk mcp install --project-path <worktree>`. O `--local` grava o registro dos hooks no
+   `.claude/settings.local.json`, fora do `.claude/settings.json` rastreado ("o Claude Code SOMA
+   hooks entre escopos", `cstk hooks --help`). Exceção: se `cstk hooks status --project-path
+   <worktree>` já mostra `registro=settings.json` (o arquivo commitado já registra os hooks), rode
+   sem `--local`, para não registrar em dobro. Depois, esconda do git os arquivos do cstk (dica do
+   `cstk hooks --help`). O `info/exclude` fica no diretório git comum: as linhas valem para todas
+   as worktrees e para a árvore principal. Diga isso ao owner: script novo em `.claude/hooks/` da
+   árvore principal fica ignorado pelo git (`git add -A` não o leva; `git add` explícito avisa e
+   pede `-f`). `PARE` na saída: **pare** e volte ao owner.
+
+   ```bash
+   ex="$(git rev-parse --git-path info/exclude)" && mkdir -p "${ex%/*}" || echo PARE
+   for l in '.claude/hooks/' '.claude/settings.local.json' '.claude/*.bak' '.claude/*.bak-pre-dedup'; do
+     grep -qxF -- "$l" "$ex" 2>/dev/null || printf '%s\n' "$l" >>"$ex" || echo PARE
+   done
+   ```
 6. **Verifique os plugins de novo, agora na worktree** (seção "Verificação de plugins"). Estado que
    pede ação fora da lista do Gate 0 é desvio: grave-o, **pare** e volte ao owner.
 7. Se a política estiver ligada, aplique os itens listados que ela permite, cada um registrado no
@@ -445,6 +714,22 @@ cd <worktree> && claude
 
 ## Antes da PR
 
-Copie de novo o histórico do log para a seção `Histórico` do registro (regras da cópia versionada), para que a
-PR leve o que foi alterado fora do repositório. Na Fase 11 do `rito-dev`, o gate de instalações
-temporárias confere esse mesmo log e a linha de base.
+Copie o histórico do log para `docs/specs/<frente>/historico.md`, nos dois modos, para que a PR leve
+o que foi alterado fora do repositório. As regras da cópia versionada (seção "Linha de base e guarda
+de escrita") valem para esse arquivo. O registro fica intocado depois do Gate 0 sem aprovação do
+owner: a seção `Histórico` dele é a do Gate 0. Na Fase 11 do `rito-dev`, o gate de instalações temporárias confere
+esse mesmo log e a linha de base.
+
+**Emenda do owner durante a frente** (decisão do owner na rodada 3 do `bmad-code-review` do
+modo autônomo). No modo `ligado`, o registro só muda por PR de registro própria, só com
+`docs/specs/<frente>/decisoes-do-owner.md`, a partir de `origin/<BRANCH_INTEGRACAO>`, aprovada pelo
+owner. É governança: a aprovação de dono é o gate, como no passo 3.bis. Por isso "registro
+intocado" e a D11 ("caminho acrescentado depois não amplia o limite") valem "sem aprovação do
+owner". Depois do merge, a trava vale pela versão emendada, que ela lê na base. `Caminhos
+previstos`, `Dependências novas`, `Instalações previstas` e `Smoke` emendados valem a partir do
+merge, nunca antes. Em seguida, faça merge de `origin/<BRANCH_INTEGRACAO>` na branch da frente pelo
+procedimento "Merge da integração com o arquivo commitado" e confira o registro byte a byte, como
+no passo 3.bis:
+`git diff --quiet origin/<BRANCH_INTEGRACAO> HEAD -- docs/specs/<frente>/decisoes-do-owner.md`.
+Diferente: **pare** e volte ao owner. A emenda nunca vai na PR de frente. No modo `desligado`, segue
+como hoje, no gate humano da PR de frente.

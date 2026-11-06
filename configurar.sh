@@ -49,8 +49,8 @@ REPO_ROOT="$COCKPIT_DIR"
 }
 
 # Ordem fixa de gravação (data-model.md). URLs, DESTINOS_DO_PROJETO e PREFIXOS_BRANCH são as únicas opcionais.
-CHAVES_ORDEM="PROJETO_NOME REPO_REMOTO BRANCH_INTEGRACAO BRANCH_PRODUCAO GERENCIADOR_PACOTES CMD_TYPECHECK CMD_LINT CMD_BUILD CMD_DEPLOY_INTEGRACAO CMD_DEPLOY_PRODUCAO URL_AMBIENTE_INTEGRACAO URL_AMBIENTE_PRODUCAO IDENTIDADES DONOS_CODEOWNERS BOARD PRINCIPIO_III DESTINOS_DO_PROJETO PREFIXOS_BRANCH"
-CHAVES_OPCIONAIS=" URL_AMBIENTE_INTEGRACAO URL_AMBIENTE_PRODUCAO DESTINOS_DO_PROJETO PREFIXOS_BRANCH "
+CHAVES_ORDEM="PROJETO_NOME REPO_REMOTO BRANCH_INTEGRACAO BRANCH_PRODUCAO GERENCIADOR_PACOTES CMD_TYPECHECK CMD_LINT CMD_BUILD CMD_DEPLOY_INTEGRACAO CMD_DEPLOY_PRODUCAO URL_AMBIENTE_INTEGRACAO URL_AMBIENTE_PRODUCAO IDENTIDADES DONOS_CODEOWNERS BOARD PRINCIPIO_III DESTINOS_DO_PROJETO PREFIXOS_BRANCH MODO_AUTONOMO"
+CHAVES_OPCIONAIS=" URL_AMBIENTE_INTEGRACAO URL_AMBIENTE_PRODUCAO DESTINOS_DO_PROJETO PREFIXOS_BRANCH MODO_AUTONOMO "
 # Prefixos de branch (feature fix chore docs hotfix, nessa ordem) e os placeholders de render derivados deles.
 PREFIXOS_PADRAO="feature fix chore docs hotfix"
 DERIVADAS="PREFIXO_FEATURE PREFIXO_FIX PREFIXO_CHORE PREFIXO_DOCS PREFIXO_HOTFIX"
@@ -345,6 +345,9 @@ validar_chave() {
     PRINCIPIO_III)
       case "$v" in ligado | desligado) ;; *) erro "Valor inválido para PRINCIPIO_III: use ligado ou desligado."; return 1 ;; esac
       ;;
+    MODO_AUTONOMO)
+      case "$v" in ligado | desligado) ;; *) erro "Valor inválido para MODO_AUTONOMO: use ligado ou desligado."; return 1 ;; esac
+      ;;
     IDENTIDADES)
       [ -n "$v" ] || { erro "Valor inválido para IDENTIDADES: informe ao menos uma identidade (nome:email)."; return 1; }
       local IFS=';' itens
@@ -390,11 +393,74 @@ chaves_faltantes() {
   printf '%s' "${out# }"
 }
 
+# modo_da_constituicao ARQ — regra "1 e 1" (contrato modo-autonomo §1): ligado só com
+# exatamente uma linha `Merge autônomo: ligado` e exatamente uma linha de modo. O `\r` sai antes
+# (checkout com CRLF, autocrlf): a trava lê o blob pela API, sem ele.
+modo_da_constituicao() {
+  local t
+  t="$(tr -d '\r' <"$1")"
+  if [ "$(grep -cFx 'Merge autônomo: ligado' <<<"$t" || true)" = 1 ] && [ "$(grep -cE '^Merge autônomo: (ligado|desligado)$' <<<"$t" || true)" = 1 ]; then
+    printf 'ligado'
+  else
+    printf 'desligado'
+  fi
+}
+
+# imprimir_config_github — só no modo ligado: lista o que a pessoa configura no
+# GitHub (Princípio IV: este script não cria nada). Fontes: research R3, R4, R10, R13, R15, R16, R17.
+# Vale a linha da constituição em disco (a semente mantida não é regravada), não o MODO_AUTONOMO.
+imprimir_config_github() {
+  local modo c integ prod const="$RAIZ/docs/constitution.md"
+  modo="$(valor MODO_AUTONOMO)"
+  if [ -f "$const" ] && [ -r "$const" ]; then
+    c="$(modo_da_constituicao "$const")"
+    if [ "$c" != "$modo" ]; then
+      aviso "MODO_AUTONOMO='$modo' no cockpit.config diverge da constituição mantida (docs/constitution.md diz $c). Vale a constituição: a configuração abaixo segue $c. Se o modo acabou de mudar, reexecute a trava e o require-codeowner-approval nas PRs abertas e, ao desligar, desarme o auto-merge das PRs do agente (gh pr merge <n> --disable-auto)."
+      modo="$c"
+    fi
+  elif [ "$modo" = ligado ]; then
+    aviso "MODO_AUTONOMO='ligado', mas não há docs/constitution.md legível neste projeto: sem a constituição na integração, a trava caminhos-previstos publica failure \"erro de leitura: constituição\" em toda PR e o rito vale desligado. Crie a constituição com a linha \`Merge autônomo: ligado\`; até lá a configuração do GitHub não é impressa."
+    modo=desligado
+  fi
+  [ "$modo" = ligado ] || return 0
+  integ="$(valor BRANCH_INTEGRACAO)"; prod="$(valor BRANCH_PRODUCAO)"
+  log ""
+  log "Merge autônomo ligado: configure no GitHub (este script não cria nada):"
+  log "  - Identidade própria do agente: fora do CODEOWNERS (P1); sem papel admin nem maintain no repositório (P2); escrita só em Contents e Pull requests; sem Administration nem Workflows; token fora do repositório."
+  log "  - Ruleset de $integ sem bypass, com os checks obrigatórios ci, commitlint e caminhos-previstos."
+  log "    Fonte esperada de caminhos-previstos: o app que publica o status da trava (o do GITHUB_TOKEN do workflow); que seja o GitHub Actions continua NÃO VERIFICADO e o smoke S3 prova; sem ID numérico."
+  if [ "$integ" != "$prod" ]; then
+    log "  - Ruleset de $prod sem bypass, com o check obrigatório caminhos-previstos-producao."
+    log "    Fonte esperada de caminhos-previstos-producao: a mesma do ruleset de $integ (o app que publica o status da trava)."
+  fi
+  log "  - Segredo TOKEN_AUTOMACAO: GitHub App ou token fine-grained de identidade fora do CODEOWNERS, só deste repositório, com Contents e Pull requests, sem Administration nem Workflows; nunca o token pessoal do dono (o release.yml roda com ele, e a promoção também quando integração ≠ produção, sobre código que chega à produção sem leitura humana)."
+  log "  - A trava (.github/workflows/caminhos-previstos.yml) só roda se estiver na branch padrão do repositório: pull_request_target usa o arquivo de lá."
+  log "  - Quando a trava exige dono (sem registro, governança, fork, PR para a produção que não é a de promoção, correção com manifesto), o dono aprova no commit atual da PR e reexecuta o workflow da trava (Re-run)."
+  log "  - Auto-merge e apagar branch no merge habilitados no repositório; merge commit permitido quando integração ≠ produção (a promoção é por merge commit)."
+  log "  - Permissões padrão do GITHUB_TOKEN na opção restrita (só leitura); nenhum workflow em pull_request com statuses: write."
+  log "  - Limite conhecido: a trava não confere o autor da PR. No modo ligado, qualquer identidade com escrita cuja PR caiba no registro de uma frente (inclusive de frente antiga: registro não expira) passa sem leitura humana."
+  log "  - Ao trocar o modo (ligar ou desligar): reexecute a trava e o require-codeowner-approval nas PRs abertas, porque os status antigos continuam valendo até lá."
+  log "  - Para desligar o modo: troque a linha da constituição, devolva aos rulesets o gate humano (require-codeowner-approval obrigatório) e confira que nenhuma PR do agente ficou com auto-merge armado (gh pr merge <n> --disable-auto)."
+}
+
+# normalizar_modo — MODO_AUTONOMO é opcional e nunca derruba o fluxo: ausente,
+# vazio ou fora de ligado/desligado vale desligado (aviso só quando inválido).
+normalizar_modo() {
+  local v=""
+  definido MODO_AUTONOMO && v="$(valor MODO_AUTONOMO)"
+  case "$v" in
+    ligado | desligado) ;;
+    "") setar MODO_AUTONOMO desligado ;;
+    *) aviso "MODO_AUTONOMO inválido ('$v'): vale desligado."; setar MODO_AUTONOMO desligado ;;
+  esac
+}
+
 # validar_todos — exige as obrigatórias (sem presumir valor, FR-016) e valida
 # todos os valores. Devolve 1 se algo falhar (mensagens já emitidas).
 validar_todos() {
   local k v rc=0
   normalizar_identidades
+  normalizar_modo
   for k in $CHAVES_ORDEM; do
     # Opcional vazia = ausente, como no cockpit.config gravado; senão o render
     # a resolveria e o --atualizar seguinte daria residual (FR-006).
@@ -424,6 +490,7 @@ perguntar() {
   definido "$chave" && padrao="$(valor "$chave")"
   chave_opcional "$chave" && dica=" (- para vazio)"
   [ "$chave" != BOARD ] || dica=" (- = sem board)"
+  [ "$chave" != MODO_AUTONOMO ] || dica=""
   while :; do
     if [ -n "$padrao" ]; then printf '%s%s [%s]: ' "$texto" "$dica" "$padrao"; else printf '%s%s: ' "$texto" "$dica"; fi
     IFS= read -r resp || falhar "Entrada encerrada antes de responder $chave."
@@ -495,6 +562,10 @@ perguntar_chave() {
     BOARD) perguntar BOARD "Board do projeto (dono/número)" ;;
     DESTINOS_DO_PROJETO) perguntar DESTINOS_DO_PROJETO "Destinos mantidos pelo projeto (caminhos separados por espaço)" ;;
     PREFIXOS_BRANCH) perguntar PREFIXOS_BRANCH "Prefixos de branch de feature, fix, chore, docs e hotfix, nessa ordem (padrão: $PREFIXOS_PADRAO)" ;;
+    MODO_AUTONOMO)
+      definido MODO_AUTONOMO || setar MODO_AUTONOMO desligado
+      perguntar MODO_AUTONOMO "Merge autônomo (ligado ou desligado)"
+      ;;
     PRINCIPIO_III)
       # Padrão sugerido só na pergunta interativa; no modo não interativo a
       # chave ausente é erro (FR-016).
@@ -1163,6 +1234,7 @@ main() {
 
   log "Passo 5/5: guard hooks"
   provisionar_hooks || rc=$?
+  imprimir_config_github
   exit "$rc"
 }
 

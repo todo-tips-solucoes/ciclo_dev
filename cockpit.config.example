@@ -91,3 +91,11 @@ DESTINOS_DO_PROJETO=''
 # Exemplo: PREFIXOS_BRANCH='feat fix chore docs hotfix'
 
 PREFIXOS_BRANCH=''
+
+# --- Merge autônomo (opcional) -----------------------------------------------
+# `ligado` ou `desligado`. Ausente, vazia ou inválida vale `desligado` (aviso na inválida).
+# O rito não lê esta chave: ela só grava a linha `Merge autônomo:` da constituição semente.
+# `ligado` exige identidade própria do agente e rulesets sem bypass; o configurar.sh imprime
+# o que configurar no GitHub e nunca cria nada.
+
+MODO_AUTONOMO='desligado'

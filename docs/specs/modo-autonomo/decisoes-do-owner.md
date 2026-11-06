@@ -137,7 +137,10 @@ recomendadas".
     arquivo do PR).
   - PR de correção ou de revert só toca arquivos da PR original da frente, referenciada por número e
     mergeada na mesma base. A frente sai do registro, nunca do título nem da branch.
-  - A PR de promoção fica fora da trava (D8). O workflow precisa estar na branch padrão.
+  - A trava roda também em PR para a produção e é check obrigatório nas regras dela, com contexto
+    próprio. Passa sozinha só a PR de promoção (D8): origem na branch de integração, no mesmo
+    repositório. Qualquer outro PR para a produção exige aprovação de dono no commit atual
+    (emenda de 2026-11-06, block-001). O workflow precisa estar na branch padrão.
   - Alternativas recusadas: só a skill confere (o agente confere a si mesmo); skill e CI juntas (dois
     parsers do mesmo bloco).
   - Validação: `deployment-engineer`, `security-auditor` e `architect-reviewer`, concordam com
@@ -389,3 +392,53 @@ O OK para todas as ondas cobre: a worktree; este arquivo como 1º commit; `cstk 
 `cstk mcp install`; todas as ondas do `/feature-00c` com os spawns liberados em auto mode;
 `bmad-code-review` até zerar achados altos e críticos; commit, push, PR e CI. A sessão para no gate
 de merge, que continua com o owner (o cockpit mantém gate humano). Depois do merge: smoke e Fase 11.
+
+Em 2026-11-06, na sessão da worktree (`/feature-00c`, gate `owasp-security` do plan, block-001):
+
+- PR direto para a produção fora da trava (crítico): "A1: trava também na prod (Recomendado)".
+  Emenda a D4 acima.
+- configuração do semantic-release com o `TOKEN_AUTOMACAO` (alto): "A2: config vira governança
+  (Recomendado)". `.releaserc*`, `release.config.*` e a chave `release` do `package.json` entram na
+  lista de governança da D4. O token é de GitHub App ou fine-grained de identidade não dona,
+  restrito ao repositório, nunca o pessoal do owner. O `release.yml` não muda.
+- registro forjado (alto): "Confirmo (Recomendado)". Todo `docs/specs/*/decisoes-do-owner.md` é
+  caminho de governança.
+- checklist de segurança: CHK015 "Emendar agora"; CHK026 "Coberto pela D8" (o modo autônomo nunca
+  promove lote com frente irreversível); CHK033 "Aceito, documentado" (`extends` para arquivo
+  local, limitado aos caminhos previstos aprovados e ao escopo do token); CHK034 "Aceito como
+  decidido" (promoção autônoma salvo frente irreversível marcada na Fase 0).
+
+Em 2026-11-06, na rodada 1 do `bmad-code-review` (achados em `review-findings.md`):
+
+- contenção na produção: "Texto declara a espera (Recomendado)". A A1 continua valendo: o revert da
+  PR de promoção é PR para a produção e exige aprovação de dono. O agente abre o revert na hora e
+  avisa o owner com diagnóstico, e o texto do rito diz que a contenção aguarda essa aprovação.
+- autoria na trava: "Só rejeitar fork (Recomendado)". PR cuja cabeça está em outro repositório
+  exige dono. O autor não é conferido pela trava (limite conhecido): a identidade segue conferida
+  pelo agente antes do merge (P1 a P5).
+- reordenação de chaves no `.claude/settings.json`: "Alinhar a spec ao código (Recomendado)".
+  Reordenar chave JSON não muda efeito, e a FR-009 deixa de citar "reordenar".
+- `CLAUDE.md` e `.claude/` em subpastas: "Governança em qualquer pasta (Recomendado)".
+  `CLAUDE.md` e `CLAUDE.local.md` em qualquer pasta, e qualquer componente `.claude/` do caminho,
+  são governança. Fonte: <https://code.claude.com/docs/en/memory> (`CLAUDE.md` e `CLAUDE.local.md`
+  de subpasta carregam sob demanda).
+
+Em 2026-11-06, na rodada 2 do `bmad-code-review`:
+
+- promoção: "Merge direto em X (Recomendado)". Emenda a D8. O agente espera os checks
+  obrigatórios verdes com a cabeça da PR de promoção em X e faz `gh pr merge <n> --merge
+  --match-head-commit X`, sem `--auto`. Com cabeça diferente o GitHub recusa (REST de merge: "409
+  Conflict if sha was provided and pull request head did not match",
+  <https://docs.github.com/en/rest/pulls/pulls#merge-a-pull-request>).
+- histórico da frente: "Arquivo próprio (Recomendado)". O histórico vai para
+  `docs/specs/<frente>/historico.md`, nos dois modos. O registro fica intocado depois do Gate 0.
+  Emenda a decisão de `docs/specs/rito-descoberta/decisoes-do-owner.md` (histórico copiado para o
+  registro antes da PR).
+
+Em 2026-11-06, na rodada 3 do `bmad-code-review`:
+
+- emenda do registro durante a frente: "Emenda por PR aprovada (Recomendado)". No modo ligado, o
+  registro só muda por PR de registro própria, aprovada pelo owner (governança). Depois do merge, a
+  trava passa a valer pela versão emendada, porque a aprovação do owner é o gate. Por isso
+  "registro intocado depois do Gate 0" e a D11 da `rito-descoberta` ("caminho acrescentado depois
+  não amplia o limite") passam a valer "sem aprovação do owner". No modo desligado segue como hoje.

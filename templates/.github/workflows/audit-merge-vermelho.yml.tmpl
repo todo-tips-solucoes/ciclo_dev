@@ -1,5 +1,10 @@
 # Gerado pelo cockpit. Abre uma issue de auditoria (uma por merge) quando um PR é mergeado com check vermelho.
 # pull_request_target roda o arquivo da branch base e aqui não baixa nem executa nada do PR.
+# Modo autônomo ligado: o check aprovacao-de-dono não conta como vermelho, porque a aprovação de dono deixa de ser exigida
+# nas PRs de frente. A linha `Merge autônomo:` da constituição é lida pela API em dois lugares, no commit base do PR (`base.sha`
+# do evento) e na ponta da branch de integração (a fonte da verdade do D1), e o filtro só vale com `ligado` nos dois. SHA vazio,
+# leitura que falha ou modos diferentes (o modo foi trocado entre a abertura e o merge) abrem a issue, como no modo desligado.
+# Qualquer outro check vermelho continua abrindo a issue.
 name: audit-merge-vermelho
 
 on:
@@ -27,6 +32,9 @@ jobs:
           BASE: ${{ github.event.pull_request.base.ref }}
           URL_PR: ${{ github.event.pull_request.html_url }}
           AUTOR_MERGE: ${{ github.event.pull_request.merged_by.login }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          INTEGRACAO: |-
+            {{BRANCH_INTEGRACAO}}
         run: |
           set -euo pipefail
           export LC_ALL=C
@@ -56,6 +64,18 @@ jobs:
             grep -Fxf "$obrigatorios" "$vermelhos" >"$filtrados" || true
             mv "$filtrados" "$vermelhos"
             nota="Lista filtrada pelos checks obrigatórios da branch base."
+          fi
+          ligado_em() { # ligado_em REF — 0 só com a constituição daquele ref legível e na regra "1 e 1" com ligado, lida sem o `\r` (CRLF)
+            local m
+            m="$(mktemp)"
+            [ -n "$1" ] || return 1 # ref vazio pode ler a branch padrão (o padrão do `ref` na API de conteúdo): vale desligado
+            gh api -H "Accept: application/vnd.github.raw+json" "repos/$REPO/contents/docs/constitution.md?ref=$(jq -rn --arg r "$1" '$r | @uri')" 2>/dev/null | tr -d '\r' >"$m" || return 1
+            [ "$(grep -cFx 'Merge autônomo: ligado' "$m" || true)" = 1 ] && [ "$(grep -cE '^Merge autônomo: (ligado|desligado)$' "$m" || true)" = 1 ]
+          }
+          if ligado_em "${BASE_SHA:-}" && ligado_em "$INTEGRACAO"; then
+            filtrados="$(mktemp)"
+            grep -vFx 'aprovacao-de-dono' "$vermelhos" >"$filtrados" || true
+            mv "$filtrados" "$vermelhos"
           fi
           if [ ! -s "$vermelhos" ]; then
             echo "Nenhum check vermelho obrigatório: nada a auditar."
