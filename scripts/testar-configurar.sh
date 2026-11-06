@@ -1767,7 +1767,7 @@ pr27 3 hh "$PRD" feat o/r 2 "" true
 roda27; espera27 "origem em outra base" failure "não mergeada nesta base"
 pr27 3 hh "$INT" feat o/r 2 "" true; files27 3 "src/a.js||modified" "docs/leia.md||added"
 roda27; espera27 "origem sem registro" failure "não é PR de frente"
-pr27 5 h1 "$INT" fix o/r 1 "$(printf 'Origem: #3\nOrigem: #4\n')"; files27 3 "src/a.js||modified" "docs/specs/f/x.md||added"; NOSPEC27= files27 5 "src/a.js||modified"
+pr27 5 h1 "$INT" fix o/r 1 "$(printf 'Origem: #3\nOrigem: #4\n')"; files27 3 "src/a.js||modified" "docs/specs/f/x.md||added"; NOSPEC27='' files27 5 "src/a.js||modified"
 roda27; espera27 "duas linhas Origem caem na frente (src/a.js cabe no bloco)" success "conforme registro de f"
 # origem que toca f e g, com erro 500 ao ler o registro de g: erro de leitura, nunca correção só de f (E2-9)
 reset27; put27 basesha docs/specs/f/x.md ""; files27 3 "src/a.js||modified" "docs/specs/f/x.md||added" "docs/specs/g/y.md||added"; pr27 3 hh "$INT" feat o/r 3 "" true
