@@ -2,6 +2,13 @@
 # Segredo opcional TOKEN_AUTOMACAO (PAT ou token de App); sem ele usa o GITHUB_TOKEN, que exige
 # "Allow GitHub Actions to create and approve pull requests" ligado e deixa os checks do PR
 # aguardando aprovação de execução.
+# Modo autônomo ligado (linha `Merge autônomo:` da constituição na integração): TOKEN_AUTOMACAO é obrigatório (sem ele o job falha e não
+# cria o PR com o GITHUB_TOKEN, cujo evento não dispara o CI), o repositório precisa permitir merge commit (a promoção) e
+# auto-merge (as PRs de frente), e o corpo do PR leva a linha do SHA da produção antes da promoção (rollback), recalculada a
+# cada push na integração.
+# Este fluxo NUNCA mergeia nem arma o auto-merge. Quem promove é o agente, por merge direto em X, sem auto-merge:
+# depois do smoke combinado no SHA fixado X e com os checks obrigatórios verdes e a cabeça do PR em X, roda
+# `gh pr merge <n> --merge --match-head-commit X`.
 # A promoção recomendada é por merge commit (como na Fase 9 do rito-dev). Com squash, os commits
 # da integração nunca entram na produção; por isso o fluxo compara o conteúdo (árvore) das duas
 # pontas e não abre nem reabre o PR quando já é igual.
@@ -53,6 +60,27 @@ jobs:
             echo "Produção e integração têm o mesmo conteúdo: nada a promover."
             exit 0
           fi
+          modo="$(mktemp)"
+          # o `\r` sai antes da regra "1 e 1" (constituição commitada com CRLF)
+          gh api -H "Accept: application/vnd.github.raw+json" "repos/$REPO/contents/docs/constitution.md?ref=$(jq -rn --arg r "$INTEGRACAO" '$r | @uri')" 2>/dev/null | tr -d '\r' >"$modo" || : >"$modo"
+          ligado=0
+          if [ "$(grep -cFx 'Merge autônomo: ligado' "$modo" || true)" = 1 ] && [ "$(grep -cE '^Merge autônomo: (ligado|desligado)$' "$modo" || true)" = 1 ]; then ligado=1; fi
+          if [ "$ligado" = 1 ]; then
+            if [ -z "${TOKEN_AUTOMACAO:-}" ]; then
+              echo "::error::Modo autônomo ligado exige o segredo TOKEN_AUTOMACAO (identidade fora do CODEOWNERS, só Contents e Pull requests); o GITHUB_TOKEN não dispara o CI do PR." >&2
+              exit 1
+            fi
+            permite="$(gh api "repos/$REPO" --jq '[.allow_auto_merge, .allow_merge_commit] | all')" || permite=false
+            if [ "$permite" != true ]; then
+              echo "::error::Modo autônomo ligado exige auto-merge e merge commit permitidos nas configurações do repositório." >&2
+              exit 1
+            fi
+            sha_pre="$(gh api "repos/$REPO/commits/heads/$PRODUCAO" --jq '.sha')" || sha_pre=""
+            if ! [[ "$sha_pre" =~ ^[0-9a-f]{40}$ ]]; then
+              echo "::error::Não consegui ler o SHA da produção antes da promoção (rollback)." >&2
+              exit 1
+            fi
+          fi
           corpo="$(mktemp)"
           {
             # As crases são markdown literal no corpo do PR, não expansão.
@@ -61,6 +89,9 @@ jobs:
             gh api "repos/$REPO/compare/$PRODUCAO...$INTEGRACAO" \
               --jq '.commits[:50][] | "- " + .sha[0:7] + " " + (.commit.message | split("\n")[0])'
           } >"$corpo"
+          if [ "$ligado" = 1 ]; then
+            printf '\nRollback (SHA da produção antes da promoção): %s\n' "$sha_pre" >>"$corpo"
+          fi
           existente="$(gh pr list --repo "$REPO" --base "$PRODUCAO" --head "$INTEGRACAO" --state open --json number --jq '.[0].number // empty')"
           if [ -n "$existente" ]; then
             gh pr edit "$existente" --repo "$REPO" --body-file "$corpo"

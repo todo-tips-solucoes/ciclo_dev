@@ -6,11 +6,12 @@
 //   node historico.mjs pendentes <log>       → installs/enables temporários sem desfazer posterior
 //   node historico.mjs gate <frente>         → gate da Fase 11, rodado dentro da worktree da frente
 //   node historico.mjs frente <nome>         → valida o nome da frente (^[a-z0-9][a-z0-9-]*$, até 64)
+//   node historico.mjs plugin <installPath>  → veredito "conteúdo só de agentes" + regras deny + SHA
 //
 // Códigos de saída: foto 0 ok / 1 falha fechado; pendentes 0 nenhum / 1 há pendentes / 2 log
 // ausente, ilegível, vazio, sem evento base ou com linha mal formada; gate 0 pode encerrar / 1
 // pendente, diferença ou foto que falhou / 2 log, base ou worktree com problema; frente 0 válido /
-// 2 inválido. Uso errado: 64. Contrato: seção "Formato do histórico" da SKILL.md. Nunca imprime
+// 2 inválido; plugin 0 ok / 1 reprovado ou falha fechado. Uso errado: 64. Contrato: seção "Formato do histórico" da SKILL.md. Nunca imprime
 // conteúdo de arquivo. O git roda com --no-optional-locks: a foto não toca o índice.
 
 import { execFileSync } from 'node:child_process';
@@ -106,7 +107,7 @@ function instalados(HOME) {
   for (const [id, ents] of Object.entries(ip.plugins ?? {})) {
     for (const e of [].concat(ents)) {
       if (!objeto(e)) falha(`installed_plugins.json: entrada inválida em ${limpa(id)} (falha fechado)`);
-      out.push({ id, scope: e.scope ?? '-', projectPath: e.projectPath ?? '-', version: e.version ?? '-', sha: e.gitCommitSha ?? '-' });
+      out.push({ id, path: e.installPath, scope: e.scope ?? '-', projectPath: e.projectPath ?? '-', version: e.version ?? '-', sha: e.gitCommitSha ?? '-' });
     }
   }
   return { ip, out };
@@ -418,6 +419,143 @@ function gate(frente, HOME) {
   process.exit(dif.length ? 1 : 0);
 }
 
+// Subcomando `plugin`: contrato em docs/specs/modo-autonomo/contracts/historico-plugin.md (D9, D10).
+const NOME = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
+const CHAVES_AGENTE = new Set(['name', 'description', 'tools', 'model', 'color']);
+const PROIBIDAS_PLUGIN = ['hooks', 'mcpServers', 'lspServers', 'commands', 'skills', 'outputStyles'];
+const DIRS_PROIBIDOS = new Set(['skills', 'commands', 'hooks', 'output-styles']); // nunca valem por estar no array agents; comparado em minúsculas
+const NOMINAIS = new Set(['it-ops-orchestrator', 'codebase-orchestrator']);
+const TERMOS = ['browser', 'chrome', 'playwright', 'puppeteer', 'computer', 'desktop'];
+
+// Frontmatter simples `chave: valor`; null quando ausente, com linha fora desse formato (inclusive
+// `chave:valor`, sem espaço, que não é chave em YAML) ou com chave duplicada (qual das duas vale
+// depende do leitor: falha fechado). Exceção: `tools:Read` fica com o `:` no valor e reprova no
+// formato fechado. Linha recuada ou `- X` logo depois de `tools:` emenda no valor (lista em bloco vira
+// item com `-`, que reprova no formato fechado). Espaço que não é espaço comum nem TAB (NBSP U+00A0 e
+// afins) em qualquer linha: null, porque o YAML não o lê como separador.
+function frontmatter(txt) {
+  const m = /^---\r?\n([\s\S]*?)\r?\n---(\r?\n|$)/.exec(txt);
+  if (!m) return null;
+  const fm = {};
+  let ultima = null;
+  for (const l of m[1].split(/\r?\n/)) {
+    if (/[^\S \t]/.test(l)) return null;
+    if (!l.trim()) continue;
+    if (ultima === 'tools' && /^([ \t]|-)/.test(l)) { fm.tools = `${fm.tools} ${l.trim()}`.trim(); continue; }
+    const k = /^([A-Za-z]+):([ \t]*)(.*)$/.exec(l);
+    if (!k || Object.hasOwn(fm, k[1]) || (!k[2] && k[3] && k[1] !== 'tools')) return null;
+    fm[k[1]] = (k[2] || !k[3] ? '' : ':') + k[3].trim();
+    ultima = k[1];
+  }
+  return fm;
+}
+
+// Item de `tools` em formato fechado: `Nome` ou `Nome(...)`, sem caractere de YAML (comentário, tag,
+// âncora, alias, escape, aspas, mapa, lista) nem `*` fora dos parênteses (`Bash(git:*)` passa).
+// Fora disso conta como proibido (falha fechado).
+const ITEM_TOOLS = /^[A-Za-z][A-Za-z0-9_]*(\([^()#!&\\'"{}[\]]*\))?$/;
+// Escalares tipados do YAML: o leitor de verdade não lê como nome de ferramenta.
+const ESCALARES = new Set(['true', 'false', 'null', 'yes', 'no', 'y', 'n', 'on', 'off', '~']);
+
+function proibidoPorTools(fm) {
+  // (c) sem linha tools: o agente herda todas as ferramentas. Nulo, vazio, `[]` e `*` reprovam abaixo.
+  if (fm.tools === undefined) return true;
+  // Colchete nas duas pontas ou em nenhuma: `[Read` e `Read]` deixam o colchete no item, que reprova.
+  const v = /^\[(.*)\]$/.exec(fm.tools)?.[1] ?? fm.tools;
+  // Item vazio (`[]`, `""`, vírgula sobrando), escalar tipado e `: ` (YAML inválido) também reprovam.
+  return v.split(',').map((t) => t.trim()).some((t) => {
+    const b = t.toLowerCase();
+    return !ITEM_TOOLS.test(t) || ESCALARES.has(b) || /:\s/.test(t) || b.startsWith('mcp__')
+      || TERMOS.some((x) => b.includes(x)) || ['webfetch', 'websearch', 'agent', 'task'].includes(b.split('(')[0]);
+  });
+}
+
+function plugin(arg, HOME) {
+  if (!isAbsolute(arg)) falha('installPath deve ser absoluto (falha fechado)');
+  let real;
+  try { real = realpathSync(arg); } catch { return falha('installPath inexistente (falha fechado)'); }
+  if (real !== resolve(arg)) falha('installPath com symlink no caminho (falha fechado)');
+  if (!dentro(real, norma(join(HOME, '.claude', 'plugins', 'cache')))) falha('installPath fora de ~/.claude/plugins/cache (falha fechado)');
+
+  const inst = instalados(HOME);
+  if (inst === null) falha('installed_plugins.json ausente (falha fechado)');
+  const ents = inst.out.filter((e) => e.path === arg);
+  if (ents.length === 0) falha('installPath sem entrada em installed_plugins.json (falha fechado)');
+  if (ents.length > 1) falha('installPath com mais de uma entrada em installed_plugins.json (falha fechado)');
+  if (typeof ents[0].sha !== 'string' || !/^[0-9a-f]{7,64}$/.test(ents[0].sha)) falha('gitCommitSha ausente ou inválido (falha fechado)');
+
+  const pj = lerJson(join(real, '.claude-plugin', 'plugin.json'), true);
+  if (!objeto(pj) || typeof pj.name !== 'string' || !NOME.test(pj.name)) falha('plugin.json sem name válido (falha fechado)');
+  if (!Array.isArray(pj.agents) || !pj.agents.length) falha('array agents ausente ou vazio (falha fechado)');
+  const motivos = [];
+  for (const k of PROIBIDAS_PLUGIN) if (k in pj) motivos.push(`plugin.json com a chave ${k}`);
+
+  const citados = new Set(); // caminhos relativos (sem ./)
+  for (const it of pj.agents) {
+    if (typeof it !== 'string' || !it || isAbsolute(it) || it.split('/').includes('..') || it.includes('\\')) {
+      falha('item do array agents inválido (falha fechado)');
+    }
+    const rel = it.replace(/^\.\//, '');
+    if (!rel.endsWith('.md') || rel.split('/').some((c) => !c || c === '.')) falha('item do array agents inválido (falha fechado)');
+    if (DIRS_PROIBIDOS.has(rel.split('/')[0].toLowerCase())) motivos.push(`agente citado em diretório proibido: ${limpa(rel)}`);
+    citados.add(rel);
+  }
+  const dirsOk = new Set(['.claude-plugin', '.in_use']);
+  for (const c of citados) { const p = c.split('/'); for (let i = 1; i < p.length; i++) dirsOk.add(p.slice(0, i).join('/')); }
+
+  // varredura: tudo que não estiver na lista fechada reprova.
+  const agentes = []; // { rel, cit }
+  const anda = (rel) => {
+    let ents2;
+    try { ents2 = readdirSync(join(real, rel), { withFileTypes: true }); } catch { motivos.push(`diretório ilegível: ${limpa(rel)}`); return; }
+    for (const e of ents2.sort((a, b) => cmp(a.name, b.name))) {
+      const r = rel ? `${rel}/${e.name}` : e.name;
+      let s;
+      try { s = lstatSync(join(real, r)); } catch (x) { if (x.code === 'ENOENT' && rel === '.in_use') continue; motivos.push(`ilegível: ${limpa(r)}`); continue; }
+      if (s.isSymbolicLink()) { motivos.push(`symlink: ${limpa(r)}`); continue; }
+      if (rel === '.in_use') {
+        if (!s.isFile() || !/^[0-9]+$/.test(e.name)) motivos.push(`.in_use com entrada inválida: ${limpa(e.name)}`);
+        continue;
+      }
+      if (s.isDirectory()) {
+        if (dirsOk.has(r)) anda(r); else motivos.push(`diretório fora da lista: ${limpa(r)}`);
+        continue;
+      }
+      if (!s.isFile()) { motivos.push(`não regular: ${limpa(r)}`); continue; }
+      if (s.mode & 0o111) { motivos.push(`executável: ${limpa(r)}`); continue; }
+      if (citados.has(r)) agentes.push({ rel: r, cit: true });
+      else if (r === '.claude-plugin/plugin.json' || r === '.orphaned_at' || r === 'README.md' || /^LICENSE/.test(r)) continue;
+      else if (!r.includes('/') && r.endsWith('.md')) agentes.push({ rel: r, cit: false });
+      else motivos.push(`arquivo fora da lista: ${limpa(r)}`);
+    }
+  };
+  anda('');
+  for (const c of citados) if (!agentes.some((a) => a.rel === c)) motivos.push(`agente citado ausente: ${limpa(c)}`);
+
+  const lidos = [];
+  for (const a of agentes) {
+    let fm = null;
+    try { fm = frontmatter(readFileSync(join(real, a.rel), 'utf8')); } catch { /* ilegível */ }
+    if (fm === null) { motivos.push(`frontmatter ausente ou inválido: ${limpa(a.rel)}`); if (a.cit) falha(`frontmatter de agente citado inválido: ${limpa(a.rel)} (falha fechado)`); continue; }
+    if (typeof fm.name !== 'string' || !NOME.test(fm.name)) falha(`name de agente inválido em ${limpa(a.rel)} (falha fechado)`);
+    for (const k of Object.keys(fm)) if (!CHAVES_AGENTE.has(k)) motivos.push(`frontmatter com chave fora da lista em ${limpa(a.rel)}: ${limpa(k)}`);
+    lidos.push({ ...a, fm });
+  }
+  const nomesCit = new Set(lidos.filter((a) => a.cit).map((a) => a.fm.name));
+  for (const a of lidos) if (!a.cit && nomesCit.has(a.fm.name)) motivos.push(`name colidente na raiz: ${limpa(a.rel)}`);
+
+  const deny = new Set();
+  for (const a of lidos) {
+    if (proibidoPorTools(a.fm) || NOMINAIS.has(a.fm.name)) {
+      deny.add(`Agent(${pj.name}:${a.fm.name})`);
+      deny.add(`Agent(subagent_type:${pj.name}:${a.fm.name})`);
+    }
+  }
+  const ok = motivos.length === 0;
+  process.stdout.write(JSON.stringify({ plugin: pj.name, sha: ents[0].sha, veredito: ok ? 'ok' : 'reprovado', motivos, deny: [...deny].sort(cmp) }) + '\n');
+  process.exit(ok ? 0 : 1);
+}
+
 const validaFrente = (f) => { if (!/^[a-z0-9][a-z0-9-]{0,63}$/.test(f)) falha(`frente inválida: ${limpa(f)}`, 2); };
 const casa = () => {
   const h = homedir();
@@ -439,4 +577,5 @@ if (cmd === 'foto') {
 } else if (cmd === 'pendentes' && args.length === 1) pendentes(args[0]);
 else if (cmd === 'gate' && args.length === 1) { validaFrente(args[0]); gate(args[0], casa()); }
 else if (cmd === 'frente' && args.length === 1) validaFrente(args[0]);
-else falha('uso: foto [--raiz <dir>] | pendentes <log> | gate <frente> | frente <nome>', 64);
+else if (cmd === 'plugin' && args.length === 1) plugin(args[0], casa());
+else falha('uso: foto [--raiz <dir>] | pendentes <log> | gate <frente> | frente <nome> | plugin <installPath>', 64);

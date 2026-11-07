@@ -30,8 +30,27 @@ promoção: o merge na integração já é a entrega em produção.
   (`/parallel-work <branch> --base origin/{{BRANCH_INTEGRACAO}}`, ou `origin/{{BRANCH_PRODUCAO}}`
   em hotfix), nunca em checkout na árvore principal.
 - Esta constituição e qualquer revert de emergência MUST NOT seguir a trilha Docs.
-- Uma PR MUST NOT ser mergeada sem aprovação explícita de um humano; o agente prepara,
-  acompanha o CI e para no gate de review.
+- Uma PR MUST NOT ser mergeada sem aprovação explícita de um humano, salvo no modo autônomo
+  `ligado` abaixo; o agente prepara, acompanha o CI e para no gate de review.
+
+Merge autônomo: {{MODO_AUTONOMO}}
+
+A linha acima vale `ligado` só quando a constituição da base de integração tem exatamente uma
+linha `Merge autônomo: (ligado|desligado)` (sem contar o `\r` de fim de linha) e ela diz
+`ligado`; qualquer outro resultado (nenhuma linha, duas ou mais, valor diferente, leitura que
+falhou) vale `desligado`. A linha é lida na base de integração, nunca na worktree, e relida antes
+de cada merge e de cada promoção. O procedimento completo está na seção "Modo autônomo" da skill
+`rito-dev`.
+
+- **Quando `desligado`:** vale o texto acima: nenhuma PR é mergeada sem aprovação humana.
+- **Quando `ligado`:** CI verde, a trava de caminhos previstos e o smoke no ambiente de integração
+  substituem a leitura humana da PR, só com identidade própria do agente e ruleset sem bypass
+  conferidos na hora, e com contadores separados por frente: até 2 correções de CI e até 2 de
+  smoke. Sem essas condições vale `desligado`.
+- **Limite conhecido:** a trava não confere o autor da PR. No modo `ligado`, qualquer identidade
+  com escrita cuja PR caiba num registro, inclusive de frente antiga, passa sem leitura humana.
+- O agente MUST NOT alterar a linha "Merge autônomo" nem a chave `MODO_AUTONOMO` de nenhuma
+  constituição ou config.
 
 ### II-bis. O registro da frente entra na própria PR
 

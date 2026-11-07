@@ -59,6 +59,29 @@ feature, fix, chore, docs, hotfix; última pergunta do modo interativo (`- para 
 valor inválido: exit 1 citando a chave (cada prefixo casa com `^[a-z0-9][a-z0-9._-]*$`, regra D4). A semente `docs/constitution.md` consome `{{PREFIXO_HOTFIX}}`. Deriva os placeholders `{{PREFIXO_*}}`, que não são
 chaves (não perguntados nem gravados).
 
+### Modo autônomo (`MODO_AUTONOMO`)
+
+Delta da feature `modo-autonomo` (contrato completo em `docs/specs/modo-autonomo/contracts/`).
+Chave opcional, última da ordem: `ligado` ou `desligado`. Ausente, vazia ou inválida vale
+`desligado` (inválida imprime aviso; exit 0). Interativo: pergunta com padrão `desligado`.
+`--atualizar` sem a chave: sem pergunta. A semente `docs/constitution.md` consome o valor na linha
+`Merge autônomo:`. Com `ligado`, imprime a lista do que configurar no GitHub; não cria nada.
+
+- Vale a constituição em disco (semente mantida, não regravada), lida pela regra "1 e 1" depois de
+  tirar o `\r` de cada linha (checkout com CRLF não vira `desligado`). Se o modo dela diverge do
+  `MODO_AUTONOMO`: aviso em stderr citando os dois valores, e a impressão segue o da constituição
+  (com `ligado` nela, imprime a lista mesmo com `desligado` no `cockpit.config`; com `desligado`,
+  não imprime). O aviso lembra de reexecutar a trava e o `require-codeowner-approval` nas PRs
+  abertas e, ao desligar, de desarmar o auto-merge das PRs do agente.
+- `docs/constitution.md` ausente ou ilegível com `MODO_AUTONOMO='ligado'` (por exemplo, listada em
+  `DESTINOS_DO_PROJETO` e ainda não criada): aviso explícito em stderr de que a trava
+  `caminhos-previstos` publica `failure` "erro de leitura: constituição" em toda PR e de que o rito
+  vale `desligado` até a constituição existir com a linha `Merge autônomo: ligado`. Depois do
+  aviso, a impressão segue `desligado`: a lista do GitHub não sai (rodada 3 do `bmad-code-review`).
+  Com `desligado`, nenhum aviso. Exit 0 nos dois casos.
+- A lista impressa inclui o limite conhecido de autoria (a trava não confere o autor da PR) e a
+  orientação para trocar o modo.
+
 ### Destinos do projeto (`DESTINOS_DO_PROJETO`)
 
 Delta da feature `destinos-do-projeto` (contrato completo em

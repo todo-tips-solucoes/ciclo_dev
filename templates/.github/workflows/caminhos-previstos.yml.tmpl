@@ -1,0 +1,300 @@
+# Gerado pelo cockpit. Trava do merge autônomo: confere os arquivos do PR contra os "Caminhos previstos"
+# do registro da frente (docs/specs/<frente>/decisoes-do-owner.md) lido na branch base.
+# pull_request_target roda o arquivo da branch padrão (a trava só roda se estiver nela) e este fluxo não
+# baixa nem executa nada do PR: só lê a API do GitHub. O resultado é um status no commit atual (HEAD) do
+# PR, com contexto `caminhos-previstos` (base = integração) ou `caminhos-previstos-producao` (base = produção).
+# Modo desligado (linha `Merge autônomo:` da constituição na integração, lida sem o `\r` do CRLF): passa sem conferir.
+# Exigem dono (passam só com aprovação de dono do CODEOWNERS no commit atual; o dono aprova e reexecuta
+# este fluxo, "Re-run"): PR sem registro, caminho de governança, PR de outro repositório (fork), PR para a
+# produção que não é a de promoção e correção (`Origem: #n`) com manifesto ou lockfile. O 1º motivo de dono fica
+# guardado e a aprovação só é lida no fim, depois de todas as conferências que falham direto. PR que só toca
+# registros (docs/specs/<x>/decisoes-do-owner.md: PR de registro ou de emenda) vai ao dono sem validar o bloco.
+# Falham direto (aprovar não muda nada; corrija a PR ou o registro): erro de leitura, HEAD mudou, lista
+# incompleta ou inválida, frente ambígua, bloco "Caminhos previstos" ausente, vazio ou inválido, arquivo
+# fora do bloco (na correção, o bloco da frente da origem), manifesto sem dependência aprovada, correção fora
+# da PR de origem ou com origem que não é PR de frente mergeada na mesma base, e CODEOWNERS sem dono na linha
+# `*`. Nunca aprova nem mergeia nada.
+name: caminhos-previstos
+
+on:
+  pull_request_target:
+    types: [opened, synchronize, reopened, edited]
+    branches:
+      - |-
+        {{BRANCH_INTEGRACAO}}
+      - |-
+        {{BRANCH_PRODUCAO}}
+
+permissions:
+  contents: read
+  pull-requests: read
+  statuses: write
+
+jobs:
+  verificar-caminhos-previstos:
+    name: verificar-caminhos-previstos
+    runs-on: ubuntu-latest
+    steps:
+      - name: Conferir caminhos previstos
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          PR: ${{ github.event.pull_request.number }}
+          EVENT_SHA: ${{ github.event.pull_request.head.sha }}
+          BASE_REF: ${{ github.event.pull_request.base.ref }}
+          INTEGRACAO: |-
+            {{BRANCH_INTEGRACAO}}
+          PRODUCAO: |-
+            {{BRANCH_PRODUCAO}}
+        run: |
+          set -euo pipefail
+          export LC_ALL=C
+          if ! command -v gh >/dev/null || ! command -v jq >/dev/null; then
+            echo "::error::gh e jq são necessários no runner."
+            exit 1
+          fi
+          CTX="caminhos-previstos"
+          if [ "$PRODUCAO" != "$INTEGRACAO" ] && [ "$BASE_REF" = "$PRODUCAO" ]; then CTX="caminhos-previstos-producao"; fi
+          T="$(mktemp -d)"
+          fim() { # fim ESTADO DESCRIÇÃO — publica o status no HEAD do evento e termina; só falha se não publicar
+            local LC_ALL=C d="${2//$'\n'/}" desc
+            # corte por byte no próprio bash, sem pipe (nada de SIGPIPE sob pipefail); iconv -c tira o caractere
+            # multibyte partido no corte e sai 1 nesse caso, daí o `|| true`
+            desc="$(iconv -c -f UTF-8 -t UTF-8 <<<"${d:0:120}")" || true
+            if ! gh api -X POST "repos/$REPO/statuses/$EVENT_SHA" -f state="$1" -f context="$CTX" -f description="$desc" >/dev/null; then
+              echo "::error::Não consegui publicar o status $CTX."
+              exit 1
+            fi
+            echo "$CTX: $1 — $desc"
+            exit 0
+          }
+          rota() { # rota REPO REF CAMINHO — rota da API de conteúdo, com o caminho e o ref codificados
+            local p r
+            p="$(jq -rn --arg p "$3" '$p | split("/") | map(@uri) | join("/")')"
+            r="$(jq -rn --arg r "$2" '$r | @uri')"
+            printf 'repos/%s/contents/%s?ref=%s' "$1" "$p" "$r"
+          }
+          conteudo() { # conteudo REPO REF CAMINHO — bytes do arquivo naquele commit; falha se não existe
+            gh api -H "Accept: application/vnd.github.raw+json" "$(rota "$@")"
+          }
+          regular() { # regular REPO REF CAMINHO — 0 só se a API de conteúdo descreve um arquivo (`type` file) no próprio caminho
+            # Fonte (https://docs.github.com/en/rest/repos/contents): link cujo alvo é arquivo do repositório responde com o
+            # conteúdo do alvo; outro link, com `type` symlink. Que o `path` seja o do alvo nesse caso não está confirmado (S3).
+            [ "$(gh api "$(rota "$@")" --jq '.type + " " + .path' 2>/dev/null)" = "file $3" ]
+          }
+          existe() { # existe REF CAMINHO — 0 existe, 1 não existe, 2 qualquer outro erro de leitura
+            conteudo "$REPO" "$1" "$2" >/dev/null 2>"$T/erro" && return 0
+            # "(HTTP 404)" no erro do gh é formato assumido, não confirmado na fonte (research R18): erro sem esse texto vale erro de leitura
+            grep -Fq '(HTTP 404)' "$T/erro" && return 1
+            return 2
+          }
+          listar() { # listar N ESPERADO — filename, previous e status separados por US (0x1f); sai 2 se há linha inválida, 1 se o total não fecha
+            local s
+            [ "$2" = 0 ] && return 0
+            # nome ou status com caractere de controle (0x00-0x1f, inclusive o próprio 0x1f e a quebra de linha) vira a linha "!",
+            # que a conferência abaixo reprova antes da contagem
+            s="$(gh api --paginate "repos/$REPO/pulls/$1/files?per_page=100" --jq '.[] | [.filename, (.previous_filename // ""), .status] | if any(.[]; tostring | explode | any(. < 32)) then "!" else join("\u001f") end')" || return 1
+            [ -z "$s" ] || printf '%s\n' "$s" | awk -F'\037' 'NF != 3 || $1 == "" || $3 !~ /^(added|removed|modified|renamed|copied|changed|unchanged)$/ { r = 1 } END { exit r }' || return 2
+            [ "$(printf '%s' "$s" | grep -c .)" = "$2" ] || return 1
+            printf '%s\n' "$s"
+          }
+          governanca() { # caminho de governança (D4, block-001); CLAUDE.md, CLAUDE.local.md e a entrada .claude valem em qualquer pasta, sem distinção de maiúsculas
+            local l="${1,,}"
+            case "$1" in
+              docs/constitution.md | cockpit.config | .github | .github/* | CODEOWNERS | docs/CODEOWNERS | .mcp.json | .npmrc | .yarnrc.yml | .husky | .husky/*) return 0 ;;
+            esac
+            case "/$l/" in */.claude/*) return 0 ;; esac
+            case "${l##*/}" in claude.md | claude.local.md) return 0 ;; esac
+            case "${1##*/}" in commitlint.config.* | .commitlintrc* | .releaserc* | release.config.*) return 0 ;; esac
+            case "$1" in docs/specs/*/decisoes-do-owner.md) [ "$(printf '%s' "$1" | awk -F/ '{print NF}')" = 4 ] && return 0 ;; esac
+            return 1
+          }
+          manifesto() { # manifesto ou lockfile pelo nome de base (D-P9)
+            case "${1##*/}" in
+              package.json | package-lock.json | npm-shrinkwrap.json | yarn.lock | pnpm-lock.yaml | pnpm-workspace.yaml | bun.lock | bun.lockb | deno.lock | requirements*.txt | pyproject.toml | poetry.lock | uv.lock | Pipfile | Pipfile.lock | go.mod | go.sum | Cargo.toml | Cargo.lock | Gemfile | Gemfile.lock | composer.json | composer.lock) return 0 ;;
+            esac
+            return 1
+          }
+          deny_puro() { # deny_puro STATUS — .claude/settings.json, arquivo comum (nunca link), só ganhou itens em permissions.deny (D-P10, CHK014)
+            local b h
+            regular "$HEAD_REPO" "$HEAD" .claude/settings.json || return 1
+            h="$(conteudo "$HEAD_REPO" "$HEAD" .claude/settings.json)" || return 1
+            if [ "$1" = added ]; then
+              b=""
+            else
+              regular "$REPO" "$BASE_SHA" .claude/settings.json || return 1
+              b="$(conteudo "$REPO" "$BASE_SHA" .claude/settings.json)" || return 1
+            fi
+            jq -en --argjson h "$h" --arg b "$b" '
+              def lim: if .permissions == {} then del(.permissions) else . end;
+              ($h | type == "object") and
+              (if $b == "" then
+                 ($h | keys) == ["permissions"] and ($h.permissions | type == "object") and ($h.permissions | keys) == ["deny"]
+                 and ($h.permissions.deny | type == "array") and all($h.permissions.deny[]; type == "string")
+               else
+                 ($b | fromjson) as $B
+                 | ($B | type == "object")
+                 and (($B | del(.permissions.deny) | lim) == ($h | del(.permissions.deny) | lim))
+                 and (($h.permissions.deny // []) | type == "array") and all(($h.permissions.deny // [])[]; type == "string")
+                 and ((($B.permissions.deny // []) | type == "array")
+                      and (($B.permissions.deny // []) as $bd | ($h.permissions.deny // []) as $hd | all($bd[]; . as $x | $hd | any(.[]; . == $x))))
+               end)' >/dev/null 2>&1
+          }
+          release_mudou() { # release_mudou ARQUIVO ANTERIOR STATUS — chave release de package.json mudou (A2); erro vale mudou
+            local b h
+            if [ "$3" = added ]; then b=null; else b="$(conteudo "$REPO" "$BASE_SHA" "${2:-$1}" | jq -c '.release // null')" || return 0; fi
+            if [ "$3" = removed ]; then h=null; else h="$(conteudo "$HEAD_REPO" "$HEAD" "$1" | jq -c '.release // null')" || return 0; fi
+            [ "$b" != "$h" ]
+          }
+          frentes_de() { # frentes_de ARQUIVO_DE_NOMES — <x> de docs/specs/<x>/ cujo registro existe na base; sai 2 se um registro não pôde ser lido
+            local x rc
+            while IFS= read -r x; do
+              if ! [[ "$x" =~ ^[A-Za-z0-9._-]+$ ]] || [ "$x" = . ] || [ "$x" = .. ]; then continue; fi
+              rc=0; existe "$BASE_SHA" "docs/specs/$x/decisoes-do-owner.md" || rc=$?
+              case "$rc" in 0) printf '%s\n' "$x" ;; 1) ;; *) return 2 ;; esac
+            done < <(awk -F/ 'NF >= 3 && $1 == "docs" && $2 == "specs" {print $3}' "$1" | sort -u)
+            return 0
+          }
+          DONO=""
+          dono() { [ -n "$DONO" ] || DONO="$1"; } # guarda o 1º motivo de dono; quem lê a aprovação é o exige_dono, no fim
+          exige_dono() { # exige_dono MOTIVO — passa só com APPROVED de dono do CODEOWNERS da base no HEAD atual
+            local arq donos aprovados
+            arq="$T/codeowners"
+            conteudo "$REPO" "$BASE_SHA" .github/CODEOWNERS >"$arq" 2>/dev/null || fim failure "erro de leitura: CODEOWNERS da base"
+            donos="$T/donos"
+            awk '$1 == "*" { for (i = 2; i <= NF; i++) if ($i ~ /^@/) print tolower(substr($i, 2)) }' "$arq" >"$donos"
+            [ -s "$donos" ] || fim failure "CODEOWNERS sem dono na linha *"
+            aprovados="$T/aprovados"
+            gh api --paginate "repos/$REPO/pulls/$PR/reviews" \
+              --jq '.[] | select((.state | ascii_downcase) != "commented" and (.state | ascii_downcase) != "pending") | [.user.login, .state, (.commit_id // "")] | @tsv' \
+              | awk -F'\t' -v head="$HEAD" '{ e[tolower($1)] = tolower($2); c[tolower($1)] = $3 } END { for (k in e) if (e[k] == "approved" && c[k] == head) print k }' >"$aprovados" \
+              || fim failure "erro de leitura: reviews"
+            if grep -Fxqf "$donos" "$aprovados"; then fim success "aprovado por dono ($1)"; fi
+            fim failure "aguarda aprovação de dono ($1)"
+          }
+
+          PR_JSON="$(gh api "repos/$REPO/pulls/$PR")" || fim failure "erro de leitura: PR"
+          campo() { printf '%s' "$PR_JSON" | jq -r "$1"; }
+          HEAD="$(campo '.head.sha')" BASE_SHA="$(campo '.base.sha')" BASE="$(campo '.base.ref')"
+          HEAD_REF="$(campo '.head.ref')" HEAD_REPO="$(campo '.head.repo.full_name // ""')" CHANGED="$(campo '.changed_files')"
+          CORPO="$(campo '.body // ""' | tr -d '\r')"
+          if [ "$PRODUCAO" != "$INTEGRACAO" ] && [ "$BASE" = "$PRODUCAO" ]; then CTX="caminhos-previstos-producao"; else CTX="caminhos-previstos"; fi
+
+          # 1. Modo (a integração é a fonte da verdade, também para PR à produção); o `\r` sai antes (constituição commitada com CRLF)
+          const="$(conteudo "$REPO" "$INTEGRACAO" docs/constitution.md | tr -d '\r')" || fim failure "erro de leitura: constituição"
+          a="$(printf '%s\n' "$const" | grep -cFx 'Merge autônomo: ligado' || true)"
+          b="$(printf '%s\n' "$const" | grep -cE '^Merge autônomo: (ligado|desligado)$' || true)"
+          if [ "$a" != 1 ] || [ "$b" != 1 ]; then fim success "modo desligado"; fi
+
+          # 2. HEAD, base e promoção
+          if [ -z "$HEAD" ] || [ "$HEAD" != "$EVENT_SHA" ]; then fim failure "HEAD mudou"; fi
+          [ "$HEAD_REPO" = "$REPO" ] || dono "PR de outro repositório"
+          if [ "$CTX" = caminhos-previstos-producao ]; then
+            if [ "$HEAD_REF" = "$INTEGRACAO" ] && [ "$HEAD_REPO" = "$REPO" ]; then fim success "PR de promoção"; fi
+            dono "PR para a produção"
+            exige_dono "$DONO"
+          fi
+
+          # 3. Arquivos; depois de listar, a cabeça da PR ainda tem de ser o SHA do evento
+          LISTA="$T/lista"
+          rc=0; listar "$PR" "$CHANGED" >"$LISTA" || rc=$?
+          case "$rc" in 0) ;; 2) fim failure "lista inválida" ;; *) fim failure "lista incompleta" ;; esac
+          H2="$(gh api "repos/$REPO/pulls/$PR" --jq '.head.sha')" || fim failure "erro de leitura: PR"
+          [ "$H2" = "$EVENT_SHA" ] || fim failure "HEAD mudou"
+          NOMES="$T/nomes"
+          awk -F'\037' '{print $1} $2 != "" {print $2}' "$LISTA" | sort -u >"$NOMES"
+
+          # 4. Governança
+          while IFS=$'\037' read -r f p s; do
+            for n in "$f" "$p"; do
+              [ -n "$n" ] || continue
+              if governanca "$n"; then
+                if [ "$n" = .claude/settings.json ] && [ -z "$p" ] && [ "$s" != removed ] && deny_puro "$s"; then continue; fi
+                dono "governança: $n"
+              fi
+              if [ "${n##*/}" = package.json ] && release_mudou "$f" "$p" "$s"; then dono "governança: release em $n"; fi
+            done
+          done <"$LISTA"
+          # PR que só toca registros (PR de registro ou de emenda, rodada 3): vai ao dono sem validar o bloco, para que um bloco
+          # inválido na base não trave a própria emenda
+          if [ -s "$NOMES" ] && ! grep -qvxE 'docs/specs/[^/]+/decisoes-do-owner\.md' "$NOMES"; then exige_dono "$DONO"; fi
+
+          # 5. Tipo da PR
+          ORIGEM=""
+          if [ "$(printf '%s\n' "$CORPO" | grep -cE '^Origem: #[1-9][0-9]{0,8}$' || true)" = 1 ]; then
+            ORIGEM="$(printf '%s\n' "$CORPO" | grep -E '^Origem: #[1-9][0-9]{0,8}$' | sed 's/^Origem: #//')"
+            OJ="$(gh api "repos/$REPO/pulls/$ORIGEM")" || fim failure "erro de leitura: origem"
+            if [ "$(printf '%s' "$OJ" | jq -r '.merged')" != true ] || [ "$(printf '%s' "$OJ" | jq -r '.base.ref')" != "$BASE" ]; then
+              fim failure "origem #$ORIGEM não mergeada nesta base"
+            fi
+            rc=0; listar "$ORIGEM" "$(printf '%s' "$OJ" | jq -r '.changed_files')" >"$T/olista" || rc=$?
+            case "$rc" in 0) ;; 2) fim failure "lista inválida da origem" ;; *) fim failure "lista incompleta da origem" ;; esac
+            awk -F'\037' '{print $1} $2 != "" {print $2}' "$T/olista" | sort -u >"$T/onomes"
+            OF="$(frentes_de "$T/onomes")" || fim failure "erro de leitura: registro da origem"
+            [ "$(printf '%s' "$OF" | grep -c .)" = 1 ] || fim failure "origem #$ORIGEM não é PR de frente"
+            MAN=""
+            while IFS= read -r n; do
+              grep -Fxq -- "$n" "$T/onomes" || fim failure "fora da PR de origem #$ORIGEM: $n"
+              if [ -z "$MAN" ] && manifesto "$n"; then MAN="$n"; fi
+            done <"$NOMES"
+            [ -z "$MAN" ] || dono "manifesto em correção: $MAN"
+            X="$OF"
+          else
+            FRENTES="$(frentes_de "$NOMES")" || fim failure "erro de leitura: registro"
+            NF="$(printf '%s' "$FRENTES" | grep -c . || true)"
+            [ "$NF" -le 1 ] || fim failure "frente ambígua"
+            if [ "$NF" = 0 ]; then dono "sem registro"; exige_dono "$DONO"; fi
+            X="$FRENTES"
+          fi
+
+          # 6. Bloco do registro de X (a frente da PR ou, na correção, a da origem), lido na base, nunca no PR. A correção
+          # também precisa caber nele: a origem pode ter sido mergeada no modo desligado, sem trava (rodada 3)
+          REG="$(conteudo "$REPO" "$BASE_SHA" "docs/specs/$X/decisoes-do-owner.md" | tr -d '\r')" || fim failure "erro de leitura: registro"
+          BLOCO="$(printf '%s\n' "$REG" | awk '
+            /^## / { if (alvo) exit; alvo = ($0 == "## Caminhos previstos"); next }
+            alvo && !dentro && /^```/ { dentro = 1; next }
+            alvo && dentro && /^```/ { fechou = 1; exit }
+            alvo && dentro { print }
+            END { if (dentro && !fechou) exit 3 }')" || fim failure "bloco Caminhos previstos inválido"
+          LITERAIS="$T/literais" PREFIXOS="$T/prefixos"
+          : >"$LITERAIS"; : >"$PREFIXOS"
+          total=0
+          while IFS= read -r l; do
+            [ -n "$l" ] || continue
+            total=$((total + 1))
+            case "$l" in " "* | *" " | $'\t'* | *$'\t' | /*) fim failure "linha inválida no bloco" ;; esac
+            case "/$l/" in */../* | */./* | *//*) fim failure "linha inválida no bloco" ;; esac
+            case "$l" in
+              *'/**')
+                pre="${l%'/**'}"
+                case "$pre" in '' | *'*'*) fim failure "linha inválida no bloco" ;; esac
+                printf '%s/\n' "$pre" >>"$PREFIXOS" ;;
+              *'*'*) fim failure "linha inválida no bloco" ;;
+              *) printf '%s\n' "$l" >>"$LITERAIS" ;;
+            esac
+          done <<<"$BLOCO"
+          [ "$total" -gt 0 ] || fim failure "bloco Caminhos previstos vazio"
+          # Formato fechado de "Dependências novas" (rodadas 3 e 4): `Nenhuma.` ou itens de lista que começam com o pacote entre
+          # crases, com observação opcional depois de um espaço (`- `lodash` (permanente)`); o mesmo da checagem 6 da
+          # rito-descoberta. Qualquer outro item ou texto vale "nenhuma". Limite conhecido: a trava confere que existe item
+          # aprovado, não o nome do pacote.
+          DEPS="$(printf '%s\n' "$REG" | awk '/^## / { a = ($0 == "## Dependências novas"); next } a && /^- `[^`[:space:]]+`( .*)?$/ { n++ } END { print n + 0 }')"
+          while IFS= read -r n; do
+            # na correção, manifesto ou lockfile já exige dono (passo 5); aqui só precisa caber no bloco
+            if [ -z "$ORIGEM" ] && manifesto "$n"; then
+              if [ "$DEPS" = 0 ] || ! grep -Fxq -- "$n" "$LITERAIS"; then
+                fim failure "manifesto sem dependência aprovada: $n"
+              fi
+              continue
+            fi
+            case "$n" in "docs/specs/$X/"*) continue ;; esac
+            grep -Fxq -- "$n" "$LITERAIS" && continue
+            while IFS= read -r pre; do
+              case "$n" in "$pre"*) continue 2 ;; esac
+            done <"$PREFIXOS"
+            fim failure "fora do bloco: $n"
+          done <"$NOMES"
+          # 7. Aprovação de dono: só depois de todas as conferências que falham direto
+          [ -z "$DONO" ] || exige_dono "$DONO"
+          [ -z "$ORIGEM" ] || fim success "correção de #$ORIGEM"
+          fim success "conforme registro de $X"

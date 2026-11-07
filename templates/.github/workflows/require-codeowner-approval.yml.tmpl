@@ -4,6 +4,8 @@
 # "Require review from Code Owners", com a opção abaixo para descartar aprovações antigas:
 # "Dismiss stale pull request approvals when new commits are pushed". Essa opção nativa descarta a
 # aprovação só quando entra commit que altera o diff do PR; o check deste fluxo é mais estrito nesse ponto.
+# Modo autônomo ligado (linha `Merge autônomo:` da constituição na integração): a aprovação de dono deixa de ser exigida nas PRs de frente;
+# sem aprovação o job passa com aviso (a trava caminhos-previstos exige a aprovação onde ela vale). A linha é lida pela API, nunca da árvore do PR.
 # Aqui só conta aprovação de dono dada no commit atual do PR; o último estado vale por dono: um pedido de mudança posterior anula só a aprovação do mesmo dono, e a aprovação de outro dono no commit atual continua contando. Este fluxo nunca aprova nem mergeia nada.
 name: require-codeowner-approval
 
@@ -28,6 +30,8 @@ jobs:
           REPO: ${{ github.repository }}
           PR: ${{ github.event.pull_request.number }}
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          INTEGRACAO: |-
+            {{BRANCH_INTEGRACAO}}
         run: |
           set -euo pipefail
           export LC_ALL=C
@@ -57,5 +61,13 @@ jobs:
             exit 0
           fi
           lista="$(sed 's/^/@/' "$donos" | paste -sd' ' -)"
+          modo="$(mktemp)"
+          # o `\r` sai antes da regra "1 e 1" (constituição commitada com CRLF)
+          gh api -H "Accept: application/vnd.github.raw+json" "repos/$REPO/contents/docs/constitution.md?ref=$(jq -rn --arg r "$INTEGRACAO" '$r | @uri')" 2>/dev/null | tr -d '\r' >"$modo" || : >"$modo"
+          if [ "$(grep -cFx 'Merge autônomo: ligado' "$modo" || true)" = 1 ] && [ "$(grep -cE '^Merge autônomo: (ligado|desligado)$' "$modo" || true)" = 1 ]; then
+            echo "::warning::Modo autônomo ligado: sem aprovação de dono neste PR. Podem aprovar: $lista"
+            echo "Modo autônomo ligado: aprovação de dono não exigida aqui (a trava caminhos-previstos decide)." >>"${GITHUB_STEP_SUMMARY:-/dev/null}"
+            exit 0
+          fi
           echo "::error::Aprovação pendente. Podem aprovar: $lista"
           exit 1

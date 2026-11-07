@@ -63,8 +63,8 @@ Chaves consumidas por este rito (ver `cockpit.config.example` na raiz do cockpit
 - **Nunca** promover para produção com o ambiente de integração quebrado ou sem smoke
   feito nele; **nunca** smoke em produção sem rollback anotado antes.
 - Identidade de quem aprova cada PR **não** vem de `cockpit.config` — pergunte ao
-  dev/owner na hora (Fase 4/Fase 9). As chaves `IDENTIDADES`, `BOARD` e
-  `PRINCIPIO_III` do `cockpit.config` não são consumidas por este rito; um config
+  dev/owner na hora (Fase 4/Fase 9). As chaves `IDENTIDADES`, `BOARD`,
+  `PRINCIPIO_III` e `MODO_AUTONOMO` do `cockpit.config` não são consumidas por este rito; um config
   sem elas continua válido.
 
 ## Etapa preparatória — Sincronizar
@@ -193,11 +193,18 @@ segurança real.
 Você nunca aprova nem mergeia sozinho — a aprovação é o registro de que um humano
 leu o diff.
 
+No modo `ligado`, ver "Modo autônomo", item 2 (a aprovação humana vira CI verde, trava e smoke).
+
 ## Fase 7 — Merge
 
 ```bash
 gh pr merge <número> --squash --delete-branch
 ```
+
+Confira o merge pelo estado da PR (`gh pr view <número> --json state`, `MERGED`), não pelo código
+de saída: rodado de dentro da worktree com o skip-worktree do `.claude/settings.json` ligado, o
+comando pode falhar na troca local de branch depois do merge remoto (seção "Gate da Fase 11" da
+skill `rito-descoberta`).
 
 **A limpeza local da worktree não é aqui — é a Fase 11.** As fases seguintes (smoke
 no ambiente de integração, promoção, smoke em produção) ainda podem precisar ler
@@ -207,6 +214,8 @@ Se o projeto tem deploy automático no push para `BRANCH_INTEGRACAO`, ele dispar
 aqui (comando/gatilho configurado: `CMD_DEPLOY_INTEGRACAO`, quando presente em
 `cockpit.config`). Merges que só tocam documentação costumam não disparar deploy,
 se o projeto tiver esse filtro configurado.
+
+No modo `ligado`, ver "Modo autônomo", itens 1 a 4.
 
 ## Fase 8 — Smoke no ambiente de integração
 
@@ -218,6 +227,8 @@ se o projeto tiver esse filtro configurado.
 3. Console/log limpo no que foi exercitado.
 4. Falhou → corrija com **nova PR** (volte à Fase 1). Ambiente de integração
    inutilizável → reverta a PR primeiro. **Nunca promova com ele quebrado.**
+
+No modo `ligado`, ver "Modo autônomo", itens 5 e 6.
 
 ## Fase 9 — Promoção para produção
 
@@ -246,6 +257,8 @@ gh pr list --base <BRANCH_PRODUCAO> --head <BRANCH_INTEGRACAO>   # existe PR de 
   o seletor de um workflow manual costuma pré-selecionar a branch default, que pode
   não ser `BRANCH_PRODUCAO`.
 
+No modo `ligado`, ver "Modo autônomo", item 7.
+
 ## Fase 10 — Smoke em produção (rollback ANTES)
 
 1. **Anote o rollback antes de testar:** SHA de `BRANCH_PRODUCAO` pré-promoção, e o
@@ -256,11 +269,16 @@ gh pr list --base <BRANCH_PRODUCAO> --head <BRANCH_INTEGRACAO>   # existe PR de 
 4. **Falhou → restore-to-green imediato:** execute o rollback anotado, confirme
    produção verde, só depois diagnostique. Avise o dev/owner.
 
+No modo `ligado`, ver "Modo autônomo", item 8.
+
 ## Fase 11 — Encerramento
 
 **Gate de instalações temporárias** (antes do "Encerrar"; vale quando a branch tem
 `docs/specs/<frente>/decisoes-do-owner.md`; docs, trivial e hotfix com incidente dispensam a Fase 0, não têm o registro e não rodam o gate; com a única exceção
-registrada na seção "Gate da Fase 11" da skill `rito-descoberta`). Rode dentro da worktree da frente:
+registrada na seção "Gate da Fase 11" da skill `rito-descoberta`). Antes do `gate`, desligue o
+skip-worktree do `.claude/settings.json` e rode de novo a "Barreira técnica (D9)" da skill
+`rito-descoberta` (comandos lá): reprovada, o encerramento para até o owner.
+Rode dentro da worktree da frente:
 
 ```bash
 node ~/.claude/skills/rito-descoberta/historico.mjs gate <frente>
@@ -274,12 +292,175 @@ node ~/.claude/skills/rito-descoberta/historico.mjs gate <frente>
   manda squash na PR e merge da integração). Diferente de 0, não encerre.
 - Detalhes do escopo comparado na seção "Gate da Fase 11" da skill `rito-descoberta`.
 
-Qualquer diferença impede o "Encerrar" e volta ao dev/owner.
+Qualquer diferença impede o "Encerrar" e volta ao dev/owner. Com saída 0, volte o
+`.claude/settings.json` rastreado ao commitado (`git checkout -- .claude/settings.json`): a working
+tree diferente dele, mesmo só na formatação, faz o `git worktree remove` falhar.
 
 Rode a etapa **"Encerrar"** da skill `/parallel-work` (guards, exit codes e passo a
 passo completos de remoção da worktree e da branch estão lá — não duplicados
 aqui), usando `<branch>` desta frente e a base atualizada (`BRANCH_INTEGRACAO`, ou
 `BRANCH_PRODUCAO` quando a fase 9 foi no-op ou em hotfix).
+
+## Modo autônomo
+
+Texto só do modo `ligado`; com o modo `desligado` (o padrão) as Fases 6 a 10 valem como estão
+escritas acima. Contrato completo: `docs/specs/modo-autonomo/contracts/modo-autonomo.md`. A
+`rito-descoberta` cita esta seção, não a copia.
+
+**1. Leitura do modo** (FR-003). Depois da base conferida, nunca na worktree:
+
+```bash
+git show origin/<BRANCH_INTEGRACAO>:docs/constitution.md | tr -d '\r' | grep -cFx 'Merge autônomo: ligado'
+git show origin/<BRANCH_INTEGRACAO>:docs/constitution.md | tr -d '\r' | grep -cE '^Merge autônomo: (ligado|desligado)$'
+```
+
+O `tr` tira o `\r` de constituição commitada com CRLF, como fazem o configurador e a trava. Vale
+`ligado` só quando os dois dão exatamente 1. Qualquer outro resultado vale `desligado`.
+Releia antes de cada merge (Fase 7) e de cada promoção (Fase 9). O agente nunca edita a linha nem
+a chave `MODO_AUTONOMO`.
+
+**2. Modo efetivo** (FR-005). Com a leitura `ligado`, confira na hora; qualquer item que falhe ou
+não possa ser lido faz o modo valer `desligado` e o rito para no gate humano:
+
+- P1: o usuário autenticado no `gh` não está entre os donos do `.github/CODEOWNERS` da base.
+- P2: `permissions.admin` falso e `permissions.maintain` não verdadeiro no repositório.
+- P3: `GET /repos/{owner}/{repo}/rules/branches/{branch}` mostra `required_status_checks` com `ci`,
+  `commitlint` e `caminhos-previstos` na integração e, se integração ≠ produção,
+  `caminhos-previstos-producao` na produção.
+- P4: `current_user_can_bypass` igual a `never` em cada ruleset que alcança a integração e a
+  produção; campo ausente ou outro valor vale `desligado` (a lista de bypass vazia é conferida pelo
+  owner). Fonte: <https://docs.github.com/en/rest/repos/rules>.
+- P5: auto-merge permitido no repositório.
+
+A identidade do agente tem escrita só em Contents e Pull requests, sem Administration nem Workflows,
+restrita a este repositório e fora do CODEOWNERS; nunca o token pessoal do owner.
+
+**3. Merge** (Fase 7, FR-012). Só depois de 1 e 2 e com smoke elegível (item 6):
+`gh pr merge <n> --auto --squash`. Nunca `--admin`, nunca `--delete-branch` (a branch é apagada
+pela configuração do repositório).
+
+Antes de armar, confira o status `caminhos-previstos` do commit atual da PR. O `headRefOid` vem do
+`gh pr view --json` (<https://cli.github.com/manual/gh_pr_view>). Na lista de statuses, "The first
+status in the list will be the latest one" (<https://docs.github.com/en/rest/commits/statuses>):
+
+```bash
+sha="$(gh pr view <n> --repo <REPO_REMOTO> --json headRefOid --jq .headRefOid)"
+gh api "repos/<REPO_REMOTO>/commits/$sha/statuses" --jq '[.[] | select(.context == "caminhos-previstos")][0] | [.state, .description] | @tsv'
+```
+
+Precisa ser `success`, com descrição diferente de `modo desligado` (status de antes de o modo
+ligar). Ausente, outro estado ou `modo desligado`: não arme e volte ao owner.
+
+A trava exige aprovação de dono em cinco casos:
+
+- PR sem registro (docs, trivial, hotfix);
+- PR de governança;
+- PR para a produção que não é a de promoção;
+- PR de outro repositório (fork);
+- correção ou revert com manifesto ou lockfile.
+
+Nesses casos, diga ao owner que o dono aprova no commit atual e reexecuta o workflow da trava
+("Re-run") para o check ficar verde. A aprovação de dono não libera arquivo fora do bloco
+"Caminhos previstos" nem as outras falhas diretas da trava: elas falham mesmo aprovadas. A saída é
+corrigir a PR ou emendar o registro (emenda: seção "Antes da PR" da `rito-descoberta`).
+
+Modo `desligado` em qualquer leitura (item 1 ou 2): desarme cada PR de frente sua que está aberta
+com o auto-merge armado, com `gh pr merge <n> --disable-auto` ("Disable auto-merge for this pull
+request", <https://cli.github.com/manual/gh_pr_merge>). Depois, siga no gate humano.
+
+Leitura diferente da anterior (o modo trocou, em qualquer sentido): avise o owner para reexecutar
+("Re-run") a trava e o `require-codeowner-approval` em cada PR aberta. Os status delas saíram do
+modo antigo.
+
+Camada extra (D5): antes de ligar o auto-merge, una (idempotente, sem repetir item nem apagar regra
+existente) ao `permissions.deny` do `.claude/settings.json` da worktree as regras
+`Bash(gh pr merge *--admin*)` e `Bash(gh * pr merge *--admin*)`, e releia o arquivo conferindo que
+estão lá; faltou alguma, pare. Sintaxe: o `*` casa qualquer texto em qualquer posição e a regra casa
+o comando inteiro (<https://code.claude.com/docs/en/permissions>). Que a regra bloqueie `--admin` é
+provado no caso `--admin` do smoke S3 (quickstart, Scenario 9, passo 4), não aqui: até esse registro, o bloqueio do `--admin` pela regra é não medido. Não substitui a proibição acima.
+
+**4. CI vermelho antes do merge** (FR-014). Conta SHAs distintos do PR com `ci` em falha; rerun do
+mesmo SHA não conta. Até 2 correções por commit na mesma branch. No 3º vermelho:
+`gh pr merge <n> --disable-auto`, `gh pr ready <n> --undo` (sem suporte do plano, o rótulo basta),
+rótulo `estacionada`, diagnóstico e recomendação ao owner.
+
+**5. Smoke falho na integração** (FR-015, FR-016). Conta só se o run foi no merge commit da frente;
+outro SHA volta ao owner sem correção. Falha transitória: um único rerun do mesmo SHA antes de
+contar. Correção: PR nova a partir de `origin/<BRANCH_INTEGRACAO>`, fora da worktree da frente, com
+rótulo `correcao-<n>` e a linha `Origem: #<pr-da-frente>` no corpo; a contagem vem de
+`gh pr list --state all` filtrada pelo rótulo e pela linha, e branch remota existente é retomada,
+não recriada. Até 2 correções. Na 3ª falha, reverta um por vez em ordem inversa (correções
+primeiro), cada um esperando o merge do anterior, com `gh pr revert <n>` e `Origem: #<pr-da-frente>`
+no corpo. Revert com conflito ou CI vermelho para e volta ao owner, sem laço. Revert que remove
+regras de `permissions.deny` ou toca governança (por exemplo, o `.claude/settings.json` da frente)
+cai na aprovação de dono: abra, avise o owner e espere a aprovação. Revert de PR que tocou arquivo
+fora do bloco "Caminhos previstos" (origem mergeada no modo desligado) falha direto na trava, mesmo
+aprovado. Nesse caso, o rollback exige antes a emenda do registro, por PR de registro aprovada pelo
+owner (seção "Antes da PR" da `rito-descoberta`); só depois do merge dela abra o revert. `gh pr
+revert` indisponível: pare e volte ao owner. A frente fica estacionada, worktree mantida, sem a
+Fase 11. Ambiente inutilizável afetando outras frentes: reverta primeiro, corrija depois.
+
+**6. Smoke da frente** (FR-017). Itens `Sn | comando | esperado literal | tipo` do registro na base,
+com `tipo` em `positivo`, `negativo` ou `manual`. Passa quando o stdout contém o esperado como
+substring literal (sem regex) e o exit é 0 (positivo) ou diferente de 0 (negativo). Sem item
+executável, ou sem ao menos um `negativo`, o merge fica no gate humano. Irreversibilidade diferente
+de "Nenhuma": merge autônomo na integração e parada no gate da promoção.
+
+**7. Promoção em lote** (Fase 9, FR-018, FR-019). Dispara ao fim do smoke de cada frente mergeada.
+O `promotion-pr` (com o `TOKEN_AUTOMACAO`; sem o segredo o rito para) só cria e atualiza a PR de
+promoção. Ele grava no corpo dela o SHA de rollback (o de `origin/<BRANCH_PRODUCAO>` antes da
+promoção), recalculado a cada push na integração, e não arma o auto-merge. Na promoção não há
+`--auto`: você mergeia direto, nesta ordem:
+
+1. Releia modo e pré-condições (itens 1 e 2).
+2. Lote = frentes na integração e não na produção. Fixe o SHA `X` da ponta de
+   `origin/<BRANCH_INTEGRACAO>`.
+3. Rode o smoke combinado em `X`, com resultado por frente.
+4. Lote com frente irreversível ou item `manual`: pare no gate humano.
+5. Confira a cabeça e o rollback (`gh pr view --json`, <https://cli.github.com/manual/gh_pr_view>):
+
+   ```bash
+   gh pr view <n> --repo <REPO_REMOTO> --json headRefOid,body
+   gh api repos/<REPO_REMOTO>/branches/<BRANCH_PRODUCAO> --jq .commit.sha
+   ```
+
+   O `headRefOid` é `X`. O SHA de rollback do corpo é a ponta atual da produção (2º comando). O
+   repositório permite merge commit. Cabeça diferente: volte ao passo 2. Rollback diferente: pare e
+   volte ao owner (o `promotion-pr` só recalcula num push na integração).
+6. Espere os checks obrigatórios verdes com a cabeça em `X`. Fonte:
+   <https://cli.github.com/manual/gh_pr_checks> (`--required` "Only show checks that are
+   required"; `--watch` "Watch checks until they finish"; `--fail-fast` "Exit watch mode on first
+   check failure"; `bucket` em `pass`, `fail`, `pending`, `skipping` ou `cancel`):
+
+   ```bash
+   gh pr checks <n> --repo <REPO_REMOTO> --required --watch --fail-fast
+   gh pr checks <n> --repo <REPO_REMOTO> --required --json bucket --jq '[.[].bucket] | length > 0 and all(. == "pass")'
+   ```
+
+   O 2º comando precisa imprimir `true`. Outro resultado: pare e volte ao owner. Não está
+   confirmado se a lista do `--required` inclui commit status, como o `caminhos-previstos-producao`
+   da trava (research R18). Se não incluir, a garantia desse check é o ruleset da produção, que
+   recusa o merge sem ele.
+7. Mergeie: `gh pr merge <n> --repo <REPO_REMOTO> --merge --match-head-commit X`. Pelo manual do
+   `gh`, `--match-head-commit` é o "Commit SHA that the pull request head must match to allow
+   merge" (<https://cli.github.com/manual/gh_pr_merge>): com outra cabeça, o merge é recusado.
+   Referência do REST de merge: "409 Conflict if sha was provided and pull request head did not
+   match" (<https://docs.github.com/en/rest/pulls/pulls#merge-a-pull-request>). Merge com erro,
+   qualquer que seja: releia a cabeça com
+   `gh pr view <n> --repo <REPO_REMOTO> --json headRefOid --jq .headRefOid`. Diferente de `X`:
+   volte ao passo 2. Igual: pare e volte ao owner.
+
+Integração = produção: a Fase 9 segue no-op.
+
+**8. Smoke em produção falho** (Fase 10, FR-020). Abra na hora o revert da PR de promoção como
+contenção (`gh pr revert`) e avise o owner com diagnóstico e recomendação. O revert é PR para a
+produção que não é a de promoção: a trava exige aprovação de dono, e a contenção aguarda essa
+aprovação (o dono aprova no commit atual e reexecuta o workflow da trava, "Re-run"). Reverta a
+culpada na integração pelo item 5. Sem culpada isolável, reverta o lote. A próxima promoção começa
+com o revert do revert, que também é PR para a produção e aguarda o dono: abra, avise o owner e
+espere a aprovação antes de promover. Depois do merge do revert na produção, confira se o
+`release.yml` gerou versão a partir dele e informe o owner. Integração = produção: não há PR de
+promoção, e o rollback é o do item 5.
 
 ## Formato de report ao dev
 
